@@ -120,3 +120,50 @@ def test_file_outside_the_task_is_refused(tmp_path):
 def test_apply_writes_files(tmp_path):
     assert patch.apply_files(tmp_path, [("pkg/m.py", "Y = 2\n")], []) == ["pkg/m.py"]
     assert (tmp_path / "pkg" / "m.py").read_text(encoding="utf-8") == "Y = 2\n"
+
+
+# T025: the only allowed file is a Python file whose content holds ``` fences or "FILE:" lines (patch.py's own
+# docstring does), and the answer has no header naming that file. Tiel answered T022's attempt 3 that way and the
+# whole answer was lost. Then the block runs from the first fence line to the LAST bare ``` line, and counts only
+# when the allowed file ends in .py and that content parses as Python (ast.parse). The T022 rule (exactly one code
+# block, no header anywhere) still applies to every file type. A header naming the allowed file still wins.
+
+MODULE_WITH_FENCES = '''"""Docs.
+
+    FILE: stratos/report.py
+    ```python
+    ...
+    ```
+"""
+X = 1
+'''
+
+
+def test_a_python_file_holding_fences_is_saved():
+    text = "Here is the module:\n```python\n" + MODULE_WITH_FENCES + "```\n"
+    assert patch.parse_files(text, allowed=["stratos/patch.py"]) == [("stratos/patch.py", MODULE_WITH_FENCES)]
+
+
+def test_the_answer_may_end_right_after_the_closing_fence():
+    text = "```python\n" + MODULE_WITH_FENCES + "```"
+    assert patch.parse_files(text, allowed=["stratos/patch.py"]) == [("stratos/patch.py", MODULE_WITH_FENCES)]
+
+
+def test_no_guess_when_the_joined_content_is_not_python():
+    text = "```python\nX = 1\n```\nThen call it:\n```python\nprint(X)\n```\n"
+    assert patch.parse_files(text, allowed=["stratos/a.py"]) == []
+
+
+def test_no_guess_for_a_file_that_is_not_python():
+    text = "```markdown\n# Title\n\n```\ncode\n```\n\nend\n```\n"
+    assert patch.parse_files(text, allowed=["docs/a.md"]) == []
+
+
+def test_no_guess_with_two_allowed_files_even_if_it_parses():
+    text = "```python\n" + MODULE_WITH_FENCES + "```\n"
+    assert patch.parse_files(text, allowed=["stratos/a.py", "stratos/b.py"]) == []
+
+
+def test_a_header_naming_the_file_still_wins_over_the_fallback():
+    text = "FILE: stratos/patch.py\n```python\n" + MODULE_WITH_FENCES + "```\n"
+    assert patch.parse_files(text, allowed=["stratos/patch.py"]) == [("stratos/patch.py", MODULE_WITH_FENCES)]
