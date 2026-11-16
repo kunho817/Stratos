@@ -76,6 +76,12 @@ def test_only_the_tasks_files_count_as_headers():
     assert "FILE: relative/path.py" in files[0][1] and files[0][1].rstrip().endswith('"""')
 
 
+def test_header_on_the_first_line_inside_the_fence():
+    text = "Here:\n```python\nFILE: stratos/a.py\nX = 1\n```\n```python\nFILE: stratos/b.py\nY = 2\n```\n"
+    assert patch.parse_files(text, allowed=["stratos/a.py", "stratos/b.py"]) == [("stratos/a.py", "X = 1\n"),
+                                                                                  ("stratos/b.py", "Y = 2\n")]
+
+
 def test_unclosed_block_is_ignored():
     assert patch.parse_files("FILE: a.py\n```python\nx = 1\n") == []
 

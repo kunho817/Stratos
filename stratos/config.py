@@ -10,7 +10,8 @@ BASE_URL = os.environ.get("STRATOS_BASE_URL", "http://127.0.0.1:8080")
 
 ROLES = {
     "coder": {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "none", "max_tokens": 6000},
-    "coder_hard": {"model": "flint-40b-a2.5b-ud-q4_k_xl", "effort": "high", "max_tokens": 12000},
+    # Flint thinks long: in T012 its thinking took most of 12000 tokens and two whole files were cut off
+    "coder_hard": {"model": "flint-40b-a2.5b-ud-q4_k_xl", "effort": "high", "max_tokens": 24000},
     # reads the diff after the tests pass; a different model from the coders, so it does not share their blind spots
     "reviewer": {"model": "qwen3.6-35b-a3b-ud-q3_k_m", "effort": "low", "max_tokens": 4000},
 }

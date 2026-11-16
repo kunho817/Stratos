@@ -52,6 +52,9 @@ def write_task(store, gw, task_id, log=print):
                 else:
                     ok, out = verify.run_tests(wt, task["tests"])
                     result, detail = ("passed" if ok else "failed"), out
+            if getattr(gw, "last_finish", None) == "length" and result != "passed":
+                detail = ("Your answer was cut off: it reached the length limit. Think briefly and write only the "
+                          "files the task needs, completely.\n" + detail)
             gw.telemetry.record("outcome", call_id=call_id, task=task_id, result=result, detail=detail[-500:])
             store.decide(task=task_id, attempt=attempt, role=role, model=r["model"], result=result)
             log(f"  attempt {attempt} ({role}, {r['model']}): {result}")

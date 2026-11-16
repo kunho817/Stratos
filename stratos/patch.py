@@ -31,10 +31,21 @@ def _norm(path):
     return str(PurePosixPath(path.strip().replace("\\", "/")))
 
 
+def _header_inside_fence(lines, ok):
+    """Move a header written as the first line inside a fence (```python / FILE: x.py) in front of the fence:
+    Flint wrote T012's files that way."""
+    out = list(lines)
+    for i in range(len(out) - 1):
+        m = HEADER_RE.match(out[i + 1])
+        if out[i].lstrip().startswith("```") and out[i].strip() != "```" and m and (ok is None or _norm(m.group(1)) in ok):
+            out[i], out[i + 1] = out[i + 1], out[i]
+    return out
+
+
 def parse_files(text, allowed=None):
     """[(path, content)] for every FILE block. allowed: if given, only headers naming one of these paths count."""
     ok = {_norm(a) for a in allowed} if allowed is not None else None
-    lines = (text or "").splitlines(keepends=True)
+    lines = _header_inside_fence((text or "").splitlines(keepends=True), ok)
     heads = []
     for i, line in enumerate(lines):
         m = HEADER_RE.match(line)
