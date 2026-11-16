@@ -1,7 +1,10 @@
 """The task loop: build the prompt, ask the model, apply its files, run the tests, retry or commit.
 
 Attempts follow the task's role's plan: the role's model a few times, then one cross-check by a different model.
-A task that still fails is handed to a person (status needs_human)."""
+A task that still fails is handed to a person (status needs_human). The loop is split into a write phase (the
+attempts, committing a candidate when a review is on) and a review phase (judging the candidates)."""
+from pathlib import Path
+
 from . import config, context, gitops, patch, review, verify
 
 
@@ -17,12 +20,13 @@ def attempt_plan(task):
     return config.ATTEMPT_PLANS[task.get("role", "coder")]
 
 
-def run_task(store, gw, task_id, log=print):
+def write_task(store, gw, task_id, log=print):
+    """Run the task's attempts until the tests pass, without a review; commit a candidate when a review is on."""
     task = store.get(task_id)
     wt = gitops.ensure_worktree(config.REPO, config.WORKTREES, task_id)
     store.update(task_id, status="running", worktree=str(wt))
-    failure = None
-    attempt = 0
+    failure = task.get("review_feedback")
+    attempt = task.get("attempts", 0)
     for role, tries in attempt_plan(task):
         r = config.ROLES[role]
         for _ in range(tries):
@@ -48,40 +52,72 @@ def run_task(store, gw, task_id, log=print):
                 else:
                     ok, out = verify.run_tests(wt, task["tests"])
                     result, detail = ("passed" if ok else "failed"), out
-            rv = None
-            if result == "passed" and config.REVIEW:
-                rv_role = config.ROLES["reviewer"]
-                diff_text = gitops.diff(wt)
-                rv_switch = gw.ensure_model(rv_role["model"])
-                if rv_switch:
-                    log(f"  model switch to {rv_role['model']}: {rv_switch:.1f} s")
-                rv_call, rv_text = gw.chat(review.build_messages(task, diff_text), task=task_id, role='reviewer',
-                                           attempt=attempt, model=rv_role["model"], effort=rv_role["effort"],
-                                           max_tokens=rv_role["max_tokens"])
-                save_answer(task_id, f"{attempt}-review", rv_text)
-                rv = review.parse(rv_text)
-                gw.telemetry.record("outcome", call_id=rv_call, task=task_id,
-                                    result="review_" + rv["verdict"], detail=review.format_issues(rv)[-500:])
-                store.decide(task=task_id, attempt=attempt, role='reviewer', model=rv_role["model"],
-                             result="review_" + rv["verdict"], issues=len(rv["issues"]))
-                if review.is_blocking(rv):
-                    result = "review_failed"
-                    detail = ("The tests passed, but a code review found problems. Fix them:\n"
-                              + review.format_issues(rv))
             gw.telemetry.record("outcome", call_id=call_id, task=task_id, result=result, detail=detail[-500:])
             store.decide(task=task_id, attempt=attempt, role=role, model=r["model"], result=result)
             log(f"  attempt {attempt} ({role}, {r['model']}): {result}")
             if result == "passed":
-                msg = f"{task_id}: {task['title']}\n\nWritten by {r['model']} (attempt {attempt}); tests: {' '.join(task['tests'])}"
-                if config.REVIEW and rv is not None:
-                    msg += f"\n\nReview: {rv['verdict']}"
-                    issues = review.format_issues(rv)
-                    if issues:
-                        msg += "\n" + issues
-                sha = gitops.commit_all(wt, msg)
+                written_by = f"Written by {r['model']} (attempt {attempt}); tests: {' '.join(task['tests'])}"
+                if config.REVIEW:
+                    sha = gitops.commit_all(wt, f"{task_id}: {task['title']} (candidate, awaiting review)\n\n{written_by}")
+                    store.update(task_id, status="awaiting_review", commit=sha, attempts=attempt, model=r["model"], review_feedback=None)
+                    return "candidate"
+                sha = gitops.commit_all(wt, f"{task_id}: {task['title']}\n\n{written_by}")
                 store.update(task_id, status="done", commit=sha, attempts=attempt, model=r["model"])
                 return "done"
             gitops.discard_changes(wt)
             failure = detail[-3000:]
     store.update(task_id, status="needs_human", attempts=attempt)
+    return "needs_human"
+
+
+def review_tasks(store, gw, task_ids, log=print):
+    """Judge the candidates of the given tasks: one reviewer model load for many tasks."""
+    if not task_ids:
+        return {}
+    rv_role = config.ROLES["reviewer"]
+    rv_switch = gw.ensure_model(rv_role["model"])
+    if rv_switch:
+        log(f"  model switch to {rv_role['model']}: {rv_switch:.1f} s")
+    results = {}
+    for task_id in task_ids:
+        task = store.get(task_id)
+        wt = Path(task["worktree"])
+        diff_text = gitops.commit_diff(wt)
+        attempt = task.get("attempts", 0)
+        rv_call, rv_text = gw.chat(review.build_messages(task, diff_text), task=task_id, role="reviewer",
+                                   attempt=attempt, model=rv_role["model"], effort=rv_role["effort"],
+                                   max_tokens=rv_role["max_tokens"])
+        save_answer(task_id, f"{attempt}-review", rv_text)
+        rv = review.parse(rv_text)
+        verdict = rv["verdict"]
+        gw.telemetry.record("outcome", call_id=rv_call, task=task_id, result="review_" + verdict, detail=review.format_issues(rv)[-500:])
+        store.decide(task=task_id, attempt=attempt, role="reviewer", model=rv_role["model"],
+                     result="review_" + verdict, issues=len(rv["issues"]))
+        if review.is_blocking(rv):
+            gitops.undo_last_commit(wt)
+            store.update(task_id, status="todo", commit=None,
+                         review_feedback="The tests passed, but a code review found problems. Fix them:\n" + review.format_issues(rv))
+            result = "rejected"
+        else:
+            rv_msg = f"Review: {verdict}"
+            issues = review.format_issues(rv)
+            if issues:
+                rv_msg += "\n" + issues
+            gitops.append_to_commit_message(wt, rv_msg)
+            store.update(task_id, status="done", review=verdict)
+            result = "done"
+        log(f"  task {task_id}: {result}")
+        results[task_id] = result
+    return results
+
+
+def run_task(store, gw, task_id, log=print):
+    """Write, then review, then write again ... for up to config.REVIEW_ROUNDS rounds."""
+    for _ in range(config.REVIEW_ROUNDS):
+        r = write_task(store, gw, task_id, log=log)
+        if r != "candidate":
+            return r
+        if review_tasks(store, gw, [task_id], log=log)[task_id] == "done":
+            return "done"
+    store.update(task_id, status="needs_human")
     return "needs_human"
