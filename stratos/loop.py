@@ -2,7 +2,7 @@
 
 Attempts follow the task's role's plan: the role's model a few times, then one cross-check by a different model.
 A task that still fails is handed to a person (status needs_human)."""
-from . import config, context, gitops, patch, verify
+from . import config, context, gitops, patch, review, verify
 
 
 def save_answer(task_id, attempt, text):
@@ -49,6 +49,32 @@ def run_task(store, gw, task_id, log=print):
             store.decide(task=task_id, attempt=attempt, role=role, model=r["model"], result=result)
             log(f"  attempt {attempt} ({role}, {r['model']}): {result}")
             if result == "passed":
+                if config.REVIEW:
+                    rv_role = config.ROLES["reviewer"]
+                    diff_text = gitops.diff(wt)
+                    rv_switch = gw.ensure_model(rv_role["model"])
+                    if rv_switch:
+                        log(f"  model switch to {rv_role['model']}: {rv_switch:.1f} s")
+                    rv_call, rv_text = gw.chat(review.build_messages(task, diff_text), task=task_id, role='reviewer',
+                                               attempt=attempt, model=rv_role["model"], effort=rv_role["effort"],
+                                               max_tokens=rv_role["max_tokens"])
+                    save_answer(task_id, f"{attempt}-review", rv_text)
+                    rv = review.parse(rv_text)
+                    gw.telemetry.record("outcome", call_id=rv_call, task=task_id,
+                                        result="review_" + rv["verdict"], detail=review.format_issues(rv)[-500:])
+                    store.decide(task=task_id, attempt=attempt, role='reviewer', model=rv_role["model"],
+                                 result="review_" + rv["verdict"], issues=len(rv["issues"]))
+                    if review.is_blocking(rv):
+                        detail = ("The tests passed, but a code review found problems. Fix them:\n"
+                                  + review.format_issues(rv))
+                        gw.telemetry.record("outcome", call_id=call_id, task=task_id,
+                                            result="review_failed", detail=detail[-500:])
+                        store.decide(task=task_id, attempt=attempt, role=role, model=r["model"],
+                                     result="review_failed", detail=detail[-500:])
+                        log(f"  attempt {attempt} ({role}, {r['model']}): review_failed")
+                        gitops.discard_changes(wt)
+                        failure = detail[-3000:]
+                        continue
                 sha = gitops.commit_all(wt, f"{task_id}: {task['title']}\n\nWritten by {r['model']} "
                                             f"(attempt {attempt}); tests: {' '.join(task['tests'])}")
                 store.update(task_id, status="done", commit=sha, attempts=attempt, model=r["model"])
