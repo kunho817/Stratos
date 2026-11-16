@@ -6,6 +6,7 @@ is_blocking(review)        -> True when any issue is "high" or "medium"
 format_issues(review)      -> the issues as lines for the next attempt's prompt
 """
 import json
+import re
 
 REVIEW_SYSTEM = (
     "You review the diff against the task. "
@@ -42,14 +43,19 @@ def build_messages(task, diff):
 def _extract_json(text):
     if not text:
         return None
-    for m in reversed(list(__import__("re").finditer(r"```(?:json)?\s*(.*?)```", text, __import__("re").DOTALL))):
+    for m in reversed(list(re.finditer(r"```(?:json)?\s*(.*?)```", text, re.DOTALL))):
         candidate = m.group(1).strip()
         if candidate:
             return candidate
-    start = text.rfind("{")
-    end = text.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        return text[start:end + 1]
+    decoder = json.JSONDecoder()
+    for i, char in enumerate(text):
+        if char == "{":
+            try:
+                data, end = decoder.raw_decode(text, i)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(data, dict):
+                return text[i:end]
     return None
 
 
