@@ -54,7 +54,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "STATE_DIR", state)
     monkeypatch.setattr(config, "REVIEW", True)
     monkeypatch.setattr(config, "REVIEW_ROUNDS", 3)
-    rec = {"commits": [], "discards": 0, "undos": 0, "appended": [], "tests_ok": True, "bases": {}}
+    rec = {"commits": [], "discards": 0, "undos": 0, "appended": [], "finalized": [], "tests_ok": True, "bases": {}}
 
     def worktree(repo, root, tid, bases=None):
         rec["bases"][tid] = bases
@@ -82,6 +82,10 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(gitops, "undo_last_commit", undo)
     monkeypatch.setattr(gitops, "commit_all", commit)
     monkeypatch.setattr(gitops, "append_to_commit_message", append)
+
+    def finalize(w, text):
+        rec["finalized"].append(text)
+    monkeypatch.setattr(gitops, "finalize_commit_message", finalize)
     monkeypatch.setattr(verify, "run_tests", lambda w, tests: (rec["tests_ok"], "1 passed" if rec["tests_ok"] else "boom"))
     store = Store(state)
     store.add_task("t", "make X", ["pkg/a.py"], [], ["tests/x.py"])
@@ -111,7 +115,8 @@ def test_approved_review_finishes_the_task(env):
     assert store.get("T001")["status"] == "done"
     assert [c["role"] for c in gw.calls] == ["coder", "reviewer"]
     assert gw.calls[1]["model"] == REVIEWER
-    assert len(rec["commits"]) == 1 and any("approve" in a.lower() for a in rec["appended"])
+    assert len(rec["commits"]) == 1 and any("approve" in a.lower() for a in rec["finalized"])
+    assert rec["appended"] == []        # T021: approval finalizes the candidate commit (title cleaned, review added)
 
 
 def test_rejected_candidate_is_undone_and_rewritten_with_the_issues(env):
@@ -129,7 +134,7 @@ def test_low_issues_do_not_block_and_go_into_the_commit_message(env):
     store, _, rec, _ = env
     gw = gateway(env, {"coder": [WRITER], "reviewer": [LOW]})
     assert loop.run_task(store, gw, "T001", log=quiet) == "done"
-    assert any("long line" in a for a in rec["appended"])
+    assert any("long line" in a for a in rec["finalized"])
 
 
 def test_unparsed_review_does_not_block(env):
