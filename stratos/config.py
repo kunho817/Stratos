@@ -11,7 +11,11 @@ BASE_URL = os.environ.get("STRATOS_BASE_URL", "http://127.0.0.1:8080")
 ROLES = {
     "coder": {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "none", "max_tokens": 6000},
     "coder_hard": {"model": "flint-40b-a2.5b-ud-q4_k_xl", "effort": "high", "max_tokens": 12000},
+    # reads the diff after the tests pass; a different model from the coders, so it does not share their blind spots
+    "reviewer": {"model": "qwen3.6-35b-a3b-ud-q3_k_m", "effort": "low", "max_tokens": 4000},
 }
+
+REVIEW = True   # review every diff that passes its tests; high/medium issues send it back as a failed attempt
 
 # attempts per task, by the task's role: the role's own model first, then one cross-check by a different model
 # (the design's rule: cross-check only hard tasks, i.e. the ones that keep failing)

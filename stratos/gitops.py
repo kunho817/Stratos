@@ -22,9 +22,15 @@ def ensure_worktree(repo, root, task_id):
     return path
 
 
+def diff(worktree):
+    """Everything the attempt changed, new files included (stages it; discard_changes undoes that too)."""
+    git(worktree, "add", "-A")
+    return git(worktree, "diff", "--cached", "--no-color", "HEAD")
+
+
 def discard_changes(worktree):
     """Undo a failed attempt (only ever inside a Stratos worktree)."""
-    git(worktree, "checkout", "--", ".")
+    git(worktree, "reset", "-q", "--hard", "HEAD")
     git(worktree, "clean", "-fd")
 
 
