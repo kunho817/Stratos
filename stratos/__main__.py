@@ -10,7 +10,7 @@ import sys
 
 from . import config
 from .gateway import Gateway
-from .loop import run_task
+from .loop import run_all, run_task
 from .report import summarize
 from .scheduler import plan as scheduler_plan
 from .state import Store
@@ -64,19 +64,19 @@ def main(argv=None):
         print("plan: " + " ".join(order))
         if blocked:
             print("blocked: " + " ".join(blocked))
-        statuses = {t['id']: t['status'] for t in store.tasks()}
+        statuses = run_all(store, gw, order)
         done = True
         for tid in order:
             task = store.get(tid)
-            dep = next((a for a in task.get("after", []) if statuses.get(a) != "done"), None)
-            if dep is not None:
-                print(f"skipped {tid} (waits on {dep})")
-                done = False
-                continue
-            result = run_task(store, gw, tid)
-            statuses[tid] = result
-            print(f"{tid}: {result}")
-            if result != "done":
+            status = statuses.get(tid, task["status"])
+            if status == "todo":
+                dep = next((a for a in task.get("after", []) if store.get(a)["status"] != "done"), None)
+                if dep is not None:
+                    print(f"skipped {tid} (waits on {dep})")
+                    done = False
+                    continue
+            print(f"{tid}: {status}")
+            if status != "done":
                 done = False
         return 0 if done and not blocked else 1
     elif args.cmd == "report":
