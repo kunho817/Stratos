@@ -117,6 +117,22 @@ def test_failed_tests_are_not_reviewed(env):
     assert "reviewer" not in [c["role"] for c in gw.calls]
 
 
+def test_writer_outcome_is_recorded_once_per_attempt(env):
+    run(env, {"coder": [WRITER, WRITER], "reviewer": [BLOCK, APPROVE]})
+    by_call = {}
+    for o in outcomes(env):
+        by_call.setdefault(o["call_id"], []).append(o["result"])
+    assert by_call["c1"] == ["review_failed"]          # writer, attempt 1: only its final result
+    assert by_call["c3"] == ["passed"]                 # writer, attempt 2
+    assert by_call["c2"] == ["review_changes"] and by_call["c4"] == ["review_approve"]
+
+
+def test_commit_message_carries_the_review(env):
+    run(env, {"coder": [WRITER], "reviewer": [LOW]})
+    msg = env[2]["commits"][0]
+    assert "review" in msg.lower() and "long line" in msg
+
+
 def test_review_answer_and_outcome_are_recorded(env):
     run(env, {"coder": [WRITER], "reviewer": [APPROVE]})
     state = env[3]
