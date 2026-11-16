@@ -15,9 +15,11 @@ def summarize(events, since=None):
     by_model = {}
     outcomes = {}
     wasted_tokens = 0
+    human_verdicts = 0
 
     call_outcomes = {}
     call_tokens = {}
+    passed_since_verdict = {}
 
     for event in events:
         kind = event.get("kind")
@@ -53,6 +55,19 @@ def summarize(events, since=None):
             call_id = event.get("call_id")
             if result != "passed":
                 wasted_tokens += call_tokens.get(call_id, 0)
+            else:
+                task = event.get("task")
+                passed_since_verdict.setdefault(task, []).append(call_id)
+
+        elif kind == "verdict":
+            human_verdicts += 1
+            task = event.get("task")
+            for call_id in passed_since_verdict.pop(task, []):
+                outcomes["passed"] -= 1
+                if outcomes["passed"] == 0:
+                    del outcomes["passed"]
+                outcomes["discarded"] = outcomes.get("discarded", 0) + 1
+                wasted_tokens += call_tokens.get(call_id, 0)
 
     return {
         "calls": calls,
@@ -63,4 +78,5 @@ def summarize(events, since=None):
         "by_model": by_model,
         "outcomes": outcomes,
         "wasted_tokens": wasted_tokens,
+        "human_verdicts": human_verdicts,
     }

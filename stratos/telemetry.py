@@ -5,6 +5,7 @@ Event kinds:
                               reasoning_chars, finish, seconds)
   switch   a model change    (model, from_model, seconds)
   outcome  what a call led to (call_id, task, result: passed | failed | no_files | refused, detail)
+  verdict  a person's judgment (task, result, reason)
 """
 import json
 import time
