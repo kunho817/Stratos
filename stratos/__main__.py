@@ -10,6 +10,7 @@ import sys
 from . import config
 from .gateway import Gateway
 from .loop import run_task
+from .report import summarize
 from .state import Store
 from .telemetry import Telemetry
 
@@ -30,6 +31,7 @@ def main(argv=None):
     r = sub.add_parser("run", help="run a task")
     r.add_argument("task_id")
     sub.add_parser("status", help="list tasks")
+    sub.add_parser("report", help="summarize telemetry")
     args = ap.parse_args(argv)
 
     store = Store(config.STATE_DIR)
@@ -42,6 +44,22 @@ def main(argv=None):
         result = run_task(store, Gateway(tel), args.task_id)
         print(f"{args.task_id}: {result}")
         return 0 if result == "done" else 1
+    elif args.cmd == "report":
+        events = Telemetry(config.STATE_DIR / "telemetry.jsonl").load()
+        if not events:
+            print("no telemetry yet")
+        else:
+            s = summarize(events)
+            print(f"calls: {s['calls']}  prompt tokens: {s['prompt_tokens']}  completion tokens: {s['completion_tokens']}")
+            print(f"switches: {s['switches']}  switch time: {s['switch_seconds']:.1f} s")
+            outcomes = " ".join(f"{k}={s['outcomes'][k]}" for k in sorted(s['outcomes']))
+            print(f"outcomes: {outcomes}")
+            print(f"wasted tokens: {s['wasted_tokens']}")
+            print("by model:")
+            for name in sorted(s['by_model']):
+                m = s['by_model'][name]
+                print(f"  {name}: calls={m['calls']} prompt={m['prompt_tokens']} completion={m['completion_tokens']} time={m['seconds']:.1f} s")
+        return 0
     else:
         for t in store.tasks():
             extra = f" commit {t['commit']}" if t.get("commit") else ""
