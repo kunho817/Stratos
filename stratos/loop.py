@@ -113,7 +113,7 @@ def review_tasks(store, gw, task_ids, log=print):
             issues = review.format_issues(rv)
             if issues:
                 rv_msg += "\n" + issues
-            gitops.append_to_commit_message(wt, rv_msg)
+            gitops.finalize_commit_message(wt, rv_msg)
             store.update(task_id, status="done", review=verdict)
             result = "done"
         log(f"  task {task_id}: {result}")
