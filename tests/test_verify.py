@@ -19,6 +19,12 @@ def test_fails_when_a_later_run_fails(tmp_path, monkeypatch):
     assert "run 2 of 3" in out and "nondeterminism" in out
 
 
+def test_non_ascii_test_output_is_read(tmp_path):
+    write(tmp_path, "def test_korean():\n    assert '한글 출력' == '다른 글자'\n")
+    ok, out = verify.run_tests(tmp_path, ["test_x.py"])
+    assert not ok and "한글" in out
+
+
 def test_fails_on_the_first_run(tmp_path):
     write(tmp_path, "def test_bad():\n    assert False\n")
     ok, out = verify.run_tests(tmp_path, ["test_x.py"])

@@ -13,9 +13,11 @@ def run_tests(worktree, tests):
     cmd = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *tests]
     out = ""
     for seed in range(1, config.VERIFY_RUNS + 1):
-        env = {**os.environ, "PYTHONHASHSEED": str(seed)}
+        # UTF-8 both ways: with the Windows default (cp949 here) a test's Korean text crashed the run (T019, 2026-11-17)
+        env = {**os.environ, "PYTHONHASHSEED": str(seed), "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
         try:
-            r = subprocess.run(cmd, cwd=worktree, capture_output=True, text=True, timeout=config.TEST_TIMEOUT_S, env=env)
+            r = subprocess.run(cmd, cwd=worktree, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               timeout=config.TEST_TIMEOUT_S, env=env)
         except subprocess.TimeoutExpired:
             return False, f"tests timed out after {config.TEST_TIMEOUT_S} s (PYTHONHASHSEED={seed})"
         out = (r.stdout + r.stderr).strip()

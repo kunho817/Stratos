@@ -10,8 +10,11 @@ class BaseConflict(Exception):
     """A merge of dependency branches conflicted."""
 
 
+UTF8 = {"text": True, "encoding": "utf-8", "errors": "replace"}   # git prints UTF-8; Windows' default codepage is not
+
+
 def git(cwd, *args, check=True):
-    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    r = subprocess.run(["git", *args], cwd=cwd, capture_output=True, **UTF8)
     if check and r.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {r.stderr.strip()}")
     return r.stdout.strip()
@@ -26,10 +29,9 @@ def ensure_worktree(repo, root, task_id, bases=None):
     start = bases[0] if bases else "HEAD"
     git(repo, "worktree", "add", "-b", f"stratos/{task_id}", str(path), start)
     for base in bases[1:]:
-        r = subprocess.run(["git", *BOT, "merge", "--no-edit", base], cwd=path,
-                           capture_output=True, text=True)
+        r = subprocess.run(["git", *BOT, "merge", "--no-edit", base], cwd=path, capture_output=True, **UTF8)
         if r.returncode != 0:
-            subprocess.run(["git", "merge", "--abort"], cwd=path, check=False)
+            subprocess.run(["git", "merge", "--abort"], cwd=path, capture_output=True, check=False)
             remove_worktree(repo, root, task_id)
             raise BaseConflict(f"merging {base} into stratos/{task_id} conflicted")
     return path
