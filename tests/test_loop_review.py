@@ -54,13 +54,15 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "STATE_DIR", state)
     monkeypatch.setattr(config, "REVIEW", True)
     monkeypatch.setattr(config, "REVIEW_ROUNDS", 3)
-    rec = {"commits": [], "discards": 0, "undos": 0, "appended": [], "tests_ok": True}
+    rec = {"commits": [], "discards": 0, "undos": 0, "appended": [], "tests_ok": True, "bases": {}}
 
-    def worktree(repo, root, tid):
+    def worktree(repo, root, tid, bases=None):
+        rec["bases"][tid] = bases
         p = tmp_path / "wt" / tid
         p.mkdir(parents=True, exist_ok=True)
         return p
     monkeypatch.setattr(gitops, "ensure_worktree", worktree)
+    monkeypatch.setattr(gitops, "dependency_bases", lambda repo, ids: [f"stratos/{i}" for i in ids])
     monkeypatch.setattr(gitops, "diff", lambda w: "diff --git a/pkg/a.py b/pkg/a.py\n+X = 1\n")
     monkeypatch.setattr(gitops, "commit_diff", lambda w: "diff --git a/pkg/a.py b/pkg/a.py\n+X = 1\n")
 
@@ -260,6 +262,35 @@ def test_run_all_leaves_dependents_of_a_failed_task(env):
     gw = gateway(env, {"coder": [WRITER] * 3, "coder_hard": [WRITER]})
     assert loop.run_all(store, gw, ["T001", "T003"], log=quiet) == {"T001": "needs_human", "T003": "todo"}
     assert {c["task"] for c in gw.calls} == {"T001"}
+
+
+# ---------------------------------------------------------------- T017: worktrees start from dependency branches
+# write_task passes bases=gitops.dependency_bases(config.REPO, task['after']) to gitops.ensure_worktree. When that raises
+# gitops.BaseConflict, the task goes to a person (status needs_human, a decision with result 'base_conflict') and no
+# model is called.
+
+def test_write_task_starts_from_dependency_branches(env):
+    store, _, rec, _ = env
+    store.add_task("v", "after T001", ["pkg/a.py"], [], ["tests/x.py"], after=["T001"])
+    gw = gateway(env, {"coder": [WRITER, WRITER]})
+    loop.write_task(store, gw, "T001", log=quiet)
+    loop.write_task(store, gw, "T003", log=quiet)
+    assert rec["bases"]["T001"] == []
+    assert rec["bases"]["T003"] == ["stratos/T001"]
+
+
+def test_conflicting_dependency_branches_go_to_a_person(env, monkeypatch):
+    store, _, _, state = env
+
+    def conflict(repo, root, tid, bases=None):
+        raise gitops.BaseConflict("merging stratos/T002 into stratos/T001 conflicted")
+    monkeypatch.setattr(gitops, "ensure_worktree", conflict)
+    gw = gateway(env, {"coder": [WRITER]})
+    assert loop.write_task(store, gw, "T001", log=quiet) == "needs_human"
+    assert store.get("T001")["status"] == "needs_human"
+    assert gw.calls == []
+    decisions = (state / "decisions.jsonl").read_text(encoding="utf-8")
+    assert "base_conflict" in decisions
 
 
 def test_review_tasks_with_review_off_or_no_tasks(env, monkeypatch):
