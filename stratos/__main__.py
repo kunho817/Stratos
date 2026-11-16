@@ -1,6 +1,7 @@
 """Command line:
 
   python -m stratos add --title T --goal G --files a.py,b.py --protected tests/test_x.py --tests tests/test_x.py
+  python -m stratos add --title T --goal-file PATH --files a.py,b.py --protected tests/test_x.py --tests tests/test_x.py
   python -m stratos run T001
   python -m stratos run-all
   python -m stratos status
@@ -26,7 +27,9 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("add", help="add a task")
     a.add_argument("--title", required=True)
-    a.add_argument("--goal", required=True)
+    g = a.add_mutually_exclusive_group(required=True)
+    g.add_argument("--goal", help="the task goal")
+    g.add_argument("--goal-file", help="path to a file containing the task goal")
     a.add_argument("--files", default="")
     a.add_argument("--protected", default="")
     a.add_argument("--tests", required=True)
@@ -41,7 +44,14 @@ def main(argv=None):
 
     store = Store(config.STATE_DIR)
     if args.cmd == "add":
-        t = store.add_task(args.title, args.goal, split(args.files), split(args.protected), split(args.tests),
+        if args.goal_file is not None:
+            try:
+                goal = open(args.goal_file, encoding="utf-8").read()
+            except OSError as e:
+                a.error(f"cannot read goal file {args.goal_file!r}: {e}")
+        else:
+            goal = args.goal
+        t = store.add_task(args.title, goal, split(args.files), split(args.protected), split(args.tests),
                            role=args.role, after=split(args.after))
         print(f"added {t['id']}: {t['title']}")
     elif args.cmd == "run":
