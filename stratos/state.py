@@ -19,6 +19,13 @@ class Store:
     def _save(self, tasks):
         tmp = self.tasks_path.with_suffix(".tmp")
         tmp.write_text(json.dumps(tasks, ensure_ascii=False, indent=1), encoding="utf-8")
+        # Windows refuses the replace while another program (antivirus, indexer) still reads the file: retry briefly
+        for wait in (0.05, 0.1, 0.2, 0.4, 0.8, 1.6):
+            try:
+                tmp.replace(self.tasks_path)
+                return
+            except PermissionError:
+                time.sleep(wait)
         tmp.replace(self.tasks_path)
 
     def add_task(self, title, goal, files, protected, tests, role='coder', after=()):
