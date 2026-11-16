@@ -13,8 +13,10 @@ tests it is judged by).
 
 A file's content may itself hold ``` fences or a "FILE:" line (Stratos's own prompts do), so a block ends at the
 last bare ``` line before the next header, and with `allowed` given only a header naming one of those files counts
-(T006's first run, 2026-11-16, cut review.py at a ``` inside a string).
+(T006's first run, 2026-11-16, cut review.py at a ``` inside a string). When the only allowed file is Python and
+holds such fences or headers, T025's fallback saves it from the first fence to the last bare ```.
 """
+import ast
 import re
 from pathlib import Path, PurePosixPath
 
@@ -54,6 +56,32 @@ def _lone_block(lines, allowed):
     return [(_norm(allowed[0]), "".join(lines[fences[0] + 1:fences[1]]))]
 
 
+def _python_block(lines, allowed):
+    """T025: the lone allowed file is Python and holds ``` fences or "FILE:" lines, so the block runs from the
+    first fence line to the last bare ``` line, when it parses as Python."""
+    if allowed is None or len(allowed) != 1:
+        return None
+    path = allowed[0]
+    if not path.endswith(".py"):
+        return None
+    openers = [i for i, line in enumerate(lines) if line.lstrip().startswith("```")]
+    if not openers:
+        return None
+    i = openers[0]
+    closers = [j for j in range(i + 1, len(lines)) if lines[j].strip() == "```"]
+    if not closers:
+        return None
+    j = closers[-1]
+    content = "".join(lines[i + 1:j])
+    try:
+        ast.parse(content)
+    except (SyntaxError, ValueError):
+        return None
+    if any(HEADER_RE.match(line) and _norm(HEADER_RE.match(line).group(1)) == _norm(path) for line in lines):
+        return None
+    return [(_norm(path), content)]
+
+
 def parse_files(text, allowed=None):
     """[(path, content)] for every FILE block. allowed: if given, only headers naming one of these paths count."""
     ok = {_norm(a) for a in allowed} if allowed is not None else None
@@ -79,6 +107,9 @@ def parse_files(text, allowed=None):
         lone = _lone_block(lines, allowed)
         if lone is not None:
             return lone
+        py = _python_block(lines, allowed)
+        if py is not None:
+            return py
     return out
 
 
