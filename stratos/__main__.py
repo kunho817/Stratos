@@ -6,8 +6,10 @@
   python -m stratos run-all
   python -m stratos status
   python -m stratos clean
+  python -m stratos reset T001 --reason R
 """
 import argparse
+import subprocess
 import sys
 
 from . import config
@@ -43,6 +45,9 @@ def main(argv=None):
     sub.add_parser("status", help="list tasks")
     sub.add_parser("report", help="summarize telemetry")
     sub.add_parser("clean", help="remove worktree and branch of merged, done tasks")
+    reset = sub.add_parser("reset", help="throw away a task's result so it runs again")
+    reset.add_argument("task_id")
+    reset.add_argument("--reason", required=True, help="why the task is being reset")
     args = ap.parse_args(argv)
 
     store = Store(config.STATE_DIR)
@@ -128,6 +133,24 @@ def main(argv=None):
             else:
                 print(f"kept {t['id']} (not merged)")
         print(f"cleaned {cleaned} task(s)")
+        return 0
+    elif args.cmd == "reset":
+        try:
+            task = store.get(args.task_id)
+        except KeyError:
+            print(f"no task {args.task_id}", file=sys.stderr)
+            return 1
+        commit = task.get("commit")
+        if commit and subprocess.run(["git", "merge-base", "--is-ancestor", commit, "HEAD"],
+                                     cwd=config.REPO, capture_output=True).returncode == 0:
+            print(f"{args.task_id} is merged; reset would not take it out of HEAD", file=sys.stderr)
+            return 1
+        gitops.remove_worktree(config.REPO, config.WORKTREES, args.task_id)
+        store.update(args.task_id, status="todo", worktree=None, commit=None)
+        store.decide(task=args.task_id, result="reset_by_human", reason=args.reason)
+        Telemetry(config.STATE_DIR / "telemetry.jsonl").record("verdict", task=args.task_id,
+                                                               result="reset_by_human", reason=args.reason)
+        print(f"reset {args.task_id}")
         return 0
     else:
         for t in store.tasks():
