@@ -1,0 +1,9 @@
+[project]
+name = "stratos"
+version = "0.0.1"
+description = "A harness that runs local models on PolyStrata to manage and develop projects"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
