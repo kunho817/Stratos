@@ -1,9 +1,17 @@
-"""Tests for task T008: the task loop runs a code review after the tests pass.
+"""Tests for the review in the task loop, split into a write phase and a review phase (task T011).
 
-After an attempt passes its tests (and config.REVIEW is on), the loop asks the reviewer role (config.ROLES['reviewer'])
-about gitops.diff(worktree) using stratos.review. A review with a high or medium issue sends the attempt back:
-the writer's outcome is 'review_failed', the changes are discarded, and the next attempt gets the issues in its prompt.
-The gateway, git and the test runner are fakes here; no GPU or repository is needed."""
+write_task(store, gw, task_id, log)       attempts until the tests pass, without a review. With config.REVIEW on, the
+                                          passing attempt is committed as a candidate (status awaiting_review) and
+                                          'candidate' is returned; with it off, the task is done ('done'). When every
+                                          attempt fails: 'needs_human'. A task's review_feedback goes into the first
+                                          attempt's prompt, and attempt numbers continue from task['attempts'].
+review_tasks(store, gw, task_ids, log)    loads the reviewer once and reviews each candidate's last commit
+                                          (gitops.commit_diff). Approved: status done, the review appended to the
+                                          commit message. High/medium issues: gitops.undo_last_commit, status todo,
+                                          review_feedback set. Returns {task_id: 'done' | 'rejected'}.
+run_task(store, gw, task_id, log)         write_task then review_tasks, for up to config.REVIEW_ROUNDS rounds.
+
+Fakes stand in for the gateway, git and the test runner; no GPU or repository is needed."""
 import pytest
 
 from stratos import config, gitops, loop, verify
@@ -15,6 +23,7 @@ APPROVE = '```json\n{"verdict": "approve", "issues": []}\n```'
 BLOCK = ('```json\n{"verdict": "changes", "issues": [{"severity": "medium", "file": "pkg/a.py", '
          '"problem": "condition is always true"}]}\n```')
 LOW = '```json\n{"verdict": "changes", "issues": [{"severity": "low", "file": "pkg/a.py", "problem": "long line"}]}\n```'
+REVIEWER = config.ROLES["reviewer"]["model"]
 
 
 class FakeGateway:
@@ -22,16 +31,18 @@ class FakeGateway:
         self.telemetry = telemetry
         self.script = {role: list(answers) for role, answers in script.items()}
         self.loaded = None
+        self.switches = []
         self.calls = []
 
     def ensure_model(self, model):
         if model == self.loaded:
             return 0.0
         self.loaded = model
+        self.switches.append(model)
         return 1.0
 
     def chat(self, messages, *, task, role, attempt, model, effort, max_tokens):
-        self.calls.append({"role": role, "model": model, "attempt": attempt, "messages": messages})
+        self.calls.append({"role": role, "model": model, "attempt": attempt, "task": task, "messages": messages})
         cid = f"c{len(self.calls)}"
         self.telemetry.record("call", call_id=cid, task=task, role=role, attempt=attempt, model=model)
         return cid, self.script[role].pop(0)
@@ -39,103 +50,166 @@ class FakeGateway:
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
-    state, wt = tmp_path / "state", tmp_path / "wt"
-    wt.mkdir()
+    state = tmp_path / "state"
     monkeypatch.setattr(config, "STATE_DIR", state)
     monkeypatch.setattr(config, "REVIEW", True)
-    rec = {"commits": [], "discards": 0, "tests_ok": True}
-    monkeypatch.setattr(gitops, "ensure_worktree", lambda repo, root, tid: wt)
+    monkeypatch.setattr(config, "REVIEW_ROUNDS", 3)
+    rec = {"commits": [], "discards": 0, "undos": 0, "appended": [], "tests_ok": True}
+
+    def worktree(repo, root, tid):
+        p = tmp_path / "wt" / tid
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    monkeypatch.setattr(gitops, "ensure_worktree", worktree)
     monkeypatch.setattr(gitops, "diff", lambda w: "diff --git a/pkg/a.py b/pkg/a.py\n+X = 1\n")
+    monkeypatch.setattr(gitops, "commit_diff", lambda w: "diff --git a/pkg/a.py b/pkg/a.py\n+X = 1\n")
 
     def discard(w):
         rec["discards"] += 1
-    monkeypatch.setattr(gitops, "discard_changes", discard)
+
+    def undo(w):
+        rec["undos"] += 1
 
     def commit(w, message):
         rec["commits"].append(message)
-        return "abc1234"
+        return f"sha{len(rec['commits'])}"
+
+    def append(w, text):
+        rec["appended"].append(text)
+    monkeypatch.setattr(gitops, "discard_changes", discard)
+    monkeypatch.setattr(gitops, "undo_last_commit", undo)
     monkeypatch.setattr(gitops, "commit_all", commit)
+    monkeypatch.setattr(gitops, "append_to_commit_message", append)
     monkeypatch.setattr(verify, "run_tests", lambda w, tests: (rec["tests_ok"], "1 passed" if rec["tests_ok"] else "boom"))
     store = Store(state)
     store.add_task("t", "make X", ["pkg/a.py"], [], ["tests/x.py"])
+    store.add_task("u", "make X too", ["pkg/a.py"], [], ["tests/x.py"])
     tel = Telemetry(state / "telemetry.jsonl")
     return store, tel, rec, state
 
 
-def run(env, script):
-    store, tel, rec, state = env
-    gw = FakeGateway(tel, script)
-    result = loop.run_task(store, gw, "T001", log=lambda *a: None)
-    return result, gw
+def gateway(env, script):
+    return FakeGateway(env[1], script)
 
 
 def outcomes(env):
     return [e for e in env[1].load() if e["kind"] == "outcome"]
 
 
-def test_approved_review_commits(env):
-    result, gw = run(env, {"coder": [WRITER], "reviewer": [APPROVE]})
+def quiet(*a):
+    pass
+
+
+# ---------------------------------------------------------------- run_task: write then review, in rounds
+
+def test_approved_review_finishes_the_task(env):
     store, _, rec, _ = env
-    assert result == "done" and store.get("T001")["status"] == "done"
+    gw = gateway(env, {"coder": [WRITER], "reviewer": [APPROVE]})
+    assert loop.run_task(store, gw, "T001", log=quiet) == "done"
+    assert store.get("T001")["status"] == "done"
     assert [c["role"] for c in gw.calls] == ["coder", "reviewer"]
-    assert gw.calls[1]["model"] == config.ROLES["reviewer"]["model"]
-    assert len(rec["commits"]) == 1
+    assert gw.calls[1]["model"] == REVIEWER
+    assert len(rec["commits"]) == 1 and any("approve" in a.lower() for a in rec["appended"])
 
 
-def test_blocking_review_sends_the_attempt_back(env):
-    result, gw = run(env, {"coder": [WRITER, WRITER], "reviewer": [BLOCK, APPROVE]})
-    _, _, rec, _ = env
-    assert result == "done"
+def test_rejected_candidate_is_undone_and_rewritten_with_the_issues(env):
+    store, _, rec, _ = env
+    gw = gateway(env, {"coder": [WRITER, WRITER], "reviewer": [BLOCK, APPROVE]})
+    assert loop.run_task(store, gw, "T001", log=quiet) == "done"
     assert [c["role"] for c in gw.calls] == ["coder", "reviewer", "coder", "reviewer"]
-    second_prompt = gw.calls[2]["messages"][-1]["content"]
-    assert "condition is always true" in second_prompt
-    assert rec["discards"] == 1 and len(rec["commits"]) == 1
-    results = [o["result"] for o in outcomes(env)]
-    assert "review_failed" in results and results[-1] in ("passed", "review_approve")
+    assert "condition is always true" in gw.calls[2]["messages"][-1]["content"]
+    assert gw.calls[2]["attempt"] == 2                 # attempt numbers continue across rounds
+    assert rec["undos"] == 1 and len(rec["commits"]) == 2
+    assert store.get("T001")["status"] == "done"
 
 
-def test_low_issues_do_not_block(env):
-    result, gw = run(env, {"coder": [WRITER], "reviewer": [LOW]})
-    assert result == "done" and [c["role"] for c in gw.calls] == ["coder", "reviewer"]
+def test_low_issues_do_not_block_and_go_into_the_commit_message(env):
+    store, _, rec, _ = env
+    gw = gateway(env, {"coder": [WRITER], "reviewer": [LOW]})
+    assert loop.run_task(store, gw, "T001", log=quiet) == "done"
+    assert any("long line" in a for a in rec["appended"])
 
 
 def test_unparsed_review_does_not_block(env):
-    result, gw = run(env, {"coder": [WRITER], "reviewer": ["I cannot review this."]})
-    assert result == "done"
+    gw = gateway(env, {"coder": [WRITER], "reviewer": ["I cannot review this."]})
+    assert loop.run_task(env[0], gw, "T001", log=quiet) == "done"
 
 
 def test_review_can_be_turned_off(env, monkeypatch):
     monkeypatch.setattr(config, "REVIEW", False)
-    result, gw = run(env, {"coder": [WRITER]})
-    assert result == "done" and [c["role"] for c in gw.calls] == ["coder"]
+    store, _, rec, _ = env
+    gw = gateway(env, {"coder": [WRITER]})
+    assert loop.run_task(store, gw, "T001", log=quiet) == "done"
+    assert [c["role"] for c in gw.calls] == ["coder"] and rec["appended"] == []
+    assert store.get("T001")["status"] == "done"
 
 
 def test_failed_tests_are_not_reviewed(env):
     env[2]["tests_ok"] = False
-    result, gw = run(env, {"coder": [WRITER] * 3, "coder_hard": [WRITER]})
-    assert result == "needs_human"
+    gw = gateway(env, {"coder": [WRITER] * 3, "coder_hard": [WRITER]})
+    assert loop.run_task(env[0], gw, "T001", log=quiet) == "needs_human"
     assert "reviewer" not in [c["role"] for c in gw.calls]
 
 
-def test_writer_outcome_is_recorded_once_per_attempt(env):
-    run(env, {"coder": [WRITER, WRITER], "reviewer": [BLOCK, APPROVE]})
+def test_a_task_the_reviewer_keeps_rejecting_goes_to_a_person(env, monkeypatch):
+    monkeypatch.setattr(config, "REVIEW_ROUNDS", 2)
+    store = env[0]
+    gw = gateway(env, {"coder": [WRITER, WRITER], "reviewer": [BLOCK, BLOCK]})
+    assert loop.run_task(store, gw, "T001", log=quiet) == "needs_human"
+    assert [c["role"] for c in gw.calls] == ["coder", "reviewer", "coder", "reviewer"]
+    assert store.get("T001")["status"] == "needs_human"
+
+
+def test_each_call_gets_one_outcome(env):
+    gw = gateway(env, {"coder": [WRITER, WRITER], "reviewer": [BLOCK, APPROVE]})
+    loop.run_task(env[0], gw, "T001", log=quiet)
     by_call = {}
     for o in outcomes(env):
         by_call.setdefault(o["call_id"], []).append(o["result"])
-    assert by_call["c1"] == ["review_failed"]          # writer, attempt 1: only its final result
-    assert by_call["c3"] == ["passed"]                 # writer, attempt 2
-    assert by_call["c2"] == ["review_changes"] and by_call["c4"] == ["review_approve"]
+    assert by_call == {"c1": ["passed"], "c2": ["review_changes"], "c3": ["passed"], "c4": ["review_approve"]}
 
 
-def test_commit_message_carries_the_review(env):
-    run(env, {"coder": [WRITER], "reviewer": [LOW]})
-    msg = env[2]["commits"][0]
-    assert "review" in msg.lower() and "long line" in msg
+def test_review_answer_is_saved(env):
+    gw = gateway(env, {"coder": [WRITER], "reviewer": [APPROVE]})
+    loop.run_task(env[0], gw, "T001", log=quiet)
+    assert (env[3] / "answers" / "T001-a1-review.md").read_text(encoding="utf-8") == APPROVE
 
 
-def test_review_answer_and_outcome_are_recorded(env):
-    run(env, {"coder": [WRITER], "reviewer": [APPROVE]})
-    state = env[3]
-    assert (state / "answers" / "T001-a1-review.md").read_text(encoding="utf-8") == APPROVE
-    review_outcomes = [o for o in outcomes(env) if o["call_id"] == "c2"]
-    assert review_outcomes and review_outcomes[0]["result"] == "review_approve"
+# ---------------------------------------------------------------- the phases on their own
+
+def test_write_task_leaves_a_candidate(env):
+    store, _, rec, _ = env
+    gw = gateway(env, {"coder": [WRITER]})
+    assert loop.write_task(store, gw, "T001", log=quiet) == "candidate"
+    t = store.get("T001")
+    assert t["status"] == "awaiting_review" and t["commit"] == "sha1"
+    assert [c["role"] for c in gw.calls] == ["coder"]
+
+
+def test_review_tasks_loads_the_reviewer_once(env):
+    store, _, rec, _ = env
+    gw = gateway(env, {"coder": [WRITER, WRITER], "reviewer": [APPROVE, BLOCK]})
+    loop.write_task(store, gw, "T001", log=quiet)
+    loop.write_task(store, gw, "T002", log=quiet)
+    assert loop.review_tasks(store, gw, ["T001", "T002"], log=quiet) == {"T001": "done", "T002": "rejected"}
+    assert gw.switches.count(REVIEWER) == 1
+    assert store.get("T001")["status"] == "done"
+    t2 = store.get("T002")
+    assert t2["status"] == "todo" and "condition is always true" in t2["review_feedback"]
+    assert rec["undos"] == 1
+
+
+def test_write_task_uses_the_review_feedback(env):
+    store = env[0]
+    store.update("T001", review_feedback="Fix: condition is always true", attempts=1)
+    gw = gateway(env, {"coder": [WRITER]})
+    loop.write_task(store, gw, "T001", log=quiet)
+    assert "condition is always true" in gw.calls[0]["messages"][-1]["content"]
+    assert gw.calls[0]["attempt"] == 2
+
+
+def test_review_tasks_with_review_off_or_no_tasks(env, monkeypatch):
+    store = env[0]
+    gw = gateway(env, {})
+    assert loop.review_tasks(store, gw, [], log=quiet) == {}
+    assert gw.switches == []

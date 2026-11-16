@@ -42,6 +42,14 @@ def test_commit_diff_and_undo_last_commit(repo):
     assert gitops.git(repo, "log", "-1", "--format=%s") == "init"
 
 
+def test_append_to_commit_message(repo):
+    (repo / "a.py").write_text("A = 6\n", encoding="utf-8")
+    gitops.commit_all(repo, "T001: thing (candidate)")
+    gitops.append_to_commit_message(repo, "Review: approve")
+    assert gitops.git(repo, "log", "-1", "--format=%B").splitlines() == ["T001: thing (candidate)", "", "Review: approve"]
+    assert gitops.git(repo, "rev-list", "--count", "HEAD") == "2"
+
+
 def test_commit_all_uses_the_bot_name(repo):
     (repo / "a.py").write_text("A = 3\n", encoding="utf-8")
     gitops.commit_all(repo, "change")
