@@ -5,13 +5,14 @@ parse(text)                -> {"verdict": "approve" | "changes" | "unparsed", "i
 is_blocking(review)        -> True when any issue is "high" or "medium"
 format_issues(review)      -> the issues as lines for the next attempt's prompt
 """
+import ast
 import json
 import re
 
 REVIEW_SYSTEM = (
     "You review the diff against the task. "
     "Answer ONLY with a JSON object, optionally inside a json code block, "
-    "of the form {'verdict': 'approve' or 'changes', 'issues': [{'severity': 'high' | 'medium' | 'low', 'file': 'path', 'problem': 'one sentence'}]} "
+    "of the form {\"verdict\": \"approve\" or \"changes\", \"issues\": [{\"severity\": \"high\" | \"medium\" | \"low\", \"file\": \"path\", \"problem\": \"one sentence\"}]} "
     "(real JSON uses double quotes). "
     "high = wrong behaviour, a bug or a security problem; "
     "medium = misleading or redundant logic (for example a condition that is always true), "
@@ -59,14 +60,53 @@ def _extract_json(text):
     return None
 
 
+def _find_bare_object(text):
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    in_str = None
+    i = start
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if in_str:
+            if c == "\\":
+                i += 2
+                continue
+            if c == in_str:
+                in_str = None
+        elif c in ("'", '"'):
+            in_str = c
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+        i += 1
+    return None
+
+
+def _try_load(raw):
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        pass
+    try:
+        data = ast.literal_eval(raw)
+    except (ValueError, TypeError, SyntaxError, RecursionError):
+        return None
+    return data
+
+
 def parse(text):
     raw = _extract_json(text)
     if raw is None:
+        raw = _find_bare_object(text)
+    if raw is None:
         return {"verdict": "unparsed", "issues": []}
-    try:
-        data = json.loads(raw)
-    except (ValueError, TypeError):
-        return {"verdict": "unparsed", "issues": []}
+    data = _try_load(raw)
     if not isinstance(data, dict):
         return {"verdict": "unparsed", "issues": []}
     verdict = data.get("verdict")
