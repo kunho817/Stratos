@@ -16,6 +16,7 @@ ROLES = {
 }
 
 REVIEW = True   # review every diff that passes its tests; high/medium issues send it back as a failed attempt
+REVIEW_ROUNDS = 3   # write -> review rounds before a task the reviewer keeps rejecting goes to a person
 
 # attempts per task, by the task's role: the role's own model first, then one cross-check by a different model
 # (the design's rule: cross-check only hard tasks, i.e. the ones that keep failing)

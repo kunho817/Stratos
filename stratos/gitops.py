@@ -28,6 +28,17 @@ def diff(worktree):
     return git(worktree, "diff", "--cached", "--no-color", "HEAD")
 
 
+def commit_diff(worktree):
+    """The changes of the last commit (a candidate waiting for review)."""
+    return git(worktree, "diff", "--no-color", "HEAD~1", "HEAD")
+
+
+def undo_last_commit(worktree):
+    """Drop the last commit and its changes (a candidate the review rejected)."""
+    git(worktree, "reset", "-q", "--hard", "HEAD~1")
+    git(worktree, "clean", "-fd")
+
+
 def discard_changes(worktree):
     """Undo a failed attempt (only ever inside a Stratos worktree)."""
     git(worktree, "reset", "-q", "--hard", "HEAD")

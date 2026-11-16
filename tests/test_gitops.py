@@ -31,6 +31,17 @@ def test_discard_undoes_staged_and_new_files(repo):
     assert gitops.diff(repo) == ""
 
 
+def test_commit_diff_and_undo_last_commit(repo):
+    (repo / "a.py").write_text("A = 5\n", encoding="utf-8")
+    (repo / "c.py").write_text("C = 1\n", encoding="utf-8")
+    gitops.commit_all(repo, "candidate")
+    d = gitops.commit_diff(repo)
+    assert "+A = 5" in d and "+C = 1" in d
+    gitops.undo_last_commit(repo)
+    assert (repo / "a.py").read_text(encoding="utf-8") == "A = 1\n" and not (repo / "c.py").exists()
+    assert gitops.git(repo, "log", "-1", "--format=%s") == "init"
+
+
 def test_commit_all_uses_the_bot_name(repo):
     (repo / "a.py").write_text("A = 3\n", encoding="utf-8")
     gitops.commit_all(repo, "change")
