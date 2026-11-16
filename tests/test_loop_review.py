@@ -208,6 +208,60 @@ def test_write_task_uses_the_review_feedback(env):
     assert gw.calls[0]["attempt"] == 2
 
 
+# ---------------------------------------------------------------- run_all: rounds of (write all, then review all)
+# T012. run_all(store, gw, task_ids, log) runs the given tasks (in that order) in rounds, at most
+# config.REVIEW_ROUNDS: each round writes every task that is 'todo' and whose 'after' tasks are all 'done', then
+# reviews all the new candidates together (review_tasks). A task rejected in the last round goes to a person
+# (needs_human). Tasks that never became runnable stay 'todo'. Returns {task_id: final status}.
+
+CODER = config.ROLES["coder"]["model"]
+
+
+def test_run_all_writes_everything_then_reviews_everything(env):
+    store = env[0]
+    gw = gateway(env, {"coder": [WRITER, WRITER], "reviewer": [APPROVE, APPROVE]})
+    assert loop.run_all(store, gw, ["T001", "T002"], log=quiet) == {"T001": "done", "T002": "done"}
+    assert [c["role"] for c in gw.calls] == ["coder", "coder", "reviewer", "reviewer"]
+    assert gw.switches == [CODER, REVIEWER]                      # two loads, not four
+
+
+def test_run_all_rewrites_rejected_tasks_in_the_next_round(env):
+    store = env[0]
+    gw = gateway(env, {"coder": [WRITER, WRITER, WRITER], "reviewer": [APPROVE, BLOCK, APPROVE]})
+    assert loop.run_all(store, gw, ["T001", "T002"], log=quiet) == {"T001": "done", "T002": "done"}
+    assert [(c["role"], c["task"]) for c in gw.calls] == [
+        ("coder", "T001"), ("coder", "T002"), ("reviewer", "T001"), ("reviewer", "T002"),
+        ("coder", "T002"), ("reviewer", "T002")]
+    assert gw.switches == [CODER, REVIEWER, CODER, REVIEWER]
+
+
+def test_run_all_waits_for_dependencies(env):
+    store = env[0]
+    store.add_task("v", "after T001", ["pkg/a.py"], [], ["tests/x.py"], after=["T001"])
+    gw = gateway(env, {"coder": [WRITER] * 3, "reviewer": [APPROVE] * 3})
+    assert loop.run_all(store, gw, ["T001", "T002", "T003"], log=quiet) == {"T001": "done", "T002": "done",
+                                                                           "T003": "done"}
+    assert [(c["role"], c["task"]) for c in gw.calls] == [
+        ("coder", "T001"), ("coder", "T002"), ("reviewer", "T001"), ("reviewer", "T002"),
+        ("coder", "T003"), ("reviewer", "T003")]
+
+
+def test_run_all_hands_over_a_task_rejected_every_round(env, monkeypatch):
+    monkeypatch.setattr(config, "REVIEW_ROUNDS", 2)
+    store = env[0]
+    gw = gateway(env, {"coder": [WRITER] * 3, "reviewer": [BLOCK, APPROVE, BLOCK]})
+    assert loop.run_all(store, gw, ["T001", "T002"], log=quiet) == {"T001": "needs_human", "T002": "done"}
+
+
+def test_run_all_leaves_dependents_of_a_failed_task(env):
+    store = env[0]
+    store.add_task("v", "after T001", ["pkg/a.py"], [], ["tests/x.py"], after=["T001"])
+    env[2]["tests_ok"] = False
+    gw = gateway(env, {"coder": [WRITER] * 3, "coder_hard": [WRITER]})
+    assert loop.run_all(store, gw, ["T001", "T003"], log=quiet) == {"T001": "needs_human", "T003": "todo"}
+    assert {c["task"] for c in gw.calls} == {"T001"}
+
+
 def test_review_tasks_with_review_off_or_no_tasks(env, monkeypatch):
     store = env[0]
     gw = gateway(env, {})

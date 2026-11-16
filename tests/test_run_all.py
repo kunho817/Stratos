@@ -1,6 +1,10 @@
-"""Tests for task T004: tasks get a role and dependencies, and `python -m stratos run-all` runs every todo task in
-the order stratos.scheduler.plan gives (fewest model switches). No GPU needed: the gateway and the task loop are
-replaced by fakes."""
+"""Tests for `python -m stratos run-all` (tasks T004 and T012): roles and dependencies on tasks, and running every
+todo task in the order stratos.scheduler.plan gives through stratos.loop.run_all (rounds: write all, then review all).
+No GPU needed: the gateway and loop.run_all are replaced by fakes.
+
+run-all prints 'plan: <ids>', 'blocked: <ids>' when some can never run, then one line per planned task:
+'<id>: <final status>', or 'skipped <id> (waits on <dep>)' when it is still todo because a dependency is not done.
+It returns 0 when every planned task is done and nothing is blocked, else 1."""
 import pytest
 
 from stratos import __main__ as cli
@@ -29,17 +33,23 @@ class FakeGateway:
         return {"model": FakeGateway.model}
 
 
-def fake_loop(results, calls):
-    def run_task(store, gw, task_id, log=print):
-        calls.append(task_id)
-        result = results.get(task_id, "done")
-        store.update(task_id, status=result)
-        return result
-    return run_task
+def fake_run_all(results, calls):
+    def run_all(store, gw, task_ids, log=print):
+        calls.extend(task_ids)
+        for tid in task_ids:
+            store.update(tid, status=results.get(tid, "done"))
+        return {tid: store.get(tid)["status"] for tid in task_ids}
+    return run_all
 
 
 def add(*extra):
     return cli.main(["add", "--title", "t", "--goal", "g", "--tests", "tests/x.py", *extra])
+
+
+def use_fakes(monkeypatch, results=None, calls=None):
+    monkeypatch.setattr(cli, "Gateway", FakeGateway)
+    monkeypatch.setattr(cli, "run_all", fake_run_all(results or {}, calls if calls is not None else []))
+    FakeGateway.model, FakeGateway.down = TIEL, False
 
 
 def test_add_stores_role_and_after(state):
@@ -60,45 +70,38 @@ def test_store_add_task_keeps_working_without_role(state):
     assert t["role"] == "coder" and t["after"] == []
 
 
-def test_run_all_follows_the_plan(state, monkeypatch, capsys):
+def test_run_all_passes_the_plan_to_the_loop(state, monkeypatch, capsys):
     add("--role", "coder_hard")          # T001 flint
     add()                                # T002 tiel
     add("--after", "T001")               # T003 tiel, after T001
     calls = []
-    monkeypatch.setattr(cli, "Gateway", FakeGateway)
-    monkeypatch.setattr(cli, "run_task", fake_loop({}, calls))
-    FakeGateway.model, FakeGateway.down = TIEL, False
+    use_fakes(monkeypatch, calls=calls)
     code = cli.main(["run-all"])
     out = capsys.readouterr().out
     assert calls == ["T002", "T001", "T003"]
     assert "plan: T002 T001 T003" in out
+    assert "T001: done" in out and "T002: done" in out and "T003: done" in out
     assert code == 0
-    assert [t["status"] for t in state.tasks()] == ["done", "done", "done"]
 
 
-def test_run_all_skips_tasks_whose_dependency_failed(state, monkeypatch, capsys):
+def test_run_all_reports_tasks_left_waiting(state, monkeypatch, capsys):
     add("--role", "coder_hard")          # T001 fails
-    add("--after", "T001")               # T002 must be skipped
+    add("--after", "T001")               # T002 is left todo by the loop
     add()                                # T003 runs
-    calls = []
-    monkeypatch.setattr(cli, "Gateway", FakeGateway)
-    monkeypatch.setattr(cli, "run_task", fake_loop({"T001": "needs_human"}, calls))
-    FakeGateway.model, FakeGateway.down = TIEL, False
+    use_fakes(monkeypatch, results={"T001": "needs_human", "T002": "todo"})
     code = cli.main(["run-all"])
     out = capsys.readouterr().out
-    assert "T002" not in calls and "T001" in calls and "T003" in calls
-    assert "skipped T002" in out
+    assert "T001: needs_human" in out
+    assert "skipped T002 (waits on T001)" in out
+    assert "T003: done" in out
     assert code == 1
-    assert state.get("T002")["status"] == "todo"
 
 
 def test_run_all_reports_blocked_tasks(state, monkeypatch, capsys):
     add("--after", "T009")               # unknown dependency
     add()
     calls = []
-    monkeypatch.setattr(cli, "Gateway", FakeGateway)
-    monkeypatch.setattr(cli, "run_task", fake_loop({}, calls))
-    FakeGateway.model, FakeGateway.down = TIEL, False
+    use_fakes(monkeypatch, calls=calls)
     code = cli.main(["run-all"])
     out = capsys.readouterr().out
     assert calls == ["T002"]
@@ -110,8 +113,7 @@ def test_run_all_works_when_the_server_does_not_answer_health(state, monkeypatch
     add("--role", "coder_hard")
     add()
     calls = []
-    monkeypatch.setattr(cli, "Gateway", FakeGateway)
-    monkeypatch.setattr(cli, "run_task", fake_loop({}, calls))
+    use_fakes(monkeypatch, calls=calls)
     FakeGateway.down = True
     try:
         assert cli.main(["run-all"]) == 0
@@ -121,8 +123,7 @@ def test_run_all_works_when_the_server_does_not_answer_health(state, monkeypatch
 
 
 def test_nothing_to_run(state, monkeypatch, capsys):
-    monkeypatch.setattr(cli, "Gateway", FakeGateway)
-    monkeypatch.setattr(cli, "run_task", fake_loop({}, []))
+    use_fakes(monkeypatch)
     assert cli.main(["run-all"]) == 0
     assert "nothing to run" in capsys.readouterr().out
 
