@@ -23,7 +23,14 @@ def attempt_plan(task):
 def write_task(store, gw, task_id, log=print):
     """Run the task's attempts until the tests pass, without a review; commit a candidate when a review is on."""
     task = store.get(task_id)
-    wt = gitops.ensure_worktree(config.REPO, config.WORKTREES, task_id)
+    bases = gitops.dependency_bases(config.REPO, task.get("after", []))
+    try:
+        wt = gitops.ensure_worktree(config.REPO, config.WORKTREES, task_id, bases=bases)
+    except gitops.BaseConflict as e:
+        store.update(task_id, status="needs_human", conflict=str(e))
+        store.decide(task=task_id, result="base_conflict", detail=str(e))
+        log(f"  task {task_id}: base conflict, handing to a person ({e})")
+        return "needs_human"
     store.update(task_id, status="running", worktree=str(wt))
     failure = task.get("review_feedback")
     attempt = task.get("attempts", 0)
