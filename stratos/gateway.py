@@ -44,6 +44,7 @@ class Gateway:
         content = msg.get("content") or ""
         reasoning = msg.get("reasoning_content") or ""
         usage = r.get("usage") or {}
+        self.last_finish = r["choices"][0].get("finish_reason")   # "tool_calls": the model wanted a tool (Flint, T009)
         self.telemetry.record("call", call_id=call_id, task=task, role=role, attempt=attempt, model=model,
                               effort=effort, prompt_tokens=usage.get("prompt_tokens"),
                               completion_tokens=usage.get("completion_tokens"), reasoning_chars=len(reasoning),

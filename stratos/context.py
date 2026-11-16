@@ -11,6 +11,7 @@ FILE: relative/path.py
 ```
 
 Rules:
+- You have no tools and cannot open files: everything you need is in this message. Answer with the files directly.
 - Write complete files, never fragments or diffs.
 - Do not change files marked READ-ONLY. Do not add test code, prints or example runs to the files you write.
 - Use only the Python standard library unless the task says otherwise.

@@ -37,6 +37,9 @@ def run_task(store, gw, task_id, log=print):
             files = patch.parse_files(text, allowed)
             if not files:
                 result, detail = "no_files", "the answer held no FILE blocks for the task's files"
+                if getattr(gw, "last_finish", None) == "tool_calls":
+                    detail = ("You tried to call a tool, but there are no tools here and you cannot open files. "
+                              "Everything you need is in this message: answer with the FILE blocks directly.")
             else:
                 try:
                     written = patch.apply_files(wt, files, task["protected"], allowed)
