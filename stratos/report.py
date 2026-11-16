@@ -1,7 +1,12 @@
 """Summarize telemetry written by stratos/telemetry.py."""
 
 
-def summarize(events):
+def summarize(events, since=None):
+    if since is None:
+        events = [e for e in events]
+    else:
+        events = [e for e in events if "ts" in e and e["ts"] >= since]
+
     calls = 0
     prompt_tokens = 0
     completion_tokens = 0
