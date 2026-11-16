@@ -13,9 +13,13 @@ ROLES = {
     "coder_hard": {"model": "flint-40b-a2.5b-ud-q4_k_xl", "effort": "high", "max_tokens": 12000},
 }
 
-# attempts per task: the role's own model first, then one cross-check by a different model (the design's rule:
-# cross-check only hard tasks, i.e. the ones that keep failing)
-ATTEMPT_PLAN = [("coder", 3), ("coder_hard", 1)]
+# attempts per task, by the task's role: the role's own model first, then one cross-check by a different model
+# (the design's rule: cross-check only hard tasks, i.e. the ones that keep failing)
+ATTEMPT_PLANS = {
+    "coder": [("coder", 3), ("coder_hard", 1)],
+    "coder_hard": [("coder_hard", 2), ("coder", 1)],
+}
+ATTEMPT_PLAN = ATTEMPT_PLANS["coder"]   # the plan before tasks had roles
 
 # files a model may write (anything else in its answer is refused)
 WRITABLE_SUFFIXES = {".py", ".md", ".toml", ".txt", ".json"}
