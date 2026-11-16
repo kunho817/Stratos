@@ -22,6 +22,19 @@ def ensure_worktree(repo, root, task_id):
     return path
 
 
+def remove_worktree(repo, root, task_id, delete_branch=True):
+    """Remove a task's worktree (root/<task_id>) and prune git's worktree list; unless delete_branch is
+    False, also delete the branch stratos/<task_id>. A task with no worktree or branch does nothing."""
+    path = Path(root) / task_id
+    if path.exists():
+        git(repo, "worktree", "remove", "--force", str(path))
+    git(repo, "worktree", "prune", "-v")
+    if delete_branch:
+        branch = f"stratos/{task_id}"
+        if git(repo, "branch", "--list", branch):
+            git(repo, "branch", "-D", branch)
+
+
 def diff(worktree):
     """Everything the attempt changed, new files included (stages it; discard_changes undoes that too)."""
     git(worktree, "add", "-A")
