@@ -42,6 +42,18 @@ def _header_inside_fence(lines, ok):
     return out
 
 
+def _lone_block(lines, allowed):
+    """T022: a lone code block belongs to the only allowed file, when nothing else is possible."""
+    if allowed is None or len(allowed) != 1:
+        return None
+    if any(HEADER_RE.match(line) for line in lines):
+        return None
+    fences = [i for i, line in enumerate(lines) if line.lstrip().startswith("```")]
+    if len(fences) != 2 or lines[fences[1]].strip() != "```":
+        return None
+    return [(_norm(allowed[0]), "".join(lines[fences[0] + 1:fences[1]]))]
+
+
 def parse_files(text, allowed=None):
     """[(path, content)] for every FILE block. allowed: if given, only headers naming one of these paths count."""
     ok = {_norm(a) for a in allowed} if allowed is not None else None
@@ -63,6 +75,10 @@ def parse_files(text, allowed=None):
         if close is None:
             continue
         out.append((path, "".join(seg[j + 1:close])))
+    if not out:
+        lone = _lone_block(lines, allowed)
+        if lone is not None:
+            return lone
     return out
 
 
