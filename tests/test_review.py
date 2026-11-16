@@ -34,6 +34,18 @@ def test_parse_bare_json_and_approve():
     assert r == {"verdict": "approve", "issues": []}
 
 
+def test_parse_bare_json_with_nested_issues():
+    text = 'My review: {"verdict": "changes", "issues": [{"severity": "high", "file": "a.py", "problem": "crashes"}]} done.'
+    r = review.parse(text)
+    assert r["verdict"] == "changes"
+    assert r["issues"] == [{"severity": "high", "file": "a.py", "problem": "crashes"}]
+
+
+def test_module_imports_are_at_the_top():
+    import inspect
+    assert "__import__" not in inspect.getsource(review)
+
+
 def test_parse_normalizes_bad_fields():
     r = review.parse('```json\n{"verdict": "changes", "issues": [{"severity": "critical", "problem": "x"}, "not an issue"]}\n```')
     assert r["issues"] == [{"severity": "medium", "file": "", "problem": "x"}]   # unknown severity -> medium
