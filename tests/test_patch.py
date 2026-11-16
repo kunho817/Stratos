@@ -82,6 +82,32 @@ def test_header_on_the_first_line_inside_the_fence():
                                                                                   ("stratos/b.py", "Y = 2\n")]
 
 
+# T022: a missing header is forgiven only when nothing else is possible: no header anywhere, exactly one allowed
+# file, exactly one code block (exactly two fence lines). Tiel answered T009 and T019 that way.
+
+def test_a_lone_block_belongs_to_the_only_file():
+    text = "Here is the updated module:\n```python\nX = 1\n\ndef f():\n    return X\n```\nDone."
+    assert patch.parse_files(text, allowed=["stratos/a.py"]) == [("stratos/a.py", "X = 1\n\ndef f():\n    return X\n")]
+
+
+def test_no_guess_with_two_blocks():
+    text = "```python\nX = 1\n```\nUsage:\n```python\nprint(X)\n```\n"
+    assert patch.parse_files(text, allowed=["stratos/a.py"]) == []
+
+
+def test_no_guess_with_two_allowed_files():
+    assert patch.parse_files("```python\nX = 1\n```\n", allowed=["stratos/a.py", "stratos/b.py"]) == []
+
+
+def test_no_guess_without_an_allowed_list():
+    assert patch.parse_files("```python\nX = 1\n```\n") == []
+
+
+def test_a_header_still_wins():
+    text = "FILE: stratos/a.py\n```python\nX = 2\n```\n"
+    assert patch.parse_files(text, allowed=["stratos/a.py"]) == [("stratos/a.py", "X = 2\n")]
+
+
 def test_unclosed_block_is_ignored():
     assert patch.parse_files("FILE: a.py\n```python\nx = 1\n") == []
 
