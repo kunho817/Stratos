@@ -71,6 +71,19 @@ def append_to_commit_message(worktree, text):
     git(worktree, *BOT, "commit", "-q", "--amend", "-m", f"{msg}\n\n{text}")
 
 
+def finalize_commit_message(worktree, text):
+    """Clean a candidate commit's title and append the review (approving the candidate)."""
+    msg = git(worktree, "log", "-1", "--format=%B")
+    lines = msg.split("\n")
+    title = lines[0]
+    ending = " (candidate, awaiting review)"
+    if title.endswith(ending):
+        title = title[: -len(ending)]
+    rest = "\n".join(lines[1:]).strip("\n")
+    body = f"{title}\n\n{rest}" if rest else title
+    git(worktree, *BOT, "commit", "-q", "--amend", "-m", f"{body}\n\n{text}")
+
+
 def undo_last_commit(worktree):
     """Drop the last commit and its changes (a candidate the review rejected)."""
     git(worktree, "reset", "-q", "--hard", "HEAD~1")
