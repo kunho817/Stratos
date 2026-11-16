@@ -1,8 +1,13 @@
 """The task loop: build the prompt, ask the model, apply its files, run the tests, retry or commit.
 
-Attempts follow config.ATTEMPT_PLAN: the role's model a few times, then one cross-check by a different model.
+Attempts follow the task's role's plan: the role's model a few times, then one cross-check by a different model.
 A task that still fails is handed to a person (status needs_human)."""
 from . import config, context, gitops, patch, verify
+
+
+def attempt_plan(task):
+    """The attempt schedule for this task, chosen by its role."""
+    return config.ATTEMPT_PLANS[task.get("role", "coder")]
 
 
 def run_task(store, gw, task_id, log=print):
@@ -11,7 +16,7 @@ def run_task(store, gw, task_id, log=print):
     store.update(task_id, status="running", worktree=str(wt))
     failure = None
     attempt = 0
-    for role, tries in config.ATTEMPT_PLAN:
+    for role, tries in attempt_plan(task):
         r = config.ROLES[role]
         for _ in range(tries):
             attempt += 1
