@@ -5,11 +5,13 @@
   python -m stratos run T001
   python -m stratos run-all
   python -m stratos status
+  python -m stratos clean
 """
 import argparse
 import sys
 
 from . import config
+from . import gitops
 from .gateway import Gateway
 from .loop import run_all, run_task
 from .report import summarize
@@ -40,6 +42,7 @@ def main(argv=None):
     sub.add_parser("run-all", help="run every todo task, in scheduler order")
     sub.add_parser("status", help="list tasks")
     sub.add_parser("report", help="summarize telemetry")
+    sub.add_parser("clean", help="remove worktree and branch of merged, done tasks")
     args = ap.parse_args(argv)
 
     store = Store(config.STATE_DIR)
@@ -104,6 +107,27 @@ def main(argv=None):
             for name in sorted(s['by_model']):
                 m = s['by_model'][name]
                 print(f"  {name}: calls={m['calls']} prompt={m['prompt_tokens']} completion={m['completion_tokens']} time={m['seconds']:.1f} s")
+        return 0
+    elif args.cmd == "clean":
+        merged = gitops.git(config.REPO, "branch", "--merged", "HEAD", "--list", "stratos/*")
+        merged = {line.lstrip(" *+").strip() for line in merged.splitlines()}
+        all_branches = gitops.git(config.REPO, "branch", "--list", "stratos/*")
+        all_branches = {line.lstrip(" *+").strip() for line in all_branches.splitlines()}
+        cleaned = 0
+        for t in store.tasks():
+            if t["status"] != "done":
+                continue
+            branch = f"stratos/{t['id']}"
+            if branch not in all_branches:
+                continue
+            if branch in merged:
+                gitops.remove_worktree(config.REPO, config.WORKTREES, t["id"])
+                store.update(t["id"], cleaned=True, worktree=None)
+                print(f"cleaned {t['id']}")
+                cleaned += 1
+            else:
+                print(f"kept {t['id']} (not merged)")
+        print(f"cleaned {cleaned} task(s)")
         return 0
     else:
         for t in store.tasks():
