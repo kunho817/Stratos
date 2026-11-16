@@ -114,6 +114,34 @@ def review_tasks(store, gw, task_ids, log=print):
     return results
 
 
+def run_all(store, gw, task_ids, log=print):
+    """Run the given tasks in rounds of (write all, then review all)."""
+    for _ in range(config.REVIEW_ROUNDS):
+        runnable = []
+        for tid in task_ids:
+            task = store.get(tid)
+            if task["status"] != "todo":
+                continue
+            if all(store.get(a)["status"] == "done" for a in task.get("after", [])):
+                runnable.append(tid)
+        if not runnable:
+            break
+        candidates = []
+        for tid in runnable:
+            if write_task(store, gw, tid, log=log) == "candidate":
+                candidates.append(tid)
+        if candidates:
+            review_tasks(store, gw, candidates, log=log)
+    final = {}
+    for tid in task_ids:
+        task = store.get(tid)
+        if task["status"] == "todo" and task.get("review_feedback"):
+            store.update(tid, status="needs_human")
+            task = store.get(tid)
+        final[tid] = task["status"]
+    return final
+
+
 def run_task(store, gw, task_id, log=print):
     """Write, then review, then write again ... for up to config.REVIEW_ROUNDS rounds."""
     for _ in range(config.REVIEW_ROUNDS):
