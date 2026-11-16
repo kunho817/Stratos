@@ -64,17 +64,17 @@ def main(argv=None):
         print("plan: " + " ".join(order))
         if blocked:
             print("blocked: " + " ".join(blocked))
+        statuses = {t['id']: t['status'] for t in store.tasks()}
         done = True
         for tid in order:
             task = store.get(tid)
-            dep = next((a for a in task.get("after", [])
-                        if store.get(a)["status"] != "done" if store.get(a)["status"] != "todo"
-                        or store.get(a)["status"] != "done"), None)
+            dep = next((a for a in task.get("after", []) if statuses.get(a) != "done"), None)
             if dep is not None:
                 print(f"skipped {tid} (waits on {dep})")
                 done = False
                 continue
             result = run_task(store, gw, tid)
+            statuses[tid] = result
             print(f"{tid}: {result}")
             if result != "done":
                 done = False
