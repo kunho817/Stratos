@@ -40,6 +40,51 @@ def test_nothing_written_when_one_path_is_bad(tmp_path):
     assert not (tmp_path / "ok.py").exists()
 
 
+NESTED = '''FILE: stratos/review.py
+```python
+PROMPT = """Answer inside a json block:
+```json
+{"verdict": "approve"}
+```
+"""
+X = 1
+```
+'''
+
+
+def test_content_may_hold_fences():
+    assert patch.parse_files(NESTED) == [("stratos/review.py",
+                                          'PROMPT = """Answer inside a json block:\n```json\n{"verdict": "approve"}\n```\n"""\nX = 1\n')]
+
+
+SELF = '''FILE: stratos/context.py
+```python
+SYSTEM = """Answer like this:
+
+FILE: relative/path.py
+```python
+<code>
+```
+"""
+```
+'''
+
+
+def test_only_the_tasks_files_count_as_headers():
+    files = patch.parse_files(SELF, allowed=["stratos/context.py"])
+    assert [p for p, _ in files] == ["stratos/context.py"]
+    assert "FILE: relative/path.py" in files[0][1] and files[0][1].rstrip().endswith('"""')
+
+
+def test_unclosed_block_is_ignored():
+    assert patch.parse_files("FILE: a.py\n```python\nx = 1\n") == []
+
+
+def test_file_outside_the_task_is_refused(tmp_path):
+    with pytest.raises(patch.PatchRefused):
+        patch.apply_files(tmp_path, [("stratos/other.py", "x")], [], allowed=["stratos/mine.py"])
+
+
 def test_apply_writes_files(tmp_path):
     assert patch.apply_files(tmp_path, [("pkg/m.py", "Y = 2\n")], []) == ["pkg/m.py"]
     assert (tmp_path / "pkg" / "m.py").read_text(encoding="utf-8") == "Y = 2\n"

@@ -5,6 +5,13 @@ A task that still fails is handed to a person (status needs_human)."""
 from . import config, context, gitops, patch, verify
 
 
+def save_answer(task_id, attempt, text):
+    """Keep every raw model answer (.stratos/answers/<task>-a<n>.md): without them a failure cannot be explained."""
+    d = config.STATE_DIR / "answers"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{task_id}-a{attempt}.md").write_text(text or "", encoding="utf-8")
+
+
 def attempt_plan(task):
     """The attempt schedule for this task, chosen by its role."""
     return config.ATTEMPT_PLANS[task.get("role", "coder")]
@@ -25,12 +32,14 @@ def run_task(store, gw, task_id, log=print):
                 log(f"  model switch to {r['model']}: {switch:.1f} s")
             call_id, text = gw.chat(context.build_messages(task, wt, failure), task=task_id, role=role,
                                     attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"])
-            files = patch.parse_files(text)
+            save_answer(task_id, attempt, text)
+            allowed = task["files"] or None
+            files = patch.parse_files(text, allowed)
             if not files:
-                result, detail = "no_files", "the answer held no FILE blocks"
+                result, detail = "no_files", "the answer held no FILE blocks for the task's files"
             else:
                 try:
-                    written = patch.apply_files(wt, files, task["protected"])
+                    written = patch.apply_files(wt, files, task["protected"], allowed)
                 except patch.PatchRefused as e:
                     result, detail = "refused", str(e)
                 else:
