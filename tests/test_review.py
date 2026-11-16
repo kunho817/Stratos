@@ -1,0 +1,61 @@
+"""Tests for task T006: stratos/review.py, the parts of the review step that need no model.
+
+build_messages(task, diff) -> chat messages asking a reviewer model for a JSON verdict on the diff
+parse(text)                -> {"verdict": "approve" | "changes" | "unparsed", "issues": [{severity, file, problem}]}
+is_blocking(review)        -> True when any issue is "high" or "medium"
+format_issues(review)      -> the issues as lines for the next attempt's prompt
+"""
+from stratos import review
+
+TASK = {"id": "T009", "title": "add a thing", "goal": "Add the thing to stratos/x.py."}
+DIFF = "diff --git a/stratos/x.py b/stratos/x.py\n+def thing():\n+    return 1\n"
+
+
+def test_build_messages_has_a_fixed_system_prompt_and_the_diff():
+    msgs = review.build_messages(TASK, DIFF)
+    assert [m["role"] for m in msgs] == ["system", "user"]
+    assert msgs[0]["content"] == review.REVIEW_SYSTEM            # fixed: the start of the prompt can be cached
+    user = msgs[1]["content"]
+    assert "T009" in user and "add a thing" in user and "Add the thing to stratos/x.py." in user
+    assert DIFF in user
+    for word in ("approve", "changes", "high", "medium", "low"):
+        assert word in review.REVIEW_SYSTEM
+
+
+def test_parse_a_json_block():
+    text = 'Looks mostly fine.\n```json\n{"verdict": "changes", "issues": [{"severity": "Medium", "file": "stratos/x.py", "problem": "condition is always true"}]}\n```'
+    r = review.parse(text)
+    assert r["verdict"] == "changes"
+    assert r["issues"] == [{"severity": "medium", "file": "stratos/x.py", "problem": "condition is always true"}]
+
+
+def test_parse_bare_json_and_approve():
+    r = review.parse('{"verdict": "APPROVE", "issues": []}')
+    assert r == {"verdict": "approve", "issues": []}
+
+
+def test_parse_normalizes_bad_fields():
+    r = review.parse('```json\n{"verdict": "changes", "issues": [{"severity": "critical", "problem": "x"}, "not an issue"]}\n```')
+    assert r["issues"] == [{"severity": "medium", "file": "", "problem": "x"}]   # unknown severity -> medium
+
+
+def test_parse_garbage():
+    assert review.parse("I could not review this.") == {"verdict": "unparsed", "issues": []}
+    assert review.parse('```json\n{"verdict": "maybe"}\n```') == {"verdict": "unparsed", "issues": []}
+    assert review.parse("") == {"verdict": "unparsed", "issues": []}
+
+
+def test_is_blocking():
+    issue = lambda s: {"severity": s, "file": "f.py", "problem": "p"}
+    assert review.is_blocking({"verdict": "changes", "issues": [issue("high")]})
+    assert review.is_blocking({"verdict": "approve", "issues": [issue("medium")]})   # the issues decide, not the word
+    assert not review.is_blocking({"verdict": "changes", "issues": [issue("low")]})
+    assert not review.is_blocking({"verdict": "changes", "issues": []})
+    assert not review.is_blocking({"verdict": "unparsed", "issues": []})            # a broken review blocks nothing
+
+
+def test_format_issues():
+    r = {"verdict": "changes", "issues": [{"severity": "high", "file": "stratos/x.py", "problem": "returns None"},
+                                          {"severity": "low", "file": "", "problem": "long line"}]}
+    assert review.format_issues(r) == "- [high] stratos/x.py: returns None\n- [low] long line"
+    assert review.format_issues({"verdict": "approve", "issues": []}) == ""
