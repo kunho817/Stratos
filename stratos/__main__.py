@@ -132,7 +132,9 @@ def main(argv=None):
     else:
         for t in store.tasks():
             extra = f" commit {t['commit']}" if t.get("commit") else ""
-            print(f"{t['id']}  {t['status']:<12} {t['title']}{extra}")
+            wt = t.get("worktree")
+            mark = "  [wt]" if wt and (config.WORKTREES / wt).exists() else ""
+            print(f"{t['id']}  {t['status']:<12} {t['title']}{extra}{mark}")
     return 0
 
 
