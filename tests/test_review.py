@@ -41,6 +41,18 @@ def test_parse_bare_json_with_nested_issues():
     assert r["issues"] == [{"severity": "high", "file": "a.py", "problem": "crashes"}]
 
 
+def test_system_prompt_shows_valid_json():
+    # T009's reviewer copied a single-quoted example and its answer was read as unparsed, so nothing was reviewed
+    assert "{'" not in review.REVIEW_SYSTEM and "'verdict'" not in review.REVIEW_SYSTEM
+    assert '"verdict"' in review.REVIEW_SYSTEM and '"issues"' in review.REVIEW_SYSTEM
+
+
+def test_parse_accepts_a_python_style_dict():
+    assert review.parse("{'verdict': 'approve', 'issues': []}") == {"verdict": "approve", "issues": []}
+    text = "```json\n{'verdict': 'changes', 'issues': [{'severity': 'high', 'file': 'a.py', 'problem': 'crash'}]}\n```"
+    assert review.parse(text)["issues"] == [{"severity": "high", "file": "a.py", "problem": "crash"}]
+
+
 def test_module_imports_are_at_the_top():
     import inspect
     assert "__import__" not in inspect.getsource(review)
