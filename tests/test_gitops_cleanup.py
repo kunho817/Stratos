@@ -43,3 +43,18 @@ def test_keep_the_branch_when_asked(repo, tmp_path):
 def test_removing_an_unknown_task_does_nothing(repo, tmp_path):
     gitops.remove_worktree(repo, tmp_path / "wt", "T009")
     assert branches(repo) == ""
+
+
+def test_remove_worktree_finishes_a_half_done_removal(tmp_path):
+    # Windows once held the folder while git removed the worktree: git let go of it and an empty folder stayed,
+    # so every later `clean` failed with "is not a working tree".
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+    (repo / "a.py").write_text("A = 1\n", encoding="utf-8")
+    gitops.git(repo, "add", "-A")
+    gitops.git(repo, *gitops.BOT, "commit", "-q", "-m", "init")
+    root = tmp_path / "wt"
+    (root / "T1").mkdir(parents=True)
+    gitops.git(repo, "branch", "stratos/T1")
+    gitops.remove_worktree(repo, root, "T1")
+    assert not (root / "T1").exists() and not gitops.git(repo, "branch", "--list", "stratos/T1")

@@ -46,7 +46,10 @@ def remove_worktree(repo, root, task_id, delete_branch=True):
     False, also delete the branch stratos/<task_id>. A task with no worktree or branch does nothing."""
     path = Path(root) / task_id
     if path.exists():
-        git(repo, "worktree", "remove", "--force", str(path))
+        if path.is_dir() and not any(path.iterdir()):
+            path.rmdir()   # an earlier remove was cut short (Windows held the folder): git already let go of it
+        else:
+            git(repo, "worktree", "remove", "--force", str(path))
     git(repo, "worktree", "prune", "-v")
     if delete_branch:
         branch = f"stratos/{task_id}"
