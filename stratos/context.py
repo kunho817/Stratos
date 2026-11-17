@@ -16,7 +16,7 @@ Rules:
 - Write complete files, never fragments or diffs.
 - Do not change files marked READ-ONLY. Do not add test code, prints or example runs to the files you write.
 - Use only the Python standard library unless the task says otherwise.
-- Keep the code plain and correct; the task's tests decide whether it succeeded."""
+- Keep the code plain and correct; the task's tests decide whether you succeeded."""
 
 
 def show_file(root, path, label):
