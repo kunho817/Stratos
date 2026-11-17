@@ -34,6 +34,10 @@ TEST_TIMEOUT_S = 300
 VERIFY_RUNS = 3          # each with a different PYTHONHASHSEED; all must pass
 REQUEST_TIMEOUT_S = 900
 
+# Jev (TypeSafe AI's cloud decision model) runs in shadow mode: asked alongside the rules and recorded in telemetry,
+# never followed. Only a summary of the task is sent (goal, file paths). STRATOS_JEV=0 turns it off.
+JEV_SHADOW = os.environ.get("STRATOS_JEV", "1") != "0"
+
 REPO = Path(__file__).resolve().parent.parent
 STATE_DIR = REPO / ".stratos"
 WORKTREES = REPO.parent / "Stratos-wt"
