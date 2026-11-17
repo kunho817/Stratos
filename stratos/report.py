@@ -202,3 +202,52 @@ def escalation_accuracy(events, threshold=0.7):
                 bucket["confident_correct"] += 1
 
     return by_decider
+
+
+def replay_summary(events):
+    """Summarize how each model did in `stratos replay`."""
+    runs_by_key = {}
+    open_runs = {}
+    call_run = {}
+
+    for event in events:
+        kind = event.get("kind")
+        if kind == "call":
+            key = (event.get("model"), event.get("effort"), event.get("task"))
+            attempt = event.get("attempt")
+            if attempt is None:
+                attempt = 1
+            seconds = event.get("seconds") or 0
+            if attempt == 1 or key not in open_runs:
+                run = {"passed": False, "attempts": 0, "seconds": 0.0}
+                runs_by_key.setdefault(key, []).append(run)
+                open_runs[key] = run
+            run = open_runs[key]
+            run["attempts"] += 1
+            run["seconds"] += seconds
+            call_run[event.get("call_id")] = run
+        elif kind == "outcome":
+            run = call_run.get(event.get("call_id"))
+            if run is not None and event.get("result") == "passed":
+                run["passed"] = True
+
+    summary = {}
+    for (model, effort, task), runs in runs_by_key.items():
+        task_stats = {
+            "runs": len(runs),
+            "passed": sum(1 for run in runs if run["passed"]),
+            "attempts": sum(run["attempts"] for run in runs),
+            "seconds": sum(run["seconds"] for run in runs),
+        }
+        key = f"{model} effort={effort}"
+        bucket = summary.setdefault(
+            key,
+            {"runs": 0, "passed": 0, "attempts": 0, "seconds": 0.0, "tasks": {}},
+        )
+        bucket["runs"] += len(runs)
+        bucket["passed"] += task_stats["passed"]
+        bucket["attempts"] += task_stats["attempts"]
+        bucket["seconds"] += task_stats["seconds"]
+        bucket["tasks"][task] = task_stats
+
+    return summary
