@@ -86,7 +86,12 @@ def env(tmp_path, monkeypatch):
     def finalize(w, text):
         rec["finalized"].append(text)
     monkeypatch.setattr(gitops, "finalize_commit_message", finalize)
-    monkeypatch.setattr(verify, "run_tests", lambda w, tests: (rec["tests_ok"], "1 passed" if rec["tests_ok"] else "boom"))
+    rec["outs"] = []          # test outputs to hand out in order; when empty: "1 passed" or "boom"
+
+    def run_tests(w, tests):
+        out = rec["outs"].pop(0) if rec["outs"] else ("1 passed" if rec["tests_ok"] else "boom")
+        return rec["tests_ok"], out
+    monkeypatch.setattr(verify, "run_tests", run_tests)
     store = Store(state)
     store.add_task("t", "make X", ["pkg/a.py"], [], ["tests/x.py"])
     store.add_task("u", "make X too", ["pkg/a.py"], [], ["tests/x.py"])
@@ -296,6 +301,49 @@ def test_conflicting_dependency_branches_go_to_a_person(env, monkeypatch):
     assert gw.calls == []
     decisions = (state / "decisions.jsonl").read_text(encoding="utf-8")
     assert "base_conflict" in decisions
+
+
+# ---------------------------------------------------------------- T027: escalate early when a model repeats itself
+# write_task keeps the (result, detail) of the current role's attempts. After every attempt that did not pass, it asks
+# decide.should_escalate(history) and records a telemetry event kind "decision" with decision="escalate", task,
+# attempt, role, choice, confidence and reason. When the choice is True, the role's remaining tries are skipped and the
+# next entry of the attempt plan (the cross-check model) starts. The history starts empty for each role.
+
+FAIL_A = "FAILED tests/x.py::test_a - AssertionError: no\n1 failed"
+FAIL_A2 = "FAILED tests/x.py::test_a - KeyError: 'k'\n1 failed"
+FAIL_B = "FAILED tests/x.py::test_b - AssertionError: no\n1 failed"
+
+
+def decisions(env):
+    return [e for e in env[1].load() if e["kind"] == "decision"]
+
+
+def test_a_repeated_failure_goes_to_the_cross_check_early(env):
+    store, _, rec, _ = env
+    rec["tests_ok"] = False
+    rec["outs"] = [FAIL_A, FAIL_A2, FAIL_A]
+    gw = gateway(env, {"coder": [WRITER] * 3, "coder_hard": [WRITER]})
+    assert loop.write_task(store, gw, "T001", log=quiet) == "needs_human"
+    assert [c["role"] for c in gw.calls] == ["coder", "coder", "coder_hard"]   # Tiel's third try is skipped
+    esc = [d for d in decisions(env) if d["decision"] == "escalate"]
+    assert [d["choice"] for d in esc][:2] == [False, True]
+    assert esc[1]["role"] == "coder" and esc[1]["attempt"] == 2 and esc[1]["confidence"] == 0.7 and esc[1]["reason"]
+
+
+def test_different_failures_use_every_try(env):
+    store, _, rec, _ = env
+    rec["tests_ok"] = False
+    rec["outs"] = [FAIL_A, FAIL_B, FAIL_A, FAIL_B]
+    gw = gateway(env, {"coder": [WRITER] * 3, "coder_hard": [WRITER]})
+    loop.write_task(store, gw, "T001", log=quiet)
+    assert [c["role"] for c in gw.calls] == ["coder", "coder", "coder", "coder_hard"]
+
+
+def test_no_escalation_decision_after_a_pass(env):
+    store, _, rec, _ = env
+    gw = gateway(env, {"coder": [WRITER]})
+    loop.write_task(store, gw, "T001", log=quiet)
+    assert [d for d in decisions(env) if d["decision"] == "escalate"] == []
 
 
 def test_review_tasks_with_review_off_or_no_tasks(env, monkeypatch):
