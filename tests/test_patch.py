@@ -117,6 +117,12 @@ def test_file_outside_the_task_is_refused(tmp_path):
         patch.apply_files(tmp_path, [("stratos/other.py", "x")], [], allowed=["stratos/mine.py"])
 
 
+def test_an_empty_file_is_refused_and_nothing_is_written(tmp_path):
+    with pytest.raises(patch.PatchRefused):
+        patch.apply_files(tmp_path, [("ok.py", "X = 1\n"), ("stratos/loop.py", "\n  \n")], [])
+    assert not (tmp_path / "ok.py").exists()
+
+
 def test_apply_writes_files(tmp_path):
     assert patch.apply_files(tmp_path, [("pkg/m.py", "Y = 2\n")], []) == ["pkg/m.py"]
     assert (tmp_path / "pkg" / "m.py").read_text(encoding="utf-8") == "Y = 2\n"

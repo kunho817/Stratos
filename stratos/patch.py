@@ -127,7 +127,12 @@ def check_path(path, protected, allowed=None):
 
 
 def apply_files(root, files, protected, allowed=None):
-    """Check every path first, then write; nothing is written when one path is refused."""
+    """Check every path first, then write; nothing is written when one path is refused.
+    An empty file is refused too: Tiel once answered only 'FILE: stratos/loop.py' in a fence and loop.py was
+    overwritten with nothing (T027, 2026-11-17)."""
+    for path, body in files:
+        if not body.strip():
+            raise PatchRefused(f"empty file content: {path}")
     checked = [(check_path(path, protected, allowed), body) for path, body in files]
     written = []
     for p, body in checked:
