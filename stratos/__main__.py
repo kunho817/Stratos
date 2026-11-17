@@ -15,6 +15,7 @@ import sys
 from . import config
 from . import decide
 from . import gitops
+from . import jev
 from .gateway import Gateway
 from .loop import run_all, run_task
 from .report import summarize
@@ -70,10 +71,28 @@ def main(argv=None):
                            role=role, after=split(args.after))
         if d is not None:
             store.update(t['id'], role_decision=d)
-            Telemetry(config.STATE_DIR / 'telemetry.jsonl').record('decision', decision='role', task=t['id'],
-                                                                   choice=d['choice'], confidence=d['confidence'],
-                                                                   reason=d['reason'])
+            Telemetry(config.STATE_DIR / 'telemetry.jsonl').record('decision', decision='role', decider='rules',
+                                                                   task=t['id'], choice=d['choice'],
+                                                                   confidence=d['confidence'], reason=d['reason'])
             print(f"role: {d['choice']} ({d['reason']})")
+        if config.JEV_SHADOW:
+            j = jev.choose_role({'files': split(args.files), 'goal': goal})
+            if j is None:
+                choice = confidence = None
+                reason = "jev unavailable"
+                input_tokens = 0
+            else:
+                choice = j['choice']
+                confidence = j['confidence']
+                reason = j['reason']
+                input_tokens = j['input_tokens']
+            Telemetry(config.STATE_DIR / 'telemetry.jsonl').record('decision', decision='role', decider='jev',
+                                                                   task=t['id'], choice=choice, confidence=confidence,
+                                                                   reason=reason, input_tokens=input_tokens)
+            if j is None:
+                print("jev: unavailable")
+            else:
+                print(f"jev: {j['choice']} {j['confidence']} (shadow)")
         print(f"added {t['id']}: {t['title']}")
     elif args.cmd == "run":
         tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
@@ -101,7 +120,7 @@ def main(argv=None):
             task = store.get(tid)
             status = statuses.get(tid, task["status"])
             if status == "todo":
-                dep = next((a for a in task.get("after", []) if store.get(a)["status"] != "done"), None)
+                dep = next((x for x in task.get("after", []) if store.get(x)["status"] != "done"), None)
                 if dep is not None:
                     print(f"skipped {tid} (waits on {dep})")
                     done = False
