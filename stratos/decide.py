@@ -4,7 +4,7 @@ Provides three rules used to decide how to react to a failed attempt and which c
 
 - failure_signature(result, detail): what a failed attempt failed on, comparable between attempts.
 - should_escalate(history): whether the current role should stop and escalate.
-- choose_role(task): which coder role should handle the task.
+- choose_role(task): which coder role should handle the task (flow words are read from the goal's headline).
 """
 
 import re
@@ -93,11 +93,22 @@ def should_escalate(history):
     return {"choice": False, "confidence": 0.6, "reason": "no repeated failure to escalate"}
 
 
+def headline(goal):
+    """Return the goal's headline: the text before the first blank line, without markup or dotted names."""
+    text = re.split(r"\n[ \t]*\n", goal, maxsplit=1)[0]
+    text = re.sub(r"`[^`]*`", " ", text)
+    text = re.sub(r'"[^"\n]*"', " ", text)
+    text = re.sub(r"(?<!\w)'[^'\n]*'(?!\w)", " ", text)
+    text = re.sub(r"\w+(?:\.\w+)+", " ", text)
+    return text
+
+
 def choose_role(task):
     """Return which coder role should handle the task."""
     files = task.get("files") or []
     goal = task.get("goal") or ""
-    goal_lower = goal.lower()
+    goal_headline = headline(goal)
+    goal_headline_lower = goal_headline.lower()
 
     if len(files) >= 2:
         return {
@@ -108,14 +119,14 @@ def choose_role(task):
 
     for word in FLOW_WORDS:
         if word.isascii() and word.isalpha():
-            if re.search(r'\b' + re.escape(word) + r'\b', goal, re.IGNORECASE):
+            if re.search(r'\b' + re.escape(word) + r'\b', goal_headline, re.IGNORECASE):
                 return {
                     "choice": "coder_hard",
                     "confidence": 0.55,
                     "reason": "the goal mentions a change of flow: '%s'" % word,
                 }
         else:
-            if word in goal_lower:
+            if word in goal_headline_lower:
                 return {
                     "choice": "coder_hard",
                     "confidence": 0.55,
