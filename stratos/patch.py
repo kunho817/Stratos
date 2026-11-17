@@ -141,3 +141,47 @@ def apply_files(root, files, protected, allowed=None):
         dest.write_text(body, encoding="utf-8")
         written.append(str(p))
     return written
+
+
+def _top_level_names(text):
+    """The names of the top-level FunctionDef, AsyncFunctionDef and ClassDef nodes of a module."""
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return None
+    names = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+    return names
+
+
+def dropped_definitions(root, files, goal=""):
+    """{path: [names]} of top-level defs/classes an answer silently dropped.
+
+    For every path ending in ".py" whose file already exists under root: the top-level function (def, async def)
+    and class names in the existing file that are not top-level definitions in the new content, sorted. A name the
+    goal mentions as a whole word is left out. Paths with nothing dropped, new files, non-.py files and files where
+    either version does not parse are left out."""
+    out = {}
+    for path, content in files:
+        if not path.endswith(".py"):
+            continue
+        old_path = Path(root) / path
+        if not old_path.is_file():
+            continue
+        try:
+            old_text = old_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        old_names = _top_level_names(old_text)
+        new_names = _top_level_names(content)
+        if old_names is None or new_names is None:
+            continue
+        dropped = sorted(old_names - new_names)
+        if not dropped:
+            continue
+        dropped = [name for name in dropped if not re.search(r"\b" + re.escape(name) + r"\b", goal)]
+        if dropped:
+            out[_norm(path)] = dropped
+    return out
