@@ -23,6 +23,7 @@ from pathlib import Path, PurePosixPath
 from . import config
 
 HEADER_RE = re.compile(r"^\s*FILE:\s*`?([^\s`]+)`?\s*$")
+REMOVAL_WORDS = ("remove", "delete", "drop", "rename", "replace", "삭제", "제거")
 
 
 class PatchRefused(Exception):
@@ -156,6 +157,20 @@ def _top_level_names(text):
     return names
 
 
+def _excused(name, goal):
+    """T046: a dropped name is excused only when a sentence of the goal asks for its removal."""
+    for sentence in re.split(r"[.!?\n]", goal):
+        if not re.search(r"\b" + re.escape(name) + r"\b", sentence):
+            continue
+        for word in REMOVAL_WORDS:
+            if word.isascii():
+                if re.search(r"\b" + re.escape(word) + r"\b", sentence, re.IGNORECASE):
+                    return True
+            elif word in sentence:
+                return True
+    return False
+
+
 def dropped_definitions(root, files, goal=""):
     """{path: [names]} of top-level defs/classes an answer silently dropped.
 
@@ -181,7 +196,7 @@ def dropped_definitions(root, files, goal=""):
         dropped = sorted(old_names - new_names)
         if not dropped:
             continue
-        dropped = [name for name in dropped if not re.search(r"\b" + re.escape(name) + r"\b", goal)]
+        dropped = [name for name in dropped if not _excused(name, goal)]
         if dropped:
             out[_norm(path)] = dropped
     return out
