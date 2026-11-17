@@ -184,7 +184,7 @@ def escalation_accuracy(events, threshold=0.7):
             if later_call_id not in call_map:
                 continue
             later_task, later_role = call_map[later_call_id]
-            if later_task != task or later_role not in ("coder", "coder_hard"):
+            if later_task != task:
                 continue
             truth = later_role != role
             break
