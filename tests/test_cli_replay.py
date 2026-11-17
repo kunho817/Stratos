@@ -35,8 +35,8 @@ def proj(tmp_path, monkeypatch):
 
     def fake_replay(tasks, gw, **kw):
         calls.append((tasks, gw, kw))
-        return [{"task": tasks[0]["id"], "result": "passed", "attempts": 1, "seconds": 10.4},
-                {"task": tasks[1]["id"], "result": "failed", "attempts": 2, "seconds": 20.2}][:len(tasks)]
+        canned = [("passed", 1, 10.4), ("failed", 2, 20.2)]
+        return [{"task": t["id"], "result": r, "attempts": n, "seconds": s} for t, (r, n, s) in zip(tasks, canned)]
     monkeypatch.setattr(replay, "replay", fake_replay)
     return a["id"], b["id"], made, calls, tmp_path
 
