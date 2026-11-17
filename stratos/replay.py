@@ -9,7 +9,7 @@ with a known outcome; nothing is committed or merged.
 import time
 from pathlib import Path
 
-from . import context, gitops, loop
+from . import config, context, gitops, loop
 
 
 def base_commit(repo, task_id):
@@ -47,6 +47,9 @@ def replay(tasks, gw, *, model, effort, max_tokens, tries, repo, root, log=print
                 call_id, text = gw.chat(messages, task=task_id, role="replay", attempt=n, model=model,
                                         effort=effort, max_tokens=max_tokens)
                 seconds += time.perf_counter() - start
+                d = config.STATE_DIR / "replay_answers"
+                d.mkdir(parents=True, exist_ok=True)
+                (d / f"{task_id}-{call_id}.md").write_text(text or "", encoding="utf-8")
                 result, detail = loop.check_answer(task, path, text, getattr(gw, "last_finish", None))
                 gw.telemetry.record("outcome", call_id=call_id, task=task_id, result=result, detail=detail[-500:])
                 log(f"  {task_id} attempt {n} ({model}): {result}")
