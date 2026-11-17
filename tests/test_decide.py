@@ -71,6 +71,26 @@ def test_choose_role():
     assert d3["choice"] == "coder_hard" and d3["confidence"] == 0.55 and "split" in d3["reason"].lower()
 
 
+# T031: a flow word counts only as a whole word (T029's goal "Remove duplicates" matched 'move ' and a one-file task
+# went to the slow coder). Latin words match between word boundaries, case-insensitive; Korean words match anywhere.
+
+def test_flow_words_match_whole_words_only():
+    def role(goal):
+        return decide.choose_role({"files": ["stratos/a.py"], "goal": goal})["choice"]
+    assert role("Remove duplicates and return the list.") == "coder"
+    assert role("Keep the workflow the same.") == "coder"
+    assert role("A splitter helper.") == "coder"
+    assert role("Split the loop in two.") == "coder_hard"
+    assert role("Move the check to the end.") == "coder_hard"
+    assert role("Do it in rounds.") == "coder_hard"
+    assert role("작업 흐름을 바꾼다.") == "coder_hard"
+
+
+def test_flow_words_have_no_padding():
+    assert all(w == w.strip() for w in decide.FLOW_WORDS)
+    assert "move" in decide.FLOW_WORDS
+
+
 def test_flow_words_exist_and_are_lower_case():
     assert decide.FLOW_WORDS and all(w == w.lower() for w in decide.FLOW_WORDS)
     assert "split" in decide.FLOW_WORDS and "restructure" in decide.FLOW_WORDS
