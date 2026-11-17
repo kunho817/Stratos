@@ -119,9 +119,16 @@ def review_tasks(store, gw, task_ids, log=print):
         wt = Path(task["worktree"])
         diff_text = gitops.commit_diff(wt)
         attempt = task.get("attempts", 0)
-        rv_call, rv_text = gw.chat(review.build_messages(task, diff_text), task=task_id, role="reviewer",
-                                   attempt=attempt, model=rv_role["model"], effort=rv_role["effort"],
-                                   max_tokens=rv_role["max_tokens"])
+        try:
+            rv_call, rv_text = gw.chat(review.build_messages(task, diff_text), task=task_id, role="reviewer",
+                                       attempt=attempt, model=rv_role["model"], effort=rv_role["effort"],
+                                       max_tokens=rv_role["max_tokens"])
+        except Exception as e:   # a timed-out reviewer (T052) must not stop the batch; the candidate waits for the next run
+            store.decide(task=task_id, attempt=attempt, role="reviewer", model=rv_role["model"],
+                         result="review_error", detail=str(e)[:300])
+            log(f"  task {task_id}: review call failed ({e}); it stays awaiting_review")
+            results[task_id] = "review_error"
+            continue
         save_answer(task_id, f"{attempt}-review", rv_text)
         rv = review.parse(rv_text)
         verdict = rv["verdict"]
@@ -147,7 +154,11 @@ def review_tasks(store, gw, task_ids, log=print):
 
 
 def run_all(store, gw, task_ids, log=print):
-    """Run the given tasks in rounds of (write all, then review all)."""
+    """Run the given tasks in rounds of (write all, then review all). Candidates left awaiting_review by an
+    earlier run (its review call failed) are reviewed first."""
+    waiting = [tid for tid in task_ids if store.get(tid)["status"] == "awaiting_review"]
+    if waiting:
+        review_tasks(store, gw, waiting, log=log)
     for _ in range(config.REVIEW_ROUNDS):
         runnable = []
         for tid in task_ids:

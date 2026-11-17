@@ -430,3 +430,25 @@ def test_an_answer_that_drops_definitions_fails_early(env, monkeypatch):
     assert "stratos/a.py: helper, other" in first["detail"]
     assert len(applied) == 1                                  # nothing was written for the first answer
     assert "stratos/a.py: helper, other" in gw.calls[1]["messages"][-1]["content"]
+
+
+# A reviewer call that timed out (T052, after 900 s) crashed run-all and left the candidate awaiting_review, with
+# nothing that would ever review it. Now the failed call leaves it waiting, the batch goes on, and the next run_all
+# reviews waiting candidates first.
+
+class FlakyReviewer(FakeGateway):
+    def chat(self, messages, **kw):
+        if kw["role"] == "reviewer" and self.script["reviewer"] and isinstance(self.script["reviewer"][0], Exception):
+            self.calls.append({"role": "reviewer", "task": kw["task"]})
+            raise self.script["reviewer"].pop(0)
+        return super().chat(messages, **kw)
+
+
+def test_a_failed_review_call_leaves_the_candidate_waiting(env):
+    store, tel, rec, _ = env
+    gw = FlakyReviewer(tel, {"coder": [WRITER, WRITER], "reviewer": [TimeoutError("timed out"), APPROVE]})
+    final = loop.run_all(store, gw, ["T001", "T002"], log=quiet)
+    assert final == {"T001": "awaiting_review", "T002": "done"}
+    gw2 = FlakyReviewer(tel, {"coder": [], "reviewer": [APPROVE]})
+    assert loop.run_all(store, gw2, ["T001"], log=quiet) == {"T001": "done"}
+    assert [c["role"] for c in gw2.calls] == ["reviewer"] and len(rec["commits"]) == 2

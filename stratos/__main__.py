@@ -118,6 +118,8 @@ def main(argv=None):
         except Exception:
             current = None
         order, blocked = scheduler_plan(store.tasks(), config.ROLES, current)
+        waiting = [t["id"] for t in store.tasks() if t["status"] == "awaiting_review"]
+        order = waiting + [tid for tid in order if tid not in waiting]
         if not order and not blocked:
             print("nothing to run")
             return 0
