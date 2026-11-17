@@ -20,6 +20,36 @@ def attempt_plan(task):
     return config.ATTEMPT_PLANS[task.get("role", "coder")]
 
 
+def check_answer(task, wt, text, finish=None):
+    """Judge one model answer: parse its FILE blocks, apply them, run the tests; (result, detail)."""
+    allowed = task["files"] or None
+    files = patch.parse_files(text, allowed)
+    if not files:
+        result, detail = "no_files", "the answer held no FILE blocks for the task's files"
+        if finish == "tool_calls":
+            detail = ("You tried to call a tool, but there are no tools here and you cannot open files. "
+                      "Everything you need is in this message: answer with the FILE blocks directly.")
+    else:
+        dropped = patch.dropped_definitions(wt, files, task["goal"])
+        if dropped:
+            result, detail = "dropped_defs", (
+                "Your answer drops existing definitions that the goal did not ask to remove:\n"
+                + "\n".join(f"{path}: {', '.join(names)}" for path, names in sorted(dropped.items()))
+                + "\nWrite each file completely: keep everything that is already in it and add or change only what the goal asks.")
+        else:
+            try:
+                written = patch.apply_files(wt, files, task["protected"], allowed)
+            except patch.PatchRefused as e:
+                result, detail = "refused", str(e)
+            else:
+                ok, out = verify.run_tests(wt, task["tests"])
+                result, detail = ("passed" if ok else "failed"), out
+    if finish == "length" and result != "passed":
+        detail = ("Your answer was cut off: it reached the length limit. Think briefly and write only the "
+                  "files the task needs, completely.\n" + detail)
+    return result, detail
+
+
 def write_task(store, gw, task_id, log=print):
     """Run the task's attempts until the tests pass, without a review; commit a candidate when a review is on."""
     task = store.get(task_id)
@@ -45,31 +75,7 @@ def write_task(store, gw, task_id, log=print):
             call_id, text = gw.chat(context.build_messages(task, wt, failure), task=task_id, role=role,
                                     attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"])
             save_answer(task_id, attempt, text)
-            allowed = task["files"] or None
-            files = patch.parse_files(text, allowed)
-            if not files:
-                result, detail = "no_files", "the answer held no FILE blocks for the task's files"
-                if getattr(gw, "last_finish", None) == "tool_calls":
-                    detail = ("You tried to call a tool, but there are no tools here and you cannot open files. "
-                              "Everything you need is in this message: answer with the FILE blocks directly.")
-            else:
-                dropped = patch.dropped_definitions(wt, files, task["goal"])
-                if dropped:
-                    result, detail = "dropped_defs", (
-                        "Your answer drops existing definitions that the goal did not ask to remove:\n"
-                        + "\n".join(f"{path}: {', '.join(names)}" for path, names in sorted(dropped.items()))
-                        + "\nWrite each file completely: keep everything that is already in it and add or change only what the goal asks.")
-                else:
-                    try:
-                        written = patch.apply_files(wt, files, task["protected"], allowed)
-                    except patch.PatchRefused as e:
-                        result, detail = "refused", str(e)
-                    else:
-                        ok, out = verify.run_tests(wt, task["tests"])
-                        result, detail = ("passed" if ok else "failed"), out
-            if getattr(gw, "last_finish", None) == "length" and result != "passed":
-                detail = ("Your answer was cut off: it reached the length limit. Think briefly and write only the "
-                          "files the task needs, completely.\n" + detail)
+            result, detail = check_answer(task, wt, text, getattr(gw, "last_finish", None))
             gw.telemetry.record("outcome", call_id=call_id, task=task_id, result=result, detail=detail[-500:])
             store.decide(task=task_id, attempt=attempt, role=role, model=r["model"], result=result)
             log(f"  attempt {attempt} ({role}, {r['model']}): {result}")
