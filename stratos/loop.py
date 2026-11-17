@@ -5,7 +5,7 @@ A task that still fails is handed to a person (status needs_human). The loop is 
 attempts, committing a candidate when a review is on) and a review phase (judging the candidates)."""
 from pathlib import Path
 
-from . import config, context, gitops, patch, review, verify
+from . import config, context, decide, gitops, patch, review, verify
 
 
 def save_answer(task_id, attempt, text):
@@ -36,6 +36,7 @@ def write_task(store, gw, task_id, log=print):
     attempt = task.get("attempts", 0)
     for role, tries in attempt_plan(task):
         r = config.ROLES[role]
+        history = []
         for _ in range(tries):
             attempt += 1
             switch = gw.ensure_model(r["model"])
@@ -76,6 +77,12 @@ def write_task(store, gw, task_id, log=print):
                 return "done"
             gitops.discard_changes(wt)
             failure = detail[-3000:]
+            history.append((result, detail))
+            d = decide.should_escalate(history)
+            gw.telemetry.record("decision", decision="escalate", task=task_id, attempt=attempt, role=role, choice=d["choice"], confidence=d["confidence"], reason=d["reason"])
+            if d["choice"]:
+                log(f"  attempt {attempt}: same failure again, moving to the cross-check")
+                break
     store.update(task_id, status="needs_human", attempts=attempt)
     return "needs_human"
 
