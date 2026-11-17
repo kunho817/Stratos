@@ -7,6 +7,7 @@
   python -m stratos status
   python -m stratos clean
   python -m stratos reset T001 --reason R
+  python -m stratos replay T001 T002 --role coder --model M --effort E --max-tokens N --tries K
 """
 import argparse
 import subprocess
@@ -16,6 +17,7 @@ from . import config
 from . import decide
 from . import gitops
 from . import jev
+from . import replay
 from .gateway import Gateway
 from .loop import run_all, run_task
 from .report import decision_accuracy, escalation_accuracy, summarize
@@ -50,6 +52,14 @@ def main(argv=None):
     reset = sub.add_parser("reset", help="throw away a task's result so it runs again")
     reset.add_argument("task_id")
     reset.add_argument("--reason", required=True, help="why the task is being reset")
+    replay_p = sub.add_parser("replay", help="try a model on past tasks; nothing is committed")
+    replay_p.add_argument("task_ids", nargs="+")
+    replay_p.add_argument("--role", choices=sorted(config.ROLES), default="coder",
+                          help="which model plays these tasks")
+    replay_p.add_argument("--model", default=None, help="override the role's model")
+    replay_p.add_argument("--effort", default=None, help="override the role's effort")
+    replay_p.add_argument("--max-tokens", type=int, default=None, help="override the role's max_tokens")
+    replay_p.add_argument("--tries", type=int, default=2, help="attempts per task")
     args = ap.parse_args(argv)
 
     store = Store(config.STATE_DIR)
@@ -195,6 +205,30 @@ def main(argv=None):
         Telemetry(config.STATE_DIR / "telemetry.jsonl").record("verdict", task=args.task_id,
                                                                result="reset_by_human", reason=args.reason)
         print(f"reset {args.task_id}")
+        return 0
+    elif args.cmd == "replay":
+        tasks = []
+        for tid in args.task_ids:
+            try:
+                tasks.append(store.get(tid))
+            except KeyError:
+                print(f"no such task: {tid}", file=sys.stderr)
+                return 1
+        role = config.ROLES[args.role]
+        model = args.model if args.model is not None else role["model"]
+        effort = args.effort if args.effort is not None else role["effort"]
+        max_tokens = args.max_tokens if args.max_tokens is not None else role["max_tokens"]
+        gw = Gateway(Telemetry(config.STATE_DIR / "replay.jsonl"))
+        results = replay.replay(tasks, gw, model=model, effort=effort, max_tokens=max_tokens,
+                                tries=args.tries, repo=config.REPO, root=config.WORKTREES)
+        total_seconds = 0.0
+        passed = 0
+        for res in results:
+            total_seconds += res["seconds"]
+            if res["result"] == "passed":
+                passed += 1
+            print(f"{res['task']}: {res['result']} ({res['attempts']} attempts, {res['seconds']:.0f} s)")
+        print(f"replay {model}: {passed}/{len(results)} passed, {total_seconds:.0f} s")
         return 0
     else:
         for t in store.tasks():
