@@ -115,16 +115,16 @@ def ask(state, questions, key=None, post=None, timeout=10, retries=2, sleep=time
 
 
 def role_request(task):
-    goal = task.get("goal") if isinstance(task, dict) else None
-    files = task.get("files") or [] if isinstance(task, dict) else []
+    goal = task.get("goal")
+    files = task.get("files") or []
     state = {"goal": goal, "files": files, "file_count": len(files)}
     questions = {
         "role": {
             "type": "choice",
             "instructions": (
-                "Choose the Jev model for this task: coder is the fast model, strong at new functions and small "
-                "additions in one file; coder_hard is the slow, careful model, for changes to existing control flow "
-                "or work across several files."
+                "Which local coding model should take this task? coder is the fast model, strong at new "
+                "functions and small additions in one file; coder_hard is the slow, careful model, for changes "
+                "to existing control flow or work across several files."
             ),
             "criteria": {
                 "coder": "Fast model; strong at new functions and small additions in one file.",
