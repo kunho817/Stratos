@@ -14,10 +14,14 @@ REVIEW_SYSTEM = (
     "Answer ONLY with a JSON object, optionally inside a json code block, "
     "of the form {\"verdict\": \"approve\" or \"changes\", \"issues\": [{\"severity\": \"high\" | \"medium\" | \"low\", \"file\": \"path\", \"problem\": \"one sentence\"}]} "
     "(real JSON uses double quotes). "
+    "Check every changed line against the goal. "
     "high = wrong behaviour, a bug or a security problem; "
     "medium = misleading or redundant logic (for example a condition that is always true), "
-    "needless repeated work, or a missing edge case; "
-    "low = style only. "
+    "needless repeated work, a missing edge case, "
+    "or code that is never used (an unused variable, import or function); "
+    "a change the goal did not ask for (a renamed name, reworded text or a prompt, any edit outside what the goal "
+    "describes) is ALWAYS medium, even when it looks small or harmless, never low; "
+    "low = style only, in lines the goal asked to change. "
     "Use approve when there are no high or medium issues."
 )
 
