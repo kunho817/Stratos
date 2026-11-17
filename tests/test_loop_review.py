@@ -407,3 +407,26 @@ def test_no_jev_call_when_shadow_is_off(env, monkeypatch):
     gw = gateway(env, {"coder": [WRITER] * 3, "coder_hard": [WRITER]})
     loop.write_task(store, gw, "T001", log=quiet)
     assert {d["decider"] for d in decisions(env) if d["decision"] == "escalate"} == {"rules"}
+
+
+# ---------------------------------------------------------------- T045: answers that drop existing definitions
+# After parse_files and before applying the files, write_task calls patch.dropped_definitions(wt, files, task goal).
+# When it finds something, the attempt fails with result "dropped_defs" without writing files or running the tests.
+# The detail names every file and definition, e.g. "stratos/a.py: helper, other", and tells the model to write each
+# file completely, keeping what is already there. It goes into the next attempt's prompt like any other failure.
+
+def test_an_answer_that_drops_definitions_fails_early(env, monkeypatch):
+    from stratos import patch
+    store, _, rec, _ = env
+    answers = [{"stratos/a.py": ["helper", "other"]}, {}]
+    monkeypatch.setattr(patch, "dropped_definitions", lambda root, files, goal="": answers.pop(0))
+    applied = []
+    real_apply = patch.apply_files
+    monkeypatch.setattr(patch, "apply_files", lambda *a, **k: applied.append(1) or real_apply(*a, **k))
+    gw = gateway(env, {"coder": [WRITER] * 3, "coder_hard": [WRITER]})
+    assert loop.write_task(store, gw, "T001", log=quiet) == "candidate"
+    first = [e for e in env[1].load() if e["kind"] == "outcome"][0]
+    assert first["result"] == "dropped_defs"
+    assert "stratos/a.py: helper, other" in first["detail"]
+    assert len(applied) == 1                                  # nothing was written for the first answer
+    assert "stratos/a.py: helper, other" in gw.calls[1]["messages"][-1]["content"]
