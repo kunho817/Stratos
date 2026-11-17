@@ -25,12 +25,24 @@ role_request(task) -> (state, questions)
 choose_role(task, **ask_kwargs) -> decision | None
     {"choice": the answer's choice, "confidence": the answer's confidence, "reason": text naming Jev and the
     probabilities} like decide.choose_role, plus "input_tokens"; None when ask fails or the answer is malformed.
+
+escalate_request(task, history) -> (state, questions)
+    history: [(result, detail), ...] of the current role's attempts, oldest first. Only a summary goes out: state is
+    {"goal": task goal, "files": task files, "attempts": [one dict per attempt: {"result": result,
+    "failed_tests": decide.failure_signature(result, detail)}]}, except that a signature starting with "E " (an error
+    line, which may quote code or data) is sent as "". One question "switch", type "noul".
+
+should_escalate(task, history, **ask_kwargs) -> decision | None
+    {"choice": p >= 0.5, "confidence": max(p, 1 - p), "reason": text naming Jev and p, "input_tokens"}; None when ask
+    fails or the answer has no number "noul".
 """
 import json
 import os
 import time
 import urllib.error
 import urllib.request
+
+from . import decide
 
 URL = "https://api.typesafe.ai/v1/systemone"
 MODEL = "jev-1.14.0"
@@ -158,5 +170,51 @@ def choose_role(task, **ask_kwargs):
         "choice": choice,
         "confidence": confidence,
         "reason": reason,
+        "input_tokens": result.get("input_tokens"),
+    }
+
+
+def escalate_request(task, history):
+    goal = task.get("goal")
+    files = task.get("files") or []
+    attempts = []
+    for result, detail in history:
+        signature = decide.failure_signature(result, detail)
+        if isinstance(signature, str) and signature.startswith("E "):
+            signature = ""
+        attempts.append({"result": result, "failed_tests": signature})
+    state = {"goal": goal, "files": files, "attempts": attempts}
+    questions = {
+        "switch": {
+            "type": "noul",
+            "instructions": (
+                "A local coding model is failing this task. Given its attempts so far, should the task go to the "
+                "other, slower and more careful model now, instead of another try with the same model?"
+            ),
+            "criteria": {
+                "true": "yes: the attempts repeat the same failure or show the model cannot do this task",
+                "false": "no: another try with the same model is likely to pass",
+            },
+        }
+    }
+    return state, questions
+
+
+def should_escalate(task, history, **ask_kwargs):
+    state, questions = escalate_request(task, history)
+    result = ask(state, questions, **ask_kwargs)
+    if not result.get("ok"):
+        return None
+    answers = result.get("answers")
+    answer = answers.get("switch") if isinstance(answers, dict) else None
+    if not isinstance(answer, dict):
+        return None
+    p = answer.get("noul")
+    if not isinstance(p, (int, float)) or isinstance(p, bool):
+        return None
+    return {
+        "choice": p >= 0.5,
+        "confidence": max(p, 1 - p),
+        "reason": "jev: switch probability {}".format(p),
         "input_tokens": result.get("input_tokens"),
     }
