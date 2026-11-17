@@ -126,13 +126,6 @@ def decision_accuracy(events, threshold=0.3):
 
     truth = role_truth(events)
 
-    stats = {
-        "decisions": 0,
-        "judged": 0,
-        "correct": 0,
-        "confident_judged": 0,
-        "confident_correct": 0,
-    }
     by_decider = {}
     for (task, decider), event in last.items():
         bucket = by_decider.setdefault(decider, {
@@ -145,13 +138,13 @@ def decision_accuracy(events, threshold=0.3):
         bucket["decisions"] += 1
         choice = event.get("choice")
         if choice is not None and task in truth:
+            confident = (event.get("confidence") or 0) >= threshold
             bucket["judged"] += 1
+            if confident:
+                bucket["confident_judged"] += 1
             if choice == truth[task]:
                 bucket["correct"] += 1
-                if (event.get("confidence") or 0) >= threshold:
-                    bucket["confident_judged"] += 1
+                if confident:
                     bucket["confident_correct"] += 1
-            elif (event.get("confidence") or 0) >= threshold:
-                bucket["confident_judged"] += 1
 
     return by_decider
