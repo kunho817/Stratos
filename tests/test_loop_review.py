@@ -351,3 +351,59 @@ def test_review_tasks_with_review_off_or_no_tasks(env, monkeypatch):
     gw = gateway(env, {})
     assert loop.review_tasks(store, gw, [], log=quiet) == {}
     assert gw.switches == []
+
+
+# ---------------------------------------------------------------- T040: Jev in shadow mode on the escalation decision
+# The rules' "escalate" decision event now also carries decider="rules". When config.JEV_SHADOW is true, right after
+# it write_task calls jev.should_escalate(task, history) (task = the stored task dict, history = the same list the
+# rules got) and records one more event kind "decision" with decision="escalate", decider="jev", task, attempt, role,
+# choice, confidence, reason and input_tokens (choice None, confidence None, reason "jev unavailable",
+# input_tokens 0 when it returns None). What happens next is decided by the rules alone.
+
+def test_jev_is_asked_about_escalation_but_not_followed(env, monkeypatch):
+    from stratos import jev
+    store, _, rec, _ = env
+    rec["tests_ok"] = False
+    rec["outs"] = [FAIL_A, FAIL_B, FAIL_A, FAIL_B]
+    seen = []
+
+    def fake(task, history, **kwargs):
+        seen.append((task["id"], list(history)))
+        return {"choice": True, "confidence": 0.9, "reason": "jev: switch 0.9", "input_tokens": 200}
+    monkeypatch.setattr(jev, "should_escalate", fake)
+    monkeypatch.setattr(config, "JEV_SHADOW", True)
+    gw = gateway(env, {"coder": [WRITER] * 3, "coder_hard": [WRITER]})
+    loop.write_task(store, gw, "T001", log=quiet)
+    assert [c["role"] for c in gw.calls] == ["coder", "coder", "coder", "coder_hard"]   # Jev's "yes" is not followed
+    assert seen[0][0] == "T001" and len(seen[0][1]) == 1 and len(seen[1][1]) == 2
+    esc = [d for d in decisions(env) if d["decision"] == "escalate"]
+    assert [d["decider"] for d in esc[:2]] == ["rules", "jev"]
+    j = esc[1]
+    assert j["choice"] is True and j["confidence"] == 0.9 and j["input_tokens"] == 200 and j["attempt"] == 1
+    assert j["role"] == "coder" and j["task"] == "T001"
+
+
+def test_jev_unavailable_on_escalation(env, monkeypatch):
+    from stratos import jev
+    store, _, rec, _ = env
+    rec["tests_ok"] = False
+    rec["outs"] = [FAIL_A]
+    monkeypatch.setattr(jev, "should_escalate", lambda task, history, **kw: None)
+    monkeypatch.setattr(config, "JEV_SHADOW", True)
+    gw = gateway(env, {"coder": [WRITER] * 3, "coder_hard": [WRITER]})
+    monkeypatch.setattr(config, "ATTEMPT_PLANS", {"coder": [("coder", 1)], "coder_hard": [("coder_hard", 1)]})
+    loop.write_task(store, gw, "T001", log=quiet)
+    j = [d for d in decisions(env) if d.get("decider") == "jev"][0]
+    assert j["choice"] is None and j["confidence"] is None and j["reason"] == "jev unavailable"
+    assert j["input_tokens"] == 0
+
+
+def test_no_jev_call_when_shadow_is_off(env, monkeypatch):
+    from stratos import jev
+    store, _, rec, _ = env
+    rec["tests_ok"] = False
+    rec["outs"] = [FAIL_A, FAIL_A2]
+    monkeypatch.setattr(jev, "should_escalate", lambda *a, **k: (_ for _ in ()).throw(AssertionError("called")))
+    gw = gateway(env, {"coder": [WRITER] * 3, "coder_hard": [WRITER]})
+    loop.write_task(store, gw, "T001", log=quiet)
+    assert {d["decider"] for d in decisions(env) if d["decision"] == "escalate"} == {"rules"}
