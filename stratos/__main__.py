@@ -13,6 +13,7 @@ import subprocess
 import sys
 
 from . import config
+from . import decide
 from . import gitops
 from .gateway import Gateway
 from .loop import run_all, run_task
@@ -37,7 +38,7 @@ def main(argv=None):
     a.add_argument("--files", default="")
     a.add_argument("--protected", default="")
     a.add_argument("--tests", required=True)
-    a.add_argument("--role", choices=sorted(config.ROLES), default="coder", help="which model plays this task")
+    a.add_argument("--role", choices=sorted(config.ROLES), default=None, help="which model plays this task")
     a.add_argument("--after", default="", help="comma-separated task ids that must be done first")
     r = sub.add_parser("run", help="run a task")
     r.add_argument("task_id")
@@ -59,8 +60,20 @@ def main(argv=None):
                 a.error(f"cannot read goal file {args.goal_file!r}: {e}")
         else:
             goal = args.goal
+        if args.role is None:
+            d = decide.choose_role({'files': split(args.files), 'goal': goal})
+            role = d['choice']
+        else:
+            d = None
+            role = args.role
         t = store.add_task(args.title, goal, split(args.files), split(args.protected), split(args.tests),
-                           role=args.role, after=split(args.after))
+                           role=role, after=split(args.after))
+        if d is not None:
+            store.update(t['id'], role_decision=d)
+            Telemetry(config.STATE_DIR / 'telemetry.jsonl').record('decision', decision='role', task=t['id'],
+                                                                   choice=d['choice'], confidence=d['confidence'],
+                                                                   reason=d['reason'])
+            print(f"role: {d['choice']} ({d['reason']})")
         print(f"added {t['id']}: {t['title']}")
     elif args.cmd == "run":
         tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
