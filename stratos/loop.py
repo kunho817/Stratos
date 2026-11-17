@@ -5,7 +5,7 @@ A task that still fails is handed to a person (status needs_human). The loop is 
 attempts, committing a candidate when a review is on) and a review phase (judging the candidates)."""
 from pathlib import Path
 
-from . import config, context, decide, gitops, patch, review, verify
+from . import config, context, decide, gitops, jev, patch, review, verify
 
 
 def save_answer(task_id, attempt, text):
@@ -79,7 +79,12 @@ def write_task(store, gw, task_id, log=print):
             failure = detail[-3000:]
             history.append((result, detail))
             d = decide.should_escalate(history)
-            gw.telemetry.record("decision", decision="escalate", task=task_id, attempt=attempt, role=role, choice=d["choice"], confidence=d["confidence"], reason=d["reason"])
+            gw.telemetry.record("decision", decision="escalate", decider="rules", task=task_id, attempt=attempt, role=role, choice=d["choice"], confidence=d["confidence"], reason=d["reason"])
+            if config.JEV_SHADOW:
+                j = jev.should_escalate(task, history)
+                if j is None:
+                    j = {"choice": None, "confidence": None, "reason": "jev unavailable", "input_tokens": 0}
+                gw.telemetry.record("decision", decision="escalate", decider="jev", task=task_id, attempt=attempt, role=role, choice=j["choice"], confidence=j["confidence"], reason=j["reason"], input_tokens=j["input_tokens"])
             if d["choice"]:
                 log(f"  attempt {attempt}: same failure again, moving to the cross-check")
                 break
