@@ -94,3 +94,33 @@ def test_flow_words_have_no_padding():
 def test_flow_words_exist_and_are_lower_case():
     assert decide.FLOW_WORDS and all(w == w.lower() for w in decide.FLOW_WORDS)
     assert "split" in decide.FLOW_WORDS and "restructure" in decide.FLOW_WORDS
+
+
+# T047: flow words count only in the goal's headline. Goals start with one paragraph that says what to do, then give
+# details; detail words ("split goal into sentences", re.split, a quoted description such as "control flow") sent
+# one-file tasks T032 and T046 to the slow coder. decide.headline(goal) is the text before the first blank line (a
+# line holding only spaces or tabs), with these removed: spans in backticks, in double quotes, in single quotes (a
+# quote that does not follow a letter or digit, up to a quote that is not followed by one; so "writer's" is not a
+# quote), and dotted names such as re.split or a.b.c. choose_role looks for FLOW_WORDS in decide.headline(goal) only.
+
+def test_headline_is_the_first_paragraph():
+    assert decide.headline("Split the loop.\n\nThen move x.") .strip() == "Split the loop."
+    assert "move" not in decide.headline("Add a helper.\n  \nMove the check.")
+    assert decide.headline("One line only.") == "One line only."
+
+
+def test_headline_drops_quotes_and_dotted_names():
+    h = decide.headline('Use re.split and a.b.c here; "control flow" and `split` and \'phase\' go.')
+    assert "split" not in h and "control flow" not in h and "phase" not in h and "a.b.c" not in h
+    assert "Use" in h and "here" in h
+    assert "writer's outcome" in decide.headline("Move the writer's outcome to the end, it's late.")
+
+
+def test_flow_words_only_in_the_headline():
+    def role(goal):
+        return decide.choose_role({"files": ["stratos/a.py"], "goal": goal})["choice"]
+    assert role("In stratos/patch.py, add _excused.\n\n- split goal into sentences with re.split.") == "coder"
+    assert role('Create stratos/jev.py. Criteria: "for changes to existing control flow".') == "coder"
+    assert role("Add a helper that uses re.split.") == "coder"
+    assert role("Split the task loop into a write phase and a review phase.\n\nDetails.") == "coder_hard"
+    assert role("Two fixes. Move the writer's outcome to after the review.") == "coder_hard"
