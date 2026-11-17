@@ -20,7 +20,7 @@ from . import jev
 from . import replay
 from .gateway import Gateway
 from .loop import run_all, run_task
-from .report import decision_accuracy, escalation_accuracy, summarize
+from .report import decision_accuracy, escalation_accuracy, replay_summary, summarize
 from .scheduler import plan as scheduler_plan
 from .state import Store
 from .telemetry import Telemetry
@@ -47,7 +47,8 @@ def main(argv=None):
     r.add_argument("task_id")
     sub.add_parser("run-all", help="run every todo task, in scheduler order")
     sub.add_parser("status", help="list tasks")
-    sub.add_parser("report", help="summarize telemetry")
+    report_p = sub.add_parser("report", help="summarize telemetry")
+    report_p.add_argument("--replay", action="store_true", help="summarize the replay runs instead")
     sub.add_parser("clean", help="remove worktree and branch of merged, done tasks")
     reset = sub.add_parser("reset", help="throw away a task's result so it runs again")
     reset.add_argument("task_id")
@@ -140,6 +141,19 @@ def main(argv=None):
                 done = False
         return 0 if done and not blocked else 1
     elif args.cmd == "report":
+        if args.replay:
+            summary = replay_summary(Telemetry(config.STATE_DIR / "replay.jsonl").load())
+            if not summary:
+                print("no replay runs yet")
+            else:
+                for key in sorted(summary):
+                    s = summary[key]
+                    print(f"{key}: {s['passed']}/{s['runs']} passed, {s['attempts']} attempts, {s['seconds']:.0f} s")
+                    for task in sorted(s['tasks']):
+                        t = s['tasks'][task]
+                        print(f"  {task}: {t['passed']}/{t['runs']} passed, "
+                              f"{t['attempts'] / t['runs']:.1f} attempts and {t['seconds'] / t['runs']:.0f} s per run")
+            return 0
         events = Telemetry(config.STATE_DIR / "telemetry.jsonl").load()
         if not events:
             print("no telemetry yet")
