@@ -148,3 +148,57 @@ def decision_accuracy(events, threshold=0.3):
                     bucket["confident_correct"] += 1
 
     return by_decider
+
+
+def escalation_accuracy(events, threshold=0.7):
+    call_map = {}
+    for event in events:
+        if event.get("kind") == "call" and event.get("role") in ("coder", "coder_hard"):
+            call_map[event.get("call_id")] = (event.get("task"), event.get("role"))
+
+    by_decider = {}
+    for i, event in enumerate(events):
+        if event.get("kind") != "decision" or event.get("decision") != "escalate":
+            continue
+        decider = event.get("decider") or "rules"
+        task = event.get("task")
+        role = event.get("role")
+        choice = event.get("choice")
+
+        bucket = by_decider.setdefault(decider, {
+            "decisions": 0,
+            "judged": 0,
+            "correct": 0,
+            "confident_judged": 0,
+            "confident_correct": 0,
+        })
+        bucket["decisions"] += 1
+        if choice is None:
+            continue
+
+        truth = None
+        for later in events[i + 1:]:
+            if later.get("kind") != "outcome" or later.get("result") != "passed":
+                continue
+            later_call_id = later.get("call_id")
+            if later_call_id not in call_map:
+                continue
+            later_task, later_role = call_map[later_call_id]
+            if later_task != task or later_role not in ("coder", "coder_hard"):
+                continue
+            truth = later_role != role
+            break
+
+        if truth is None:
+            continue
+
+        bucket["judged"] += 1
+        confident = (event.get("confidence") or 0) >= threshold
+        if confident:
+            bucket["confident_judged"] += 1
+        if choice == truth:
+            bucket["correct"] += 1
+            if confident:
+                bucket["confident_correct"] += 1
+
+    return by_decider
