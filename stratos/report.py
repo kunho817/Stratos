@@ -80,3 +80,78 @@ def summarize(events, since=None):
         "wasted_tokens": wasted_tokens,
         "human_verdicts": human_verdicts,
     }
+
+
+def role_truth(events):
+    role_map = {}
+    for event in events:
+        if event.get("kind") == "call" and event.get("role") in ("coder", "coder_hard"):
+            role_map[event["call_id"]] = (event["task"], event["role"])
+
+    coder_pass = {}
+    coder_fail = {}
+    hard_pass = {}
+    for event in events:
+        if event.get("kind") != "outcome":
+            continue
+        call_id = event.get("call_id")
+        if call_id not in role_map:
+            continue
+        task, role = role_map[call_id]
+        if role == "coder":
+            if event.get("result") == "passed":
+                coder_pass[task] = True
+            else:
+                coder_fail[task] = True
+        elif role == "coder_hard":
+            if event.get("result") == "passed":
+                hard_pass[task] = True
+
+    result = {}
+    for task in set(coder_pass) | set(coder_fail) | set(hard_pass):
+        if task in coder_pass:
+            result[task] = "coder"
+        elif task in coder_fail and task in hard_pass:
+            result[task] = "coder_hard"
+
+    return result
+
+
+def decision_accuracy(events, threshold=0.3):
+    last = {}
+    for event in events:
+        if event.get("kind") == "decision" and event.get("decision") == "role":
+            decider = event.get("decider", "rules")
+            last[(event["task"], decider)] = event
+
+    truth = role_truth(events)
+
+    stats = {
+        "decisions": 0,
+        "judged": 0,
+        "correct": 0,
+        "confident_judged": 0,
+        "confident_correct": 0,
+    }
+    by_decider = {}
+    for (task, decider), event in last.items():
+        bucket = by_decider.setdefault(decider, {
+            "decisions": 0,
+            "judged": 0,
+            "correct": 0,
+            "confident_judged": 0,
+            "confident_correct": 0,
+        })
+        bucket["decisions"] += 1
+        choice = event.get("choice")
+        if choice is not None and task in truth:
+            bucket["judged"] += 1
+            if choice == truth[task]:
+                bucket["correct"] += 1
+                if (event.get("confidence") or 0) >= threshold:
+                    bucket["confident_judged"] += 1
+                    bucket["confident_correct"] += 1
+            elif (event.get("confidence") or 0) >= threshold:
+                bucket["confident_judged"] += 1
+
+    return by_decider
