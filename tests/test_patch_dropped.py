@@ -77,3 +77,25 @@ def test_new_files_other_files_and_broken_code_are_skipped(tmp_path):
     assert patch.dropped_definitions(root, files) == {}
     make(tmp_path, "def (:\n", "stratos/broken.py")
     assert patch.dropped_definitions(root, [("stratos/broken.py", "x = 1\n")]) == {}
+
+
+# T046: a name the goal merely mentions ("count the same way as decision_accuracy", "leave summarize unchanged") must
+# still be kept. A dropped name is excused only when it appears in a sentence of the goal that also holds a removal
+# word: one of patch.REMOVAL_WORDS. Sentences are split at '.', '!', '?' and line breaks. Latin removal words match
+# as whole words, case-insensitive; Korean ones match anywhere in the sentence. The name itself matches as a whole word.
+
+def test_a_mere_mention_does_not_excuse_a_drop(tmp_path):
+    root = make(tmp_path)
+    new = OLD.replace("class Report:\n    pass\n", "")
+    dropped = {"stratos/report.py": ["Report"]}
+    assert patch.dropped_definitions(root, [("stratos/report.py", new)], goal="Count it the way Report does.") == dropped
+    assert patch.dropped_definitions(root, [("stratos/report.py", new)],
+                                     goal="Leave Report unchanged. Remove the old helper.") == dropped
+    assert patch.dropped_definitions(root, [("stratos/report.py", new)], goal="Rename Report to Summary.") == {}
+    assert patch.dropped_definitions(root, [("stratos/report.py", new)], goal="Report 클래스를 삭제한다.") == {}
+    assert patch.dropped_definitions(root, [("stratos/report.py", new)], goal="First this.\nDelete Report.") == {}
+
+
+def test_removal_words():
+    for w in ("remove", "delete", "drop", "rename", "replace", "삭제", "제거"):
+        assert w in patch.REMOVAL_WORDS
