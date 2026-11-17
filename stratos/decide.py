@@ -7,13 +7,15 @@ Provides three rules used to decide how to react to a failed attempt and which c
 - choose_role(task): which coder role should handle the task.
 """
 
+import re
+
 # Words/phrases (lower-case) that signal a change of code flow.
 FLOW_WORDS = (
     'restructure',
     'reorder',
     'split',
     'refactor',
-    'move ',
+    'move',
     'rounds',
     'phase',
     'flow',
@@ -105,12 +107,20 @@ def choose_role(task):
         }
 
     for word in FLOW_WORDS:
-        if word in goal_lower:
-            return {
-                "choice": "coder_hard",
-                "confidence": 0.55,
-                "reason": "the goal mentions a change of flow: '%s'" % word,
-            }
+        if word.isascii() and word.isalpha():
+            if re.search(r'\b' + re.escape(word) + r'\b', goal, re.IGNORECASE):
+                return {
+                    "choice": "coder_hard",
+                    "confidence": 0.55,
+                    "reason": "the goal mentions a change of flow: '%s'" % word,
+                }
+        else:
+            if word in goal_lower:
+                return {
+                    "choice": "coder_hard",
+                    "confidence": 0.55,
+                    "reason": "the goal mentions a change of flow: '%s'" % word,
+                }
 
     return {
         "choice": "coder",
