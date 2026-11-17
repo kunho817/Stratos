@@ -53,13 +53,20 @@ def write_task(store, gw, task_id, log=print):
                     detail = ("You tried to call a tool, but there are no tools here and you cannot open files. "
                               "Everything you need is in this message: answer with the FILE blocks directly.")
             else:
-                try:
-                    written = patch.apply_files(wt, files, task["protected"], allowed)
-                except patch.PatchRefused as e:
-                    result, detail = "refused", str(e)
+                dropped = patch.dropped_definitions(wt, files, task["goal"])
+                if dropped:
+                    result, detail = "dropped_defs", (
+                        "Your answer drops existing definitions that the goal did not ask to remove:\n"
+                        + "\n".join(f"{path}: {', '.join(names)}" for path, names in sorted(dropped.items()))
+                        + "\nWrite each file completely: keep everything that is already in it and add or change only what the goal asks.")
                 else:
-                    ok, out = verify.run_tests(wt, task["tests"])
-                    result, detail = ("passed" if ok else "failed"), out
+                    try:
+                        written = patch.apply_files(wt, files, task["protected"], allowed)
+                    except patch.PatchRefused as e:
+                        result, detail = "refused", str(e)
+                    else:
+                        ok, out = verify.run_tests(wt, task["tests"])
+                        result, detail = ("passed" if ok else "failed"), out
             if getattr(gw, "last_finish", None) == "length" and result != "passed":
                 detail = ("Your answer was cut off: it reached the length limit. Think briefly and write only the "
                           "files the task needs, completely.\n" + detail)
