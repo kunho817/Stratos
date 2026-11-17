@@ -18,7 +18,7 @@ from . import gitops
 from . import jev
 from .gateway import Gateway
 from .loop import run_all, run_task
-from .report import summarize
+from .report import decision_accuracy, summarize
 from .scheduler import plan as scheduler_plan
 from .state import Store
 from .telemetry import Telemetry
@@ -144,6 +144,12 @@ def main(argv=None):
             for name in sorted(s['by_model']):
                 m = s['by_model'][name]
                 print(f"  {name}: calls={m['calls']} prompt={m['prompt_tokens']} completion={m['completion_tokens']} time={m['seconds']:.1f} s")
+            acc = decision_accuracy(events)
+            if acc:
+                print("role decisions:")
+                for name in sorted(acc):
+                    d = acc[name]
+                    print(f"  {name}: {d['correct']}/{d['judged']} right ({d['decisions']} decided; confidence >= 0.3: {d['confident_correct']}/{d['confident_judged']})")
         return 0
     elif args.cmd == "clean":
         merged = gitops.git(config.REPO, "branch", "--merged", "HEAD", "--list", "stratos/*")
