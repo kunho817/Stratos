@@ -18,14 +18,13 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
    Start without a vector DB (the corpus is small; keyword search + the model's choice); add embeddings only if
    retrieval visibly misses. Measure with the three feature goals of the planner comparison (scratchpad plan_eval.py).
    Lessons recorded from every human edit are the way to grow CONVENTIONS.md automatically.
-1. **Planner quality.** `stratos plan` (T061-T065) and `stratos plan-tests` (T066-T070) work end to end.
-   Record so far: P001 9 tasks, broke the same-file rule -> T063 put Stratos's task rules in the prompt; P002 3 tasks,
-   invented APIs (gw.ask, load_plan in state.py) -> T064 shows public signatures; P003 2 tasks, goals rewritten by
-   hand; P004 3 tasks, goals tightened by hand, all 3 test drafts collected but all needed fixes (plan JSON shape
-   wrong in 2 files, an error copied from the plan, an unrequested requirement, STATE_DIR not isolated). Every plan
-   so far was edited (telemetry "plan" edited=true). Next ideas: show the planner real call examples (e.g. how tests
-   fake Gateway and call cli.main), the shapes of the data it writes about (a plan is {"tasks": [...]}), and let it
-   see the files a task will change, not only the summary. Measure with the same feature goals again.
+1. **Planner quality.** Record: P001-P004 all needed hand edits (rules, invented APIs, data shapes). Then
+   (T071-T076): CONVENTIONS.md in the prompt, the planner writes Key:/Title:/Goal:... text that code reads
+   (plan.parse_text_plan; AgentWorld only as fallback - as the converter it broke JSON on quotes in goals),
+   parse_plan refuses test-only tasks. P006/P007 (2026-11-18): field names and APIs right, same-file chains right,
+   one return shape wrong (check_draft). Next: run P006 (report --plans) through plan-tests and plan-add to measure a
+   whole feature; text after the last task is appended to its last field (risk); add a lesson to CONVENTIONS.md each
+   time a plan or draft is fixed by hand (until item 0 records them automatically).
 2. **Test drafts.** Track drafts kept as written vs fixed (telemetry "test_draft"); compare after each prompt change.
    TEST_SYSTEM could tell the model to copy the fixture style of the example and to keep every path in tmp_path.
 3. **Diagnosis A/B (live since T060).** Read the "diagnosis A/B" line in `stratos report` after ~30 retries; adopt
@@ -37,11 +36,17 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
 6. **Review strength.** 49 approvals, 1-2 change requests. It caught unreachable code in T058, but missed T060's
    attempt-vs-tries bug and unrequested reformatting in T058. Replay old diffs with known problems to measure it.
 7. **A second project.** Run Stratos on a small Python project that is not Stratos, to find what is Stratos-specific.
-8. **Non-Python files.** Answers for non-Python files without a FILE header cannot be rescued (T022/T025 rules).
-9. **Memory headroom.** With Swift loaded, Windows has ~13 GB of commit left; a background run was once killed by
+8. **Worktrees and main.** A task's copy is made once; later commits on main (test fixes) do not reach it unless it is
+   reset after its dependencies are merged. Consider merging HEAD into the copy at the start of each round.
+9. **Non-Python files.** Answers for non-Python files without a FILE header cannot be rescued (T022/T025 rules).
+10. **Memory headroom.** With Swift loaded, Windows has ~13 GB of commit left; a background run was once killed by
    Claude Code for low memory during a model switch.
 
 ## Done
+
+- Harness (2026-11-18): a FILE header alone in its own fence no longer leaves a fence line in the file (Tiel, T075/T076);
+  a dependency already merged into HEAD is not a base for the dependent task's copy (T076 missed main's fixes).
+- T071-T076: conventions, text planning read by code, AgentWorld fallback, plan_parse telemetry, stricter parse_plan.
 
 - T061-T070 planner: plan, plan-add, plan-tests; prompt rules, signatures, files/protected overlap refused, goal-file
   errors, raw planner answers saved (.stratos/answers/plan-<call_id>.md), check_draft timeout and UTF-8.
