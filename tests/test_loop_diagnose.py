@@ -140,3 +140,15 @@ def test_off_switch(env, monkeypatch):
     monkeypatch.setattr(config, "DIAGNOSE_AB", False)
     result, gw = run(env, [(False, "FAILED tests/x.py::t1"), (True, "1 passed")], True)
     assert result == "done" and rec["diag"] == [] and diag_events(tel) == []
+
+
+def test_attempt_numbers_carried_over_from_an_earlier_round(env):
+    """A task that was rejected by the review starts its next round at task['attempts'] + 1: the role's tries left
+    are counted within this round's plan, not from the task's attempt number (T060)."""
+    store, tel, rec, _ = env
+    store.update("T001", attempts=3)
+    outs = [(False, f"FAILED tests/x.py::t{i}") for i in range(1, 5)]
+    result, gw = run(env, outs, True)
+    assert [c["attempt"] for c in gw.calls] == [4, 5, 6, 7]
+    assert [d[3] for d in rec["diag"]] == [5, 6]
+    assert [e["attempt"] for e in diag_events(tel)] == [5, 6]
