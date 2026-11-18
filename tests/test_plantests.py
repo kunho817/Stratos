@@ -116,6 +116,7 @@ def test_draft_tests(root, tmp_path, monkeypatch):
           "def test_cli():\n    pass\n```\nFILE: stratos/evil.py\n```python\nY = 2\n```\n")
     gw = FakeGateway(Telemetry(tmp_path / "t.jsonl"), [a1, a2])
     lines = []
+    expected_first = plantests.build_messages(TASK, root)      # before the drafts change the project summary
     out = plantests.draft_tests(gw, pid, root, state, log=lines.append)
     assert out == [{"key": "core", "file": "tests/test_m.py", "status": "import_error"},
                    {"key": "cli", "file": "tests/test_diagnose.py", "status": "exists"},
@@ -123,7 +124,7 @@ def test_draft_tests(root, tmp_path, monkeypatch):
                    {"key": "cli", "file": "tests/test_absent.py", "status": "missing"}]
     assert gw.models == [config.PLANNER["model"]]
     msgs, kw = gw.calls[0]
-    assert msgs == plantests.build_messages(TASK, root)
+    assert msgs == expected_first
     want = {"task": f"{pid}-core", "role": "test_writer", "attempt": 1, "model": config.PLANNER["model"],
             "effort": config.PLANNER["effort"], "max_tokens": config.PLANNER["max_tokens"]}
     if config.PLANNER.get("reasoning_budget") is not None:
