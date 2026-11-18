@@ -32,21 +32,26 @@ class Gateway:
         self.telemetry.record("switch", model=model, from_model=current, seconds=secs)
         return secs
 
-    def chat(self, messages, *, task, role, attempt, model, effort, max_tokens):
+    def chat(self, messages, *, task, role, attempt, model, effort, max_tokens, reasoning_budget=None):
         """Returns (call_id, text). text is the answer, or the reasoning when the answer is empty (some models
         leave their output inside the thinking)."""
         call_id = new_call_id()
         t0 = time.time()
-        r = self._req("/v1/chat/completions", {"model": model, "messages": messages, "reasoning_effort": effort,
-                                               "max_tokens": max_tokens})
+        body = {"model": model, "messages": messages, "reasoning_effort": effort, "max_tokens": max_tokens}
+        if reasoning_budget is not None:
+            body["reasoning_budget_tokens"] = reasoning_budget
+        r = self._req("/v1/chat/completions", body)
         secs = round(time.time() - t0, 2)
         msg = r["choices"][0]["message"]
         content = msg.get("content") or ""
         reasoning = msg.get("reasoning_content") or ""
         usage = r.get("usage") or {}
         self.last_finish = r["choices"][0].get("finish_reason")   # "tool_calls": the model wanted a tool (Flint, T009)
-        self.telemetry.record("call", call_id=call_id, task=task, role=role, attempt=attempt, model=model,
-                              effort=effort, prompt_tokens=usage.get("prompt_tokens"),
-                              completion_tokens=usage.get("completion_tokens"), reasoning_chars=len(reasoning),
-                              finish=r["choices"][0].get("finish_reason"), seconds=secs)
+        event = dict(call_id=call_id, task=task, role=role, attempt=attempt, model=model, effort=effort,
+                     prompt_tokens=usage.get("prompt_tokens"),
+                     completion_tokens=usage.get("completion_tokens"), reasoning_chars=len(reasoning),
+                     finish=r["choices"][0].get("finish_reason"), seconds=secs)
+        if reasoning_budget is not None:
+            event["reasoning_budget"] = reasoning_budget
+        self.telemetry.record("call", **event)
         return call_id, (content if content.strip() else reasoning)
