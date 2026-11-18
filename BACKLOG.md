@@ -13,6 +13,33 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
 Process (user, 2026-11-18): after each feature chunk (one "push"), build a larger throwaway project with Stratos
 (e.g. a web game) in D:\Strata\Trials\<name> and log what breaks here. Next trial: after the planner chunk (P006).
 
+**Trial 1: tower defense (D:\Strata\Trials\TowerDefense, 2026-11-19).** JS + node --test, 10 tasks, 107 tests, the
+game plays headless (13 waves in 3 minutes) and is served on 127.0.0.1:8123. Found, by weight:
+   a. **Wrong test drafts were the main cost.** 8 drafted tests had wrong expectations (grid paths that were not the
+      only way, a "maze" with no path, a spawn timer that had not run out, an enemy that had already left, a tower on
+      the start cell). Each time Swift's code was right and the task went to needs_human. Ideas: before needs_human,
+      ask a model whether the failing assertion contradicts the goal (show the goal, the test and the output); tell
+      TEST_SYSTEM to work out each expected value step by step in a comment; draft fewer, simpler cases.
+   b. **node --test output is useless as feedback.** The last 4000 characters are stack traces; the failing test
+      names and assertion values are cut off, and failure_signature finds no ids. Use the TAP reporter
+      (--test-reporter=tap) and keep the "not ok" lines with their expected/actual, per project (a summarize
+      setting or a parser per test runner).
+   c. **The planner did not define the data shared between modules** (state, enemy, tower shapes, numbers); Claude
+      wrote a data model into CONVENTIONS.md and most of each goal. Plan a "shared contract" first (a CONVENTIONS
+      section or a task-0 doc) before splitting into tasks. It also left out index.html.
+   d. **Bugs the tests missed, found by playing headless:** canPlace and placeTower ignored existing towers (a test
+      with towers already built was never drafted). A headless "play" script per project (a smoke run) would catch
+      this kind of bug; render bugs (enemies drawn at a cell corner, a copied helper, an unrequested indicator) were
+      found only by reading the diff.
+   e. **Copying instead of importing:** path.js copied grid.inBounds, render.js copied step.enemyPosition; the
+      reviewer missed both. Add "uses existing functions instead of copies" to the review checklist.
+   f. Test drafts: answers with no FILE header and no fence (raw file) were dropped (2/7); a Python docstring in a JS
+      test; for JS the draft check is only `node --check` (syntax), not "the runner loads it".
+   g. Harness: a task whose dependency finished in the last round stays todo (T007 needed another run-all);
+      `stratos add` and plan-add still need --protected to include the task's own tests by hand.
+   h. Old tests that pin the behaviour being fixed: when a fix task says "keep the old tests passing", check that
+      they do not encode the bug (render.test.js pinned the corner position and the indicator).
+
 0. **Memory -> retrieval -> planner (user's idea, 2026-11-18).** Keep a memory of the project (code split by
    function, tests, past tasks with goal/diff/failures/review issues, and lessons: what a person changed in a plan or a
    test draft and why) and let a fast model (Tiel or AgentWorld, one load, many short calls) pick what the planner
