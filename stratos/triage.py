@@ -8,7 +8,7 @@ fixes the code. Returns {"verdict", "test", "reason"} from the model's JSON answ
 import json
 import re
 
-from .config import TRIAGER
+from . import config
 
 SYSTEM = (
     "You are triaging a Stratos task that failed its tests. Read the task's goal, the test files, the code, and the "
@@ -32,7 +32,7 @@ def build_messages(task, root, code_files, test_output):
     lines.append("Test files:")
     for test_path in task.get("tests", []):
         try:
-            text = (root / test_path).read_text()
+            text = (root / test_path).read_text(encoding="utf-8")
         except OSError:
             text = ""
         lines.append(f"- {test_path}:")
@@ -72,16 +72,18 @@ def parse(text):
 
 def triage(gw, task, root, code_files, test_output):
     """Ask the triage model whether the failing assertion is the test's or the code's fault; return parse(answer)."""
-    gw.ensure_model(TRIAGER["model"])
+    triager = config.TRIAGER
+    gw.ensure_model(triager["model"])
     messages = build_messages(task, root, code_files, test_output)
-    _, answer = gw.chat(
-        messages,
+    kwargs = dict(
         task=task["id"],
         role="triage",
         attempt=1,
-        model=TRIAGER["model"],
-        effort=TRIAGER["effort"],
-        max_tokens=TRIAGER["max_tokens"],
-        reasoning_budget=TRIAGER["reasoning_budget"],
+        model=triager["model"],
+        effort=triager["effort"],
+        max_tokens=triager["max_tokens"],
     )
+    if triager.get("reasoning_budget") is not None:
+        kwargs["reasoning_budget"] = triager["reasoning_budget"]
+    _, answer = gw.chat(messages, **kwargs)
     return parse(answer)
