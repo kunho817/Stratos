@@ -55,6 +55,11 @@ PLANNER = {"model": "swift-1.5-iq2_xs", "effort": "medium", "max_tokens": 24000,
 PLAN_AS_TEXT = True
 PLAN_CONVERTER = {"model": "qwen3.6-35b-a3b-ud-q4_k_m", "effort": "none", "max_tokens": 8000}
 
+# TRIAGE (2026-11-18): after a task fails its tests, a quick model decides whether the failing assertion is the test's
+# fault (test_wrong) or the code's (code_wrong), so the retry targets the right file. STRATOS_TRIAGE=0 turns it off.
+TRIAGE = os.environ.get("STRATOS_TRIAGE", "1") != "0"
+TRIAGER = {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 8000, "reasoning_budget": 3000}
+
 _stratos_repo = os.environ.get("STRATOS_REPO")
 if _stratos_repo:
     REPO = Path(_stratos_repo)
