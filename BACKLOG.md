@@ -5,15 +5,21 @@ open item (or what the user asks for), and update it at the end. Evidence comes 
 `stratos report --replay` and the diffs read while verifying. Finished items move to "Done" with the task ids.
 
 Stages (2026-11-18): 0 skeleton, 1 self-development loop, 2 measurement and model choice: done. 3 decision layer:
-partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, merging): starting with the planner.
+partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, merging): planner and test drafts built, quality not yet good enough to skip review.
 5 other projects (a small Python project, then Unity/Unreal): not started.
 
 ## Open (top first)
 
-1. **Planner (T061-T062).** `stratos plan` splits a feature goal into tasks, `stratos plan-add` adds them.
-   Next: measure it (plans edited vs accepted as they are: telemetry "plan" events, edited flag).
-2. **Test drafts by a model.** The biggest remaining human work is writing the tests first. Let a model (Swift) draft
-   each planned task's test file; a person checks it, commits it, then the task runs. Plan this one with the planner.
+1. **Planner quality.** `stratos plan` (T061-T065) and `stratos plan-tests` (T066-T070) work end to end.
+   Record so far: P001 9 tasks, broke the same-file rule -> T063 put Stratos's task rules in the prompt; P002 3 tasks,
+   invented APIs (gw.ask, load_plan in state.py) -> T064 shows public signatures; P003 2 tasks, goals rewritten by
+   hand; P004 3 tasks, goals tightened by hand, all 3 test drafts collected but all needed fixes (plan JSON shape
+   wrong in 2 files, an error copied from the plan, an unrequested requirement, STATE_DIR not isolated). Every plan
+   so far was edited (telemetry "plan" edited=true). Next ideas: show the planner real call examples (e.g. how tests
+   fake Gateway and call cli.main), the shapes of the data it writes about (a plan is {"tasks": [...]}), and let it
+   see the files a task will change, not only the summary. Measure with the same feature goals again.
+2. **Test drafts.** Track drafts kept as written vs fixed (telemetry "test_draft"); compare after each prompt change.
+   TEST_SYSTEM could tell the model to copy the fixture style of the example and to keep every path in tmp_path.
 3. **Diagnosis A/B (live since T060).** Read the "diagnosis A/B" line in `stratos report` after ~30 retries; adopt
    (always give the diagnosis) or drop it. Offline: 7/19 with vs 5/19 without.
 4. **Tiel's third try.** Real history: Tiel passed 30/47 on the first try, 38/47 within two, 39/47 within three.
@@ -28,6 +34,9 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
    Claude Code for low memory during a model switch.
 
 ## Done
+
+- T061-T070 planner: plan, plan-add, plan-tests; prompt rules, signatures, files/protected overlap refused, goal-file
+  errors, raw planner answers saved (.stratos/answers/plan-<call_id>.md), check_draft timeout and UTF-8.
 
 - T054-T056 reasoning budget (Gateway, loop, replay, report keys). T057-T060 diagnosis A/B.
 - coder_hard: Flint -> Qwen3.8-Flash-Next Coder -> Swift 1.5 IQ2_XS with a 3000-token budget (replay on six hard tasks).
