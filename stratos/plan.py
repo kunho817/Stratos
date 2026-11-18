@@ -14,7 +14,12 @@ SYSTEM = (
     "after lists keys of earlier tasks it builds on. "
     "protected lists files it may read but not change. "
     "role is \"coder\" for new functions and small additions, "
-    "or \"coder_hard\" for changes of existing control flow."
+    "or \"coder_hard\" for changes of existing control flow.\n"
+    "Tasks that write the same file must be chained: each one lists the previous one in \"after\".\n"
+    "The tests of a task are written before the task runs, so never make a task whose files are only test files.\n"
+    "Keep related small functions of one module in one task; a task should be worth a model call and a review.\n"
+    "A function that calls a model takes the gateway as a parameter (gw), so tests can pass a fake.\n"
+    "Prefer 2 to 6 tasks for a feature."
 )
 
 
