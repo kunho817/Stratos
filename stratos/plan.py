@@ -109,6 +109,79 @@ class PlanError(ValueError):
     pass
 
 
+class PlanFormatError(PlanError):
+    pass
+
+
+_FIELD_RE = re.compile(
+    r'^\s*[-*#\s]*\**\s*(Key|Title|Goal|Files|Tests|Protected|After|Role)\**\s*:\**\s*(.*)$'
+)
+
+_LIST_FIELDS = {"Files", "Tests", "Protected", "After"}
+
+
+def parse_text_plan(text):
+    lines = text.split("\n")
+    tasks = []
+    current_fields = {}
+    current_field_name = None
+    seen_key = False
+
+    for line in lines:
+        match = _FIELD_RE.match(line)
+        if match:
+            field_name = match.group(1)
+            value = match.group(2)
+            if field_name == "Key":
+                if seen_key:
+                    tasks.append(current_fields)
+                seen_key = True
+                current_fields = {}
+                current_field_name = "Key"
+                current_fields["Key"] = value
+            else:
+                if not seen_key:
+                    continue
+                current_field_name = field_name
+                current_fields[field_name] = value
+        else:
+            if current_field_name is not None:
+                current_fields[current_field_name] += "\n" + line
+            # blank line: current_field_name stays the same (blank lines end nothing)
+
+    if not seen_key:
+        raise PlanFormatError("No 'Key:' line found in the text.")
+
+    tasks.append(current_fields)
+
+    result_tasks = []
+    for fields in tasks:
+        task = {}
+        for name, val in fields.items():
+            val = val.strip()
+            if name == "Key":
+                task["key"] = val
+            elif name == "Title":
+                task["title"] = val
+            elif name == "Goal":
+                task["goal"] = val
+            elif name in _LIST_FIELDS:
+                items = [v.strip() for v in val.split(",")]
+                items = [v.strip("`") for v in items]
+                items = [v for v in items if v]
+                key_name = name.lower()
+                task[key_name] = items
+            elif name == "Role":
+                r = val.strip("`")
+                if r in ("coder", "coder_hard"):
+                    task["role"] = r
+                else:
+                    task["role"] = None
+        result_tasks.append(task)
+
+    return parse_plan(json.dumps({"tasks": result_tasks}))
+
+
 def parse_plan(text):
     raw = _extract_json(text)
     try:
@@ -254,3 +327,4 @@ def convert_messages(text):
         {"role": "system", "content": CONVERT_SYSTEM},
         {"role": "user", "content": text},
     ]
+
