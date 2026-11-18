@@ -61,6 +61,7 @@ def main(argv=None):
     replay_p.add_argument("--effort", default=None, help="override the role's effort")
     replay_p.add_argument("--max-tokens", type=int, default=None, help="override the role's max_tokens")
     replay_p.add_argument("--tries", type=int, default=2, help="attempts per task")
+    replay_p.add_argument("--reasoning-budget", type=int, default=None, help="override the role's reasoning budget")
     args = ap.parse_args(argv)
 
     store = Store(config.STATE_DIR)
@@ -235,8 +236,14 @@ def main(argv=None):
         effort = args.effort if args.effort is not None else role["effort"]
         max_tokens = args.max_tokens if args.max_tokens is not None else role["max_tokens"]
         gw = Gateway(Telemetry(config.STATE_DIR / "replay.jsonl"))
-        results = replay.replay(tasks, gw, model=model, effort=effort, max_tokens=max_tokens,
-                                tries=args.tries, repo=config.REPO, root=config.WORKTREES)
+        budget = args.reasoning_budget if args.reasoning_budget is not None else role.get("reasoning_budget")
+        if budget is not None:
+            results = replay.replay(tasks, gw, model=model, effort=effort, max_tokens=max_tokens,
+                                    tries=args.tries, repo=config.REPO, root=config.WORKTREES,
+                                    reasoning_budget=budget)
+        else:
+            results = replay.replay(tasks, gw, model=model, effort=effort, max_tokens=max_tokens,
+                                    tries=args.tries, repo=config.REPO, root=config.WORKTREES)
         total_seconds = 0.0
         passed = 0
         for res in results:
