@@ -32,6 +32,9 @@ def _extract_ids(detail):
     ``FAILED tests/test_x.py::test_one``; the id is the text after ``FAILED `` up to `` - `` or end of line.
     An ERROR line looks like ``ERROR tests/test_y.py - SyntaxError: ...``; the id is the text after ``ERROR ``
     up to `` - `` or end of line.
+    A TAP "not ok" line looks like ``not ok <n> - <name>`` (with optional leading indentation);
+    the id is ``<name>`` (the part after the first `` - ``, up to a subsequent `` - `` if present).
+    ``ok`` lines are ignored.
     """
     ids = []
     for line in detail.splitlines():
@@ -42,6 +45,13 @@ def _extract_ids(detail):
         elif stripped.startswith('ERROR '):
             rest = stripped[len('ERROR '):]
             ids.append(rest.split(' - ', 1)[0].strip())
+        elif stripped.startswith('not ok '):
+            rest = stripped[len('not ok '):]
+            if ' - ' in rest:
+                # rest is "<num> - <name> [ - extra]"
+                after_num = rest.split(' - ', 1)[1]
+                # name is the part before any further " - "
+                ids.append(after_num.split(' - ', 1)[0].strip())
     # Preserve order but de-duplicate, then sort for comparability.
     seen = []
     for i in ids:
@@ -138,3 +148,4 @@ def choose_role(task):
         "confidence": 0.7,
         "reason": "a single straightforward task, handled by the standard coder",
     }
+
