@@ -8,16 +8,23 @@ from pathlib import Path
 
 from . import config, context, plan, patch
 
-TEST_SYSTEM = (
-    "Write pytest test files for the task. Answer with FILE blocks "
-    '("FILE: tests/test_x.py" then a fenced block). Include a module docstring '
-    "that describes the behaviour, then test functions. Use fakes (monkeypatch) "
-    "instead of the network, the GPU and real models. The tests should fail "
-    "until the task is done."
-)
+
+def system_prompt(language, test_runner):
+    return (
+        f"Write {test_runner} test files for the {language} project. Answer with FILE blocks "
+        '("FILE: tests/test_x.py" then a fenced block). Include a module docstring '
+        "that describes the behaviour, then test functions. Use fakes (monkeypatch) "
+        "instead of the network, the GPU and real models. The tests should fail "
+        "until the task is done."
+    )
 
 
-def build_messages(task, root, example="tests/test_diagnose.py"):
+TEST_SYSTEM = system_prompt(config.PROJECT["language"], config.PROJECT["test_runner"])
+
+
+def build_messages(task, root, example=None):
+    if example is None:
+        example = config.PROJECT["example_test"]
     parts = [f"TASK {task['key']}: {task['title']}", task["goal"]]
     parts.append("PROJECT FILES:\n" + plan.repo_summary(root))
     conventions = Path(root, "CONVENTIONS.md")
@@ -38,18 +45,20 @@ def build_messages(task, root, example="tests/test_diagnose.py"):
 
 def check_draft(root, path):
     p = Path(root, path)
-    try:
-        ast.parse(p.read_text(encoding="utf-8"))
-    except SyntaxError as e:
-        return ("syntax_error", str(e))
+    if path.endswith(".py"):
+        try:
+            ast.parse(p.read_text(encoding="utf-8"))
+        except SyntaxError as e:
+            return ("syntax_error", str(e))
+    cmd = config.PROJECT["draft_check_command"] + [path]
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "pytest", "--collect-only", "-q", path],
+            cmd,
             cwd=str(root), capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=120,
         )
     except subprocess.TimeoutExpired:
-        return ("error", "pytest --collect-only timed out")
+        return ("error", "draft check timed out")
     if result.returncode == 0:
         return ("collected", "")
     output = result.stdout + result.stderr
