@@ -301,3 +301,45 @@ def diagnosis_ab(events):
             bucket["passed"] += 1
 
     return {"hinted": hinted, "plain": plain}
+
+
+_PLAN_DRAFT_STATUSES = (
+    "collected",
+    "import_error",
+    "syntax_error",
+    "error",
+    "exists",
+    "missing",
+)
+
+
+def plans_summary(plans, events):
+    edited_by_plan = {}
+    drafts_by_plan = {}
+    for event in events:
+        kind = event.get("kind")
+        plan_id = event.get("plan")
+        if kind == "plan" and plan_id is not None:
+            if event.get("edited"):
+                edited_by_plan[plan_id] = True
+        elif kind == "test_draft" and plan_id is not None:
+            status = event.get("status")
+            if status not in _PLAN_DRAFT_STATUSES:
+                continue
+            drafts_by_plan.setdefault(plan_id, {}).setdefault(status, 0)
+            drafts_by_plan[plan_id][status] += 1
+
+    result = []
+    for plan in plans:
+        plan_id = plan.get("id")
+        drafts = {status: 0 for status in _PLAN_DRAFT_STATUSES}
+        for status, count in drafts_by_plan.get(plan_id, {}).items():
+            drafts[status] = count
+        result.append({
+            "id": plan_id,
+            "tasks_count": len(plan.get("tasks", [])),
+            "status": plan.get("status"),
+            "edited": bool(edited_by_plan.get(plan_id, False)),
+            "drafts": drafts,
+        })
+    return result
