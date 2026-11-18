@@ -8,11 +8,13 @@
   python -m stratos run T001
   python -m stratos run-all
   python -m stratos status
+  python -m stratos report --plans
   python -m stratos clean
   python -m stratos reset T001 --reason R
   python -m stratos replay T001 T002 --role coder --model M --effort E --max-tokens N --tries K
 """
 import argparse
+import json
 import subprocess
 import sys
 
@@ -25,7 +27,7 @@ from . import plantests
 from . import replay
 from .gateway import Gateway
 from .loop import run_all, run_task
-from .report import decision_accuracy, diagnosis_ab, escalation_accuracy, replay_summary, summarize
+from .report import decision_accuracy, diagnosis_ab, escalation_accuracy, plans_summary, replay_summary, summarize
 from .scheduler import plan as scheduler_plan
 from .state import Store
 from .telemetry import Telemetry
@@ -96,6 +98,7 @@ def main(argv=None):
     sub.add_parser("status", help="list tasks")
     report_p = sub.add_parser("report", help="summarize telemetry")
     report_p.add_argument("--replay", action="store_true", help="summarize the replay runs instead")
+    report_p.add_argument("--plans", action="store_true", help="summarize plan files and their test drafts")
     sub.add_parser("clean", help="remove worktree and branch of merged, done tasks")
     reset = sub.add_parser("reset", help="throw away a task's result so it runs again")
     reset.add_argument("task_id")
@@ -290,6 +293,26 @@ def main(argv=None):
                 done = False
         return 0 if done and not blocked else 1
     elif args.cmd == "report":
+        if args.plans:
+            plans_dir = config.STATE_DIR / "plans"
+            if not plans_dir.exists():
+                print("no plans yet")
+                return 0
+            plans = []
+            for f in sorted(plans_dir.glob("*.json")):
+                plans.append(json.loads(f.read_text(encoding="utf-8")))
+            if not plans:
+                print("no plans yet")
+                return 0
+            events = Telemetry(config.STATE_DIR / "telemetry.jsonl").load()
+            summaries = plans_summary(plans, events)
+            for s in summaries:
+                d = s["drafts"]
+                print(f"PLAN {s['id']} | tasks {s['tasks_count']} | {s['status']} | {s['edited']} | "
+                      f"drafts: collected {d['collected']}, import_error {d['import_error']}, "
+                      f"syntax_error {d['syntax_error']}, error {d['error']}, "
+                      f"exists {d['exists']}, missing {d['missing']}")
+            return 0
         if args.replay:
             summary = replay_summary(Telemetry(config.STATE_DIR / "replay.jsonl").load())
             if not summary:
@@ -413,4 +436,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
-
