@@ -1,4 +1,4 @@
-"""Tests for task T056: report.replay_summary keeps runs with a reasoning budget apart.
+"""Tests for task T055: report.replay_summary keeps runs with a reasoning budget apart.
 
 A "call" event may hold reasoning_budget (T054). Runs are then grouped by (model, effort, reasoning_budget, task)
 instead of (model, effort, task), and the summary key of a call with a reasoning_budget that is not None is

@@ -1,4 +1,4 @@
-"""Tests for task T055: a reasoning budget (T054's Gateway.chat(..., reasoning_budget=N)) reaches the model from the
+"""Tests for task T056: a reasoning budget (T054's Gateway.chat(..., reasoning_budget=N)) reaches the model from the
 task loop, from replay.replay and from `stratos replay`.
 
 - loop: a role in config.ROLES may hold "reasoning_budget": N. write_task then calls gw.chat(..., reasoning_budget=N);
