@@ -2,21 +2,31 @@
 PolyStrata's conversation cache can reuse it; what changes (the task, its files, the last failure) comes after."""
 import ast
 from pathlib import Path
+from stratos import config
 
-CODER_SYSTEM = """You are the coding model inside Stratos, a harness that edits a Python project.
-Answer ONLY with whole files in this exact format, one block per file, and nothing else:
 
-FILE: relative/path.py
-```python
-<the entire file content>
-```
+def coder_system(language):
+    lang = language
+    fence = language.lower()
+    return (
+        "You are the coding model inside Stratos, a harness that edits a " + lang + " project.\n"
+        "Answer ONLY with whole files in this exact format, one block per file, and nothing else:\n"
+        "\n"
+        "FILE: relative/path.py\n"
+        "```" + fence + "\n"
+        "<the entire file content>\n"
+        "```\n"
+        "\n"
+        "Rules:\n"
+        "- You have no tools and cannot open files: everything you need is in this message. Answer with the files directly.\n"
+        "- Write complete files, never fragments or diffs.\n"
+        "- Do not change files marked READ-ONLY. Do not add test code, prints or example runs to the files you write.\n"
+        "- Use only the " + lang + " standard library unless the task says otherwise.\n"
+        "- Keep the code plain and correct; the task's tests decide whether you succeeded."
+    )
 
-Rules:
-- You have no tools and cannot open files: everything you need is in this message. Answer with the files directly.
-- Write complete files, never fragments or diffs.
-- Do not change files marked READ-ONLY. Do not add test code, prints or example runs to the files you write.
-- Use only the Python standard library unless the task says otherwise.
-- Keep the code plain and correct; the task's tests decide whether you succeeded."""
+
+CODER_SYSTEM = coder_system(config.PROJECT["language"][0].upper() + config.PROJECT["language"][1:])
 
 
 def show_file(root, path, label):
