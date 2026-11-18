@@ -20,6 +20,9 @@ TEST_SYSTEM = (
 def build_messages(task, root, example="tests/test_diagnose.py"):
     parts = [f"TASK {task['key']}: {task['title']}", task["goal"]]
     parts.append("PROJECT FILES:\n" + plan.repo_summary(root))
+    conventions = Path(root, "CONVENTIONS.md")
+    if conventions.exists():
+        parts.append("PROJECT CONVENTIONS:\n" + conventions.read_text(encoding="utf-8"))
     for p in task["files"]:
         parts.append(context.show_file(root, p, "FILE THE TASK WILL WRITE"))
     for p in task["protected"]:
