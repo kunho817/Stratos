@@ -10,6 +10,14 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
 
 ## Open (top first)
 
+0. **Memory -> retrieval -> planner (user's idea, 2026-11-18).** Keep a memory of the project (code split by
+   function, tests, past tasks with goal/diff/failures/review issues, and lessons: what a person changed in a plan or a
+   test draft and why) and let a fast model (Tiel or AgentWorld, one load, many short calls) pick what the planner
+   needs before it plans. Reading is cheap here (~4 s per 10K prompt tokens), writing is not (~80 tok/s), and only one
+   model fits at a time, so "many small models" means many calls of one fast model that answer with ids, not text.
+   Start without a vector DB (the corpus is small; keyword search + the model's choice); add embeddings only if
+   retrieval visibly misses. Measure with the three feature goals of the planner comparison (scratchpad plan_eval.py).
+   Lessons recorded from every human edit are the way to grow CONVENTIONS.md automatically.
 1. **Planner quality.** `stratos plan` (T061-T065) and `stratos plan-tests` (T066-T070) work end to end.
    Record so far: P001 9 tasks, broke the same-file rule -> T063 put Stratos's task rules in the prompt; P002 3 tasks,
    invented APIs (gw.ask, load_plan in state.py) -> T064 shows public signatures; P003 2 tasks, goals rewritten by
