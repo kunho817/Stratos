@@ -28,7 +28,10 @@ def ensure_worktree(repo, root, task_id, bases=None):
     bases = bases or []
     start = bases[0] if bases else "HEAD"
     git(repo, "worktree", "add", "-b", f"stratos/{task_id}", str(path), start)
-    for base in bases[1:]:
+    # the other bases, and HEAD too: commits made on main after a dependency's branch (a test fix) must reach the
+    # copy (T083, 2026-11-19)
+    head = git(repo, "rev-parse", "HEAD") if bases else None
+    for base in bases[1:] + ([head] if head else []):
         r = subprocess.run(["git", *BOT, "merge", "--no-edit", base], cwd=path, capture_output=True, **UTF8)
         if r.returncode != 0:
             subprocess.run(["git", "merge", "--abort"], cwd=path, capture_output=True, check=False)
