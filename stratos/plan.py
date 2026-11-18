@@ -22,6 +22,40 @@ SYSTEM = (
     "Prefer 2 to 6 tasks for a feature."
 )
 
+_RULES = SYSTEM[SYSTEM.index("Tasks that write the same file"):]
+
+TEXT_SYSTEM = (
+    "You are a planner. Answer with plain text, no JSON. "
+    "Write one block per task, with these lines:\n"
+    "Key: <short key>\n"
+    "Title: <short title>\n"
+    "Goal: <what to do>\n"
+    "Files: <paths this task writes>\n"
+    "Tests: <paths under tests/ that cover this task>\n"
+    "Protected: <files this task reads but does not change>\n"
+    "After: <keys of earlier tasks this task builds on>\n"
+    "Role: coder for new functions and small additions, or coder_hard for changes of existing control flow\n"
+    "\n"
+    "Field explanations:\n"
+    "Each task should be small (one function or one file). "
+    "Each task names its test files under tests/. "
+    "after lists keys of earlier tasks it builds on. "
+    "protected lists files it may read but not change. "
+    "role is \"coder\" for new functions and small additions, "
+    "or \"coder_hard\" for changes of existing control flow.\n"
+    "\n"
+    "Rules:\n"
+    + _RULES
+)
+
+CONVERT_SYSTEM = (
+    "You are a converter. The user gives a plan written as plain text. "
+    "Convert it to JSON only, no prose. Output format:\n"
+    '{"tasks": [{"key", "title", "goal", "files", "tests", "protected", "after", "role"}]}\n'
+    "Fields: key, title, goal, files, tests, protected, after, role.\n"
+    "Copy every goal word for word. Answer with JSON only."
+)
+
 
 def repo_summary(root):
     root = Path(root)
@@ -59,10 +93,15 @@ def repo_summary(root):
     return "\n".join(lines)
 
 
-def build_messages(goal, summary):
+def build_messages(goal, summary, conventions=None, system=None):
+    sys_content = system if system is not None else SYSTEM
+    if conventions is not None:
+        user_content = f"PROJECT FILES:\n{summary}\n\nPROJECT CONVENTIONS:\n{conventions}\n\nFEATURE GOAL:\n{goal}"
+    else:
+        user_content = f"PROJECT FILES:\n{summary}\n\nFEATURE GOAL:\n{goal}"
     return [
-        {"role": "system", "content": SYSTEM},
-        {"role": "user", "content": f"PROJECT FILES:\n{summary}\n\nFEATURE GOAL:\n{goal}"},
+        {"role": "system", "content": sys_content},
+        {"role": "user", "content": user_content},
     ]
 
 
@@ -116,7 +155,6 @@ def parse_plan(text):
             raise PlanError(f"Task {key}: after must be a list of keys of earlier tasks.")
         if not all(isinstance(a, str) for a in after):
             raise PlanError(f"Task {key}: after must be a list of keys of earlier tasks.")
-        # after must reference only earlier keys
         for a in after:
             if a not in seen_keys:
                 raise PlanError(f"Task {key}: after references '{a}' which is not an earlier task key.")
@@ -127,7 +165,16 @@ def parse_plan(text):
             raise PlanError(f"Task {key}: key '{key}' is duplicated.")
         seen_keys.append(key)
 
-        # A file the task writes cannot also be listed as protected (read-only).
+        # A task whose files are all under tests/ is invalid.
+        if all(f.startswith("tests/") for f in files):
+            raise PlanError(f"Task {key}: files are all under 'tests/', which is not allowed.")
+
+        # A task cannot write to its own test files.
+        test_set = set(tests)
+        for f in files:
+            if f in test_set:
+                raise PlanError(f"Task {key}: file '{f}' is in both 'files' and 'tests'.")
+
         overlap = {f for f in files if f in set(protected)}
         if overlap:
             for path in sorted(overlap):
@@ -200,3 +247,10 @@ def mark_added(state_dir, pid, task_ids):
     data["status"] = "added"
     data["task_ids"] = task_ids
     path.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
+
+
+def convert_messages(text):
+    return [
+        {"role": "system", "content": CONVERT_SYSTEM},
+        {"role": "user", "content": text},
+    ]
