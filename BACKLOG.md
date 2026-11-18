@@ -28,8 +28,13 @@ Process (user, 2026-11-18): after each feature chunk (one "push"), build a large
    one return shape wrong (check_draft). Next: run P006 (report --plans) through plan-tests and plan-add to measure a
    whole feature; text after the last task is appended to its last field (risk); add a lesson to CONVENTIONS.md each
    time a plan or draft is fixed by hand (until item 0 records them automatically).
-2. **Test drafts.** Track drafts kept as written vs fixed (telemetry "test_draft"); compare after each prompt change.
-   TEST_SYSTEM could tell the model to copy the fixture style of the example and to keep every path in tmp_path.
+2. **Test drafts.** Record: P004 3/3 fixed by hand; P006 2 drafts disagreed (where "edited" comes from); P008 6
+   drafts: 2 kept as written, 2 fixed (tmp_path=None, language case, module reload left in place), 2 rewritten (an
+   in-process config reload that left a fake module in sys.modules; an answer without FILE header plus
+   contradicting requirements). Ideas: show each task's draft the drafts already written for earlier tasks of the
+   same plan; tell TEST_SYSTEM never to reload modules or touch sys.modules/os.environ outside monkeypatch, and to
+   test import-time settings in a subprocess; accept a lone code block as the first test file (like the coders'
+   T022 rule); make plan-add put each task's tests into its protected list automatically.
 3. **Diagnosis A/B (live since T060).** Read the "diagnosis A/B" line in `stratos report` after ~30 retries; adopt
    (always give the diagnosis) or drop it. Offline: 7/19 with vs 5/19 without.
 4. **Tiel's third try.** Real history: Tiel passed 30/47 on the first try, 38/47 within two, 39/47 within three.
@@ -42,8 +47,10 @@ Process (user, 2026-11-18): after each feature chunk (one "push"), build a large
 8. **Worktrees and main.** A task's copy is made once; later commits on main (test fixes) do not reach it unless it is
    reset after its dependencies are merged. Consider merging HEAD into the copy at the start of each round.
 9. **Non-Python files.** Answers for non-Python files without a FILE header cannot be rescued (T022/T025 rules).
-10. **Memory headroom.** With Swift loaded, Windows has ~13 GB of commit left; a background run was once killed by
-   Claude Code for low memory during a model switch.
+10. **Memory headroom.** With Swift loaded, Windows has ~13 GB of commit left. Claude Code killed a background run
+   twice for low memory, both times during a switch to Swift (2026-11-18). Run Claude Code with
+   CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP=1 (user's choice); still consider a lighter coder_hard or unloading
+   the old model fully before Swift loads.
 
 ## Done
 
