@@ -110,3 +110,21 @@ def test_one_stage_sees_the_conventions(env, monkeypatch):
     (_, m1, kw1), = chats(made[0])
     assert m1 == plan.build_messages("Make it fly.", "SUMMARY", conventions="Use gw.chat.")
     assert kw1["role"] == "planner"
+
+
+def test_retry_asks_the_text_planner_for_text(env, monkeypatch):
+    """T074: in two stages the planner writes text, so the retry asks for the corrected plan text, not JSON."""
+    gw_cls, made, goal, tmp = env
+    monkeypatch.setattr(config, "PLAN_CONVERTER", CONV)
+    gw_cls.answers = ["plan text one", "not json", "plan text two", json.dumps(GOOD)]
+    assert cli.main(["plan", "--goal-file", str(goal)]) == 0
+    retry = [c for c in chats(made[0])][2][1][3]["content"]
+    assert retry.startswith("Your plan was invalid: ") and retry.endswith(". Answer with the corrected plan text only.")
+
+
+def test_one_stage_retry_still_asks_for_json(env):
+    gw_cls, made, goal, tmp = env
+    gw_cls.answers = ["not json", json.dumps(GOOD)]
+    assert cli.main(["plan", "--goal-file", str(goal)]) == 0
+    retry = [c for c in chats(made[0])][1][1][3]["content"]
+    assert retry.endswith(". Answer with the corrected JSON plan only.")
