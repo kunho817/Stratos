@@ -52,8 +52,10 @@ DIAGNOSER = {"model": "qwen3.6-35b-a3b-ud-q4_k_m", "effort": "low", "max_tokens"
 # The planner (2026-11-18) splits a feature goal into Stratos tasks (stratos plan); a person checks the plan before
 # `stratos plan-add` adds it. Swift is the strongest model here; planning gets more room to think than coding
 PLANNER = {"model": "swift-1.5-iq2_xs", "effort": "medium", "max_tokens": 24000, "reasoning_budget": 8000}
-# Two-stage planning (2026-11-18 offline comparison on three feature goals): the planner writes the plan as text and
-# AgentWorld turns it into JSON (it copied 10/10 goals word for word, 5-11 s). None: the planner writes the JSON itself
+# Text planning (2026-11-18): the planner writes the plan as Key:/Title:/Goal:... text, which plan.parse_text_plan
+# reads (AgentWorld as a JSON converter broke the JSON on quotes in goals twice). PLAN_CONVERTER is only the fallback
+# for text that is not in that format; None: no fallback. PLAN_AS_TEXT False: the planner writes the JSON itself
+PLAN_AS_TEXT = True
 PLAN_CONVERTER = {"model": "qwen3.6-35b-a3b-ud-q4_k_m", "effort": "none", "max_tokens": 8000}
 
 REPO = Path(__file__).resolve().parent.parent

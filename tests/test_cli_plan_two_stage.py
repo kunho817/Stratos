@@ -1,25 +1,32 @@
-"""Tests for task T072: `stratos plan` shows the planner CONVENTIONS.md and plans in two stages when
-config.PLAN_CONVERTER is set.
+"""Tests for tasks T072/T074/T076: `stratos plan` with the project's conventions and text planning.
 
 Conventions: when config.REPO / "CONVENTIONS.md" exists, its text is passed as build_messages(..., conventions=text);
 otherwise conventions=None.
-Two stages (config.PLAN_CONVERTER is a dict {"model", "effort", "max_tokens"}): each try first asks the planner
-(config.PLANNER, role "planner") with messages = plan.build_messages(goal, summary, conventions=...,
-system=plan.TEXT_SYSTEM) — gw.ensure_model(planner model) before the call — then the converter:
-gw.ensure_model(converter model), gw.chat(plan.convert_messages(planner_text), task="plan", role="plan_converter",
-attempt=n, model=..., effort=..., max_tokens=...). Both raw answers are saved as answers/plan-<call_id>.md. The
-converter's answer goes to plan.parse_plan. A PlanError adds the PLANNER's text as the assistant turn and the usual
-"Your plan was invalid: ..." user turn to the planner's messages, and the next try starts with the planner again.
-With PLAN_CONVERTER None, plan works in one stage with plan.SYSTEM, as before (plus the conventions)."""
+
+Text planning (config.PLAN_AS_TEXT True): messages = plan.build_messages(goal, summary, conventions=...,
+system=plan.TEXT_SYSTEM). Each try: gw.ensure_model(planner model), the planner call (role "planner"), its raw answer
+saved as answers/plan-<call_id>.md, then plan.parse_text_plan(text):
+- it reads the text: done (telemetry record("plan_parse", attempt=n, via="text", ok=True)).
+- PlanFormatError (not the format) and config.PLAN_CONVERTER set: gw.ensure_model(converter model),
+  gw.chat(plan.convert_messages(text), task="plan", role="plan_converter", attempt=n, model, effort, max_tokens),
+  its raw answer saved too, then plan.parse_plan(converter answer) (record "plan_parse" via="converter").
+  PlanFormatError and no converter: handled like any PlanError (via="text", ok=False).
+- any PlanError: record "plan_parse" with ok=False and error=str(e); the planner's text becomes the assistant turn
+  and the user turn is f"Your plan was invalid: {e}. Answer with the corrected plan text only."; next try.
+PLAN_AS_TEXT False: one stage with plan.SYSTEM, plan.parse_plan, record "plan_parse" via="json", and the retry turn
+ends ". Answer with the corrected JSON plan only." The converter is never used then."""
 import json
 
 import pytest
 
 from stratos import __main__ as cli
 from stratos import config, plan
+from stratos.telemetry import Telemetry
 
 GOOD = {"tasks": [{"key": "a", "title": "Add f", "goal": "Add f.", "files": ["stratos/x.py"],
                    "tests": ["tests/test_x.py"]}]}
+TEXT = 'Key: a\nTitle: Add f\nGoal: Add f, print "done".\nFiles: stratos/x.py\nTests: tests/test_x.py\n'
+BAD_TEXT = "Key: a\nTitle: Add f\nGoal: g\nFiles: stratos/x.py\nTests: tests/test_x.py\nAfter: zz\n"
 CONV = {"model": "conv-model", "effort": "none", "max_tokens": 100}
 
 
@@ -57,74 +64,88 @@ def chats(gw):
     return [e for e in gw.events if e[0] == "chat"]
 
 
-def test_two_stages(env, monkeypatch, capsys):
+def loads(gw):
+    return [e[1] for e in gw.events if e[0] == "load"]
+
+
+def parses():
+    return [e for e in Telemetry(config.STATE_DIR / "telemetry.jsonl").load() if e["kind"] == "plan_parse"]
+
+
+def test_text_plan_read_by_code(env, monkeypatch, capsys):
     gw_cls, made, goal, tmp = env
+    monkeypatch.setattr(config, "PLAN_AS_TEXT", True)
     monkeypatch.setattr(config, "PLAN_CONVERTER", CONV)
     (tmp / "repo" / "CONVENTIONS.md").write_text("Use gw.chat.", encoding="utf-8")
-    gw_cls.answers = ["Key: a\nTitle: Add f", json.dumps(GOOD)]
+    gw_cls.answers = [TEXT]
     assert cli.main(["plan", "--goal-file", str(goal)]) == 0
     gw = made[0]
-    loads = [e[1] for e in gw.events if e[0] == "load"]
-    assert loads == [config.PLANNER["model"], "conv-model"]
-    (_, m1, kw1), (_, m2, kw2) = chats(gw)
+    assert loads(gw) == [config.PLANNER["model"]]          # the converter is not needed
+    (_, m1, kw1), = chats(gw)
     assert m1 == plan.build_messages("Make it fly.", "SUMMARY", conventions="Use gw.chat.", system=plan.TEXT_SYSTEM)
-    assert kw1["role"] == "planner" and kw1["model"] == config.PLANNER["model"] and kw1["attempt"] == 1
-    assert m2 == plan.convert_messages("Key: a\nTitle: Add f")
-    assert kw2 == {"task": "plan", "role": "plan_converter", "attempt": 1, "model": "conv-model", "effort": "none",
-                   "max_tokens": 100}
-    assert plan.load_plan(config.STATE_DIR, "P001")["tasks"][0]["key"] == "a"
-    answers = config.STATE_DIR / "answers"
-    assert (answers / "plan-c1.md").read_text(encoding="utf-8") == "Key: a\nTitle: Add f"
-    assert (answers / "plan-c2.md").read_text(encoding="utf-8") == json.dumps(GOOD)
+    assert kw1["role"] == "planner" and kw1["attempt"] == 1
+    p = plan.load_plan(config.STATE_DIR, "P001")
+    assert p["tasks"][0]["goal"] == 'Add f, print "done".'
+    assert (config.STATE_DIR / "answers" / "plan-c1.md").read_text(encoding="utf-8") == TEXT
+    (e,) = parses()
+    assert (e["attempt"], e["via"], e["ok"]) == (1, "text", True)
     assert "plan P001: 1 tasks" in capsys.readouterr().out
 
 
-def test_invalid_conversion_goes_back_to_the_planner(env, monkeypatch):
+def test_text_not_in_the_format_goes_to_the_converter(env, monkeypatch):
     gw_cls, made, goal, tmp = env
+    monkeypatch.setattr(config, "PLAN_AS_TEXT", True)
     monkeypatch.setattr(config, "PLAN_CONVERTER", CONV)
-    gw_cls.answers = ["plan text one", "not json", "plan text two", json.dumps(GOOD)]
+    gw_cls.answers = ["1. Add f to stratos/x.py, tested by tests/test_x.py", json.dumps(GOOD)]
     assert cli.main(["plan", "--goal-file", str(goal)]) == 0
-    calls = chats(made[0])
-    assert [c[2]["role"] for c in calls] == ["planner", "plan_converter", "planner", "plan_converter"]
-    first, third = calls[0][1], calls[2][1]
-    assert third[:2] == first and third[2] == {"role": "assistant", "content": "plan text one"}
-    assert third[3]["role"] == "user" and third[3]["content"].startswith("Your plan was invalid: ")
-    assert calls[3][1] == plan.convert_messages("plan text two") and calls[3][2]["attempt"] == 2
-    loads = [e[1] for e in made[0].events if e[0] == "load"]
-    assert loads == [config.PLANNER["model"], "conv-model", config.PLANNER["model"], "conv-model"]
+    gw = made[0]
+    assert loads(gw) == [config.PLANNER["model"], "conv-model"]
+    (_, _, kw1), (_, m2, kw2) = chats(gw)
+    assert m2 == plan.convert_messages("1. Add f to stratos/x.py, tested by tests/test_x.py")
+    assert kw2 == {"task": "plan", "role": "plan_converter", "attempt": 1, "model": "conv-model", "effort": "none",
+                   "max_tokens": 100}
+    assert (config.STATE_DIR / "answers" / "plan-c2.md").read_text(encoding="utf-8") == json.dumps(GOOD)
+    (e,) = parses()
+    assert (e["via"], e["ok"]) == ("converter", True)
 
 
-def test_gives_up_after_the_tries(env, monkeypatch, capsys):
+def test_a_rule_break_goes_back_to_the_planner(env, monkeypatch):
     gw_cls, made, goal, tmp = env
+    monkeypatch.setattr(config, "PLAN_AS_TEXT", True)
     monkeypatch.setattr(config, "PLAN_CONVERTER", CONV)
-    gw_cls.answers = ["t1", "bad", "t2", "bad"]
+    gw_cls.answers = [BAD_TEXT, TEXT]
+    assert cli.main(["plan", "--goal-file", str(goal)]) == 0
+    gw = made[0]
+    assert loads(gw) == [config.PLANNER["model"], config.PLANNER["model"]]
+    (_, m1, _), (_, m2, kw2) = chats(gw)
+    assert m2[:2] == m1 and m2[2] == {"role": "assistant", "content": BAD_TEXT}
+    assert m2[3]["role"] == "user" and m2[3]["content"].startswith("Your plan was invalid: ")
+    assert m2[3]["content"].endswith(". Answer with the corrected plan text only.") and "zz" in m2[3]["content"]
+    assert kw2["attempt"] == 2
+    e1, e2 = parses()
+    assert (e1["via"], e1["ok"]) == ("text", False) and "zz" in e1["error"]
+    assert (e2["via"], e2["ok"]) == ("text", True)
+
+
+def test_no_converter_and_not_the_format(env, monkeypatch, capsys):
+    gw_cls, made, goal, tmp = env
+    monkeypatch.setattr(config, "PLAN_AS_TEXT", True)
+    gw_cls.answers = ["no plan here", "still nothing"]
     assert cli.main(["plan", "--goal-file", str(goal)]) == 1
+    assert loads(made[0]) == [config.PLANNER["model"], config.PLANNER["model"]]
+    assert [(e["via"], e["ok"]) for e in parses()] == [("text", False), ("text", False)]
     assert "plan invalid: " in capsys.readouterr().err
 
 
-def test_one_stage_sees_the_conventions(env, monkeypatch):
+def test_json_mode(env, monkeypatch):
     gw_cls, made, goal, tmp = env
+    monkeypatch.setattr(config, "PLAN_CONVERTER", CONV)            # never used in JSON mode
     (tmp / "repo" / "CONVENTIONS.md").write_text("Use gw.chat.", encoding="utf-8")
-    gw_cls.answers = [json.dumps(GOOD)]
-    assert cli.main(["plan", "--goal-file", str(goal)]) == 0
-    (_, m1, kw1), = chats(made[0])
-    assert m1 == plan.build_messages("Make it fly.", "SUMMARY", conventions="Use gw.chat.")
-    assert kw1["role"] == "planner"
-
-
-def test_retry_asks_the_text_planner_for_text(env, monkeypatch):
-    """T074: in two stages the planner writes text, so the retry asks for the corrected plan text, not JSON."""
-    gw_cls, made, goal, tmp = env
-    monkeypatch.setattr(config, "PLAN_CONVERTER", CONV)
-    gw_cls.answers = ["plan text one", "not json", "plan text two", json.dumps(GOOD)]
-    assert cli.main(["plan", "--goal-file", str(goal)]) == 0
-    retry = [c for c in chats(made[0])][2][1][3]["content"]
-    assert retry.startswith("Your plan was invalid: ") and retry.endswith(". Answer with the corrected plan text only.")
-
-
-def test_one_stage_retry_still_asks_for_json(env):
-    gw_cls, made, goal, tmp = env
     gw_cls.answers = ["not json", json.dumps(GOOD)]
     assert cli.main(["plan", "--goal-file", str(goal)]) == 0
-    retry = [c for c in chats(made[0])][1][1][3]["content"]
-    assert retry.endswith(". Answer with the corrected JSON plan only.")
+    gw = made[0]
+    assert loads(gw) == [config.PLANNER["model"], config.PLANNER["model"]]
+    (_, m1, _), (_, m2, _) = chats(gw)
+    assert m1 == plan.build_messages("Make it fly.", "SUMMARY", conventions="Use gw.chat.")
+    assert m2[3]["content"].endswith(". Answer with the corrected JSON plan only.")
+    assert [(e["via"], e["ok"]) for e in parses()] == [("json", False), ("json", True)]
