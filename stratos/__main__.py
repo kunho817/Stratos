@@ -131,35 +131,80 @@ def main(argv=None):
         tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
         gw = Gateway(tel)
         planner = config.PLANNER
-        gw.ensure_model(planner["model"])
-        messages = plan_mod.build_messages(goal, plan_mod.repo_summary(config.REPO))
-        last_reason = None
-        for attempt in range(1, args.tries + 1):
-            kw = dict(task="plan", role="planner", attempt=attempt,
-                      model=planner["model"], effort=planner["effort"],
-                      max_tokens=planner["max_tokens"])
-            budget = planner.get("reasoning_budget")
-            if budget is not None:
-                kw["reasoning_budget"] = budget
-            call_id, text = gw.chat(messages, **kw)
-            (config.STATE_DIR / "answers").mkdir(parents=True, exist_ok=True)
-            (config.STATE_DIR / "answers" / f"plan-{call_id}.md").write_text(text, encoding="utf-8")
-            try:
-                tasks = plan_mod.parse_plan(text)
-            except plan_mod.PlanError as e:
-                last_reason = str(e)
-                messages.append({"role": "assistant", "content": text})
-                messages.append({"role": "user",
-                                 "content": f"Your plan was invalid: {e}. Answer with the corrected JSON plan only."})
-                continue
-            pid = plan_mod.save_plan(config.STATE_DIR, goal, tasks)
-            print(f"plan {pid}: {len(tasks)} tasks")
-            for t in tasks:
-                print(f"  {t['key']}. {t['title']}")
-                print(f"    files: {', '.join(t['files'])}  tests: {', '.join(t['tests'])}")
-            return 0
-        print(f"plan invalid: {last_reason}", file=sys.stderr)
-        return 1
+        conv_path = config.REPO / "CONVENTIONS.md"
+        conventions = conv_path.read_text(encoding="utf-8") if conv_path.exists() else None
+        converter = config.PLAN_CONVERTER
+        answers_dir = config.STATE_DIR / "answers"
+        answers_dir.mkdir(parents=True, exist_ok=True)
+
+        if converter is not None:
+            messages = plan_mod.build_messages(goal, plan_mod.repo_summary(config.REPO),
+                                               conventions=conventions, system=plan_mod.TEXT_SYSTEM)
+            last_reason = None
+            for attempt in range(1, args.tries + 1):
+                gw.ensure_model(planner["model"])
+                kw = dict(task="plan", role="planner", attempt=attempt,
+                          model=planner["model"], effort=planner["effort"],
+                          max_tokens=planner["max_tokens"])
+                budget = planner.get("reasoning_budget")
+                if budget is not None:
+                    kw["reasoning_budget"] = budget
+                call_id, text = gw.chat(messages, **kw)
+                (answers_dir / f"plan-{call_id}.md").write_text(text, encoding="utf-8")
+
+                gw.ensure_model(converter["model"])
+                conv_kw = dict(task="plan", role="plan_converter", attempt=attempt,
+                               model=converter["model"], effort=converter["effort"],
+                               max_tokens=converter["max_tokens"])
+                conv_call_id, conv_text = gw.chat(plan_mod.convert_messages(text), **conv_kw)
+                (answers_dir / f"plan-{conv_call_id}.md").write_text(conv_text, encoding="utf-8")
+
+                try:
+                    tasks = plan_mod.parse_plan(conv_text)
+                except plan_mod.PlanError as e:
+                    last_reason = str(e)
+                    messages.append({"role": "assistant", "content": text})
+                    messages.append({"role": "user",
+                                     "content": f"Your plan was invalid: {e}. Answer with the corrected JSON plan only."})
+                    continue
+                pid = plan_mod.save_plan(config.STATE_DIR, goal, tasks)
+                print(f"plan {pid}: {len(tasks)} tasks")
+                for t in tasks:
+                    print(f"  {t['key']}. {t['title']}")
+                    print(f"    files: {', '.join(t['files'])}  tests: {', '.join(t['tests'])}")
+                return 0
+            print(f"plan invalid: {last_reason}", file=sys.stderr)
+            return 1
+        else:
+            messages = plan_mod.build_messages(goal, plan_mod.repo_summary(config.REPO),
+                                               conventions=conventions)
+            last_reason = None
+            for attempt in range(1, args.tries + 1):
+                gw.ensure_model(planner["model"])
+                kw = dict(task="plan", role="planner", attempt=attempt,
+                          model=planner["model"], effort=planner["effort"],
+                          max_tokens=planner["max_tokens"])
+                budget = planner.get("reasoning_budget")
+                if budget is not None:
+                    kw["reasoning_budget"] = budget
+                call_id, text = gw.chat(messages, **kw)
+                (answers_dir / f"plan-{call_id}.md").write_text(text, encoding="utf-8")
+                try:
+                    tasks = plan_mod.parse_plan(text)
+                except plan_mod.PlanError as e:
+                    last_reason = str(e)
+                    messages.append({"role": "assistant", "content": text})
+                    messages.append({"role": "user",
+                                     "content": f"Your plan was invalid: {e}. Answer with the corrected JSON plan only."})
+                    continue
+                pid = plan_mod.save_plan(config.STATE_DIR, goal, tasks)
+                print(f"plan {pid}: {len(tasks)} tasks")
+                for t in tasks:
+                    print(f"  {t['key']}. {t['title']}")
+                    print(f"    files: {', '.join(t['files'])}  tests: {', '.join(t['tests'])}")
+                return 0
+            print(f"plan invalid: {last_reason}", file=sys.stderr)
+            return 1
     elif args.cmd == "plan-add":
         try:
             p = plan_mod.load_plan(config.STATE_DIR, args.plan_id)
@@ -352,3 +397,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+
