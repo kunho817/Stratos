@@ -10,6 +10,9 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
 
 ## Open (top first)
 
+Process (user, 2026-11-18): after each feature chunk (one "push"), build a larger throwaway project with Stratos
+(e.g. a web game) in D:\Strata\Trials\<name> and log what breaks here. Next trial: after the planner chunk (P006).
+
 0. **Memory -> retrieval -> planner (user's idea, 2026-11-18).** Keep a memory of the project (code split by
    function, tests, past tasks with goal/diff/failures/review issues, and lessons: what a person changed in a plan or a
    test draft and why) and let a fast model (Tiel or AgentWorld, one load, many short calls) pick what the planner
