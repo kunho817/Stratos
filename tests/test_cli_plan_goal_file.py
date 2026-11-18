@@ -22,7 +22,7 @@ class FakeGateway:
     """Avoid the network / GPU entirely."""
 
     def __init__(self, tel):
-        pass
+        self.telemetry = tel
 
     def ensure_model(self, model):
         return 0.0

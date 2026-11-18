@@ -100,7 +100,17 @@ def parse_files(text, allowed=None):
             j += 1
         if j == len(seg) or not seg[j].lstrip().startswith("```"):
             continue
-        close = max((c for c in range(j + 1, len(seg)) if seg[c].strip() == "```"), default=None)
+        # A header alone in its own fence (```python / FILE: x / ```) leaves an empty block here after
+        # _header_inside_fence: skip it when the file's own block follows (Tiel, T075/T076, 2026-11-18)
+        while j + 1 < len(seg) and seg[j + 1].strip() == "```":
+            n = j + 2
+            while n < len(seg) and not seg[n].strip():
+                n += 1
+            if n < len(seg) and seg[n].lstrip().startswith("```") and seg[n].strip() != "```":
+                j = n
+            else:
+                break
+        close =max((c for c in range(j + 1, len(seg)) if seg[c].strip() == "```"), default=None)
         if close is None:
             continue
         out.append((path, "".join(seg[j + 1:close])))

@@ -22,11 +22,17 @@ from stratos.__main__ import main
 
 # ---------- helpers ----------
 
+class NullTelemetry:
+    def record(self, kind, **fields):
+        pass
+
+
 class FakeGateway:
     """Fake gateway that records calls and returns pre-set (call_id, text) tuples."""
 
     def __init__(self, responses):
         """responses: list of (call_id, text) tuples, consumed in order."""
+        self.telemetry = NullTelemetry()   # plan records "plan_parse" events through gw.telemetry (T076)
         self._responses = list(responses)
         self._idx = 0
         self.calls = []  # (messages, kw) tuples
