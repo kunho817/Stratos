@@ -127,6 +127,12 @@ def parse_plan(text):
             raise PlanError(f"Task {key}: key '{key}' is duplicated.")
         seen_keys.append(key)
 
+        # A file the task writes cannot also be listed as protected (read-only).
+        overlap = {f for f in files if f in set(protected)}
+        if overlap:
+            for path in sorted(overlap):
+                raise PlanError(f"Task {key}: path '{path}' is listed in both 'files' and 'protected'.")
+
         result.append({
             "key": key,
             "title": title,
@@ -194,4 +200,3 @@ def mark_added(state_dir, pid, task_ids):
     data["status"] = "added"
     data["task_ids"] = task_ids
     path.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
-
