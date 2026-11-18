@@ -124,7 +124,10 @@ def main(argv=None):
         add_one(store, args.title, goal, split(args.files), split(args.protected), split(args.tests),
                 role, split(args.after))
     elif args.cmd == "plan":
-        goal = open(args.goal_file, encoding="utf-8").read()
+        try:
+            goal = open(args.goal_file, encoding="utf-8").read()
+        except OSError as e:
+            plan_p.error(f"cannot read goal file {args.goal_file}: {e}")
         tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
         gw = Gateway(tel)
         planner = config.PLANNER
@@ -347,3 +350,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+
