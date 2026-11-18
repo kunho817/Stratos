@@ -96,3 +96,26 @@ def test_merged_dependencies_are_not_bases(repo, tmp_path):
     gitops.git(repo, *gitops.BOT, "merge", "--no-edit", "stratos/T001")
     assert gitops.dependency_bases(repo, ["T001", "T003"]) == ["stratos/T003"]
     assert gitops.dependency_bases(repo, ["T001"]) == []
+
+
+def test_a_new_copy_also_gets_what_main_got_since(repo, tmp_path):
+    """Harness fix (2026-11-19): T083 ran after T080 (not merged yet), and a test fix committed on main after T080's
+    branch was made never reached T083's copy. A copy made from dependency branches now also merges HEAD."""
+    root = tmp_path / "wt"
+    task_branch(repo, root, "T001", {"b.py": "B = 1\n"})
+    (repo / "tests_fix.py").write_text("FIXED = True\n", encoding="utf-8")
+    gitops.git(repo, "add", "-A")
+    gitops.git(repo, *gitops.BOT, "commit", "-q", "-m", "fix a test on main")
+    wt = gitops.ensure_worktree(repo, root, "T002", bases=["stratos/T001"])
+    assert (wt / "b.py").exists() and (wt / "tests_fix.py").exists()
+
+
+def test_main_conflicting_with_a_base_is_a_base_conflict(repo, tmp_path):
+    root = tmp_path / "wt"
+    task_branch(repo, root, "T001", {"a.py": "A = 2\n"})
+    (repo / "a.py").write_text("A = 3\n", encoding="utf-8")
+    gitops.git(repo, "add", "-A")
+    gitops.git(repo, *gitops.BOT, "commit", "-q", "-m", "main changes a.py too")
+    with pytest.raises(gitops.BaseConflict):
+        gitops.ensure_worktree(repo, root, "T002", bases=["stratos/T001"])
+    assert not (root / "T002").exists()
