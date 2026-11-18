@@ -43,6 +43,12 @@ REQUEST_TIMEOUT_S = 900
 # never followed. Only a summary of the task is sent (goal, file paths). STRATOS_JEV=0 turns it off.
 JEV_SHADOW = os.environ.get("STRATOS_JEV", "1") != "0"
 
+# A/B of a failure diagnosis (2026-11-18): after a failed coder (Tiel) attempt that will be retried, half of the retries
+# (diagnose.use_hint) also get a short diagnosis by AgentWorld; report compares the two halves. STRATOS_DIAGNOSE=0 off.
+# Offline on 17 tasks: retries with the diagnosis passed 7/19, without 5/19 (too few to be sure)
+DIAGNOSE_AB = os.environ.get("STRATOS_DIAGNOSE", "1") != "0"
+DIAGNOSER = {"model": "qwen3.6-35b-a3b-ud-q4_k_m", "effort": "low", "max_tokens": 1500}
+
 REPO = Path(__file__).resolve().parent.parent
 STATE_DIR = REPO / ".stratos"
 WORKTREES = REPO.parent / "Stratos-wt"
