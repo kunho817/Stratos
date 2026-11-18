@@ -5,7 +5,7 @@ A task that still fails is handed to a person (status needs_human). The loop is 
 attempts, committing a candidate when a review is on) and a review phase (judging the candidates)."""
 from pathlib import Path
 
-from . import config, context, decide, gitops, jev, patch, review, verify
+from . import config, context, decide, diagnose, gitops, jev, patch, review, verify
 
 
 def save_answer(task_id, attempt, text):
@@ -94,16 +94,41 @@ def write_task(store, gw, task_id, log=print):
                 sha = gitops.commit_all(wt, f"{task_id}: {task['title']}\n\n{written_by}")
                 store.update(task_id, status="done", commit=sha, attempts=attempt, model=r["model"])
                 return "done"
-            gitops.discard_changes(wt)
-            failure = detail[-3000:]
             history.append((result, detail))
             d = decide.should_escalate(history)
-            gw.telemetry.record("decision", decision="escalate", decider="rules", task=task_id, attempt=attempt, role=role, choice=d["choice"], confidence=d["confidence"], reason=d["reason"])
+            gw.telemetry.record("decision", decision="escalate", decider="rules", task=task_id, attempt=attempt,
+                                role=role, choice=d["choice"], confidence=d["confidence"], reason=d["reason"])
             if config.JEV_SHADOW:
                 j = jev.should_escalate(task, history)
                 if j is None:
                     j = {"choice": None, "confidence": None, "reason": "jev unavailable", "input_tokens": 0}
-                gw.telemetry.record("decision", decision="escalate", decider="jev", task=task_id, attempt=attempt, role=role, choice=j["choice"], confidence=j["confidence"], reason=j["reason"], input_tokens=j["input_tokens"])
+                gw.telemetry.record("decision", decision="escalate", decider="jev", task=task_id, attempt=attempt,
+                                    role=role, choice=j["choice"], confidence=j["confidence"],
+                                    reason=j["reason"], input_tokens=j["input_tokens"])
+            diag_needed = (config.DIAGNOSE_AB and role == "coder" and not d["choice"]
+                           and attempt < tries)
+            if diag_needed:
+                diff = gitops.diff(wt)
+            gitops.discard_changes(wt)
+            failure = detail[-3000:]
+            if diag_needed:
+                next_attempt = attempt + 1
+                used = diagnose.use_hint(task_id, next_attempt)
+                hint = None
+                diag_error = None
+                if used:
+                    try:
+                        hint = diagnose.diagnose(gw, task, diff, detail, next_attempt)
+                        failure = diagnose.with_hint(failure, hint)
+                        log(f"  attempt {attempt}: diagnosis added for attempt {next_attempt}")
+                    except Exception as e:
+                        used = False
+                        diag_error = str(e)
+                chars = len(hint) if used else 0
+                kw = dict(task=task_id, attempt=next_attempt, used=used, chars=chars)
+                if diag_error is not None:
+                    kw["error"] = diag_error
+                gw.telemetry.record("diagnosis", **kw)
             if d["choice"]:
                 log(f"  attempt {attempt}: same failure again, moving to the cross-check")
                 break
@@ -138,13 +163,15 @@ def review_tasks(store, gw, task_ids, log=print):
         save_answer(task_id, f"{attempt}-review", rv_text)
         rv = review.parse(rv_text)
         verdict = rv["verdict"]
-        gw.telemetry.record("outcome", call_id=rv_call, task=task_id, result="review_" + verdict, detail=review.format_issues(rv)[-500:])
+        gw.telemetry.record("outcome", call_id=rv_call, task=task_id, result="review_" + verdict,
+                            detail=review.format_issues(rv)[-500:])
         store.decide(task=task_id, attempt=attempt, role="reviewer", model=rv_role["model"],
                      result="review_" + verdict, issues=len(rv["issues"]))
         if review.is_blocking(rv):
             gitops.undo_last_commit(wt)
             store.update(task_id, status="todo", commit=None,
-                         review_feedback="The tests passed, but a code review found problems. Fix them:\n" + review.format_issues(rv))
+                         review_feedback="The tests passed, but a code review found problems. Fix them:\n"
+                                         + review.format_issues(rv))
             result = "rejected"
         else:
             rv_msg = f"Review: {verdict}"
