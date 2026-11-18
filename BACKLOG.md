@@ -40,6 +40,17 @@ game plays headless (13 waves in 3 minutes) and is served on 127.0.0.1:8123. Fou
    h. Old tests that pin the behaviour being fixed: when a fix task says "keep the old tests passing", check that
       they do not encode the bug (render.test.js pinned the corner position and the indicator).
 
+**After trial 1 (P009, T085-T092, 481 tests, 2026-11-19):** verify.summarize_output keeps TAP "not ok" lines with
+their error/expected/actual/location (4,000 chars of stack traces -> ~1,000 chars of names and values), decide reads
+TAP names, triage.py asks Swift "test or code?" before needs_human (store field + telemetry + `status`), test drafts
+get a language-style top comment and "work out every expected value step by step", header-less single-file drafts
+are kept. Still open from trial 1: multi-line expected/actual values in TAP are cut (keep the indented lines after
+"actual:"); triage has not met a real wrong test yet (it was not merged when T086's draft was wrong).
+Next, from P009's own drafts (4 of 6 had to be fixed or rewritten, all for global state): reject a draft that uses
+importlib.reload, sys.modules, os.environ[...] = or `config.X = ` outside monkeypatch, and run a draft together with
+the existing tests before showing it, to catch leaks; make parse_plan require each task's first test file to be new
+(P008 and P009 both listed only existing files, despite the CONVENTIONS lesson).
+
 0. **Memory -> retrieval -> planner (user's idea, 2026-11-18).** Keep a memory of the project (code split by
    function, tests, past tasks with goal/diff/failures/review issues, and lessons: what a person changed in a plan or a
    test draft and why) and let a fast model (Tiel or AgentWorld, one load, many short calls) pick what the planner
