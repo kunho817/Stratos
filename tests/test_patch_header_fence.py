@@ -37,3 +37,10 @@ def test_a_really_empty_file_block_is_left_alone():
 
 def test_the_usual_form_still_works():
     assert patch.parse_files("FILE: a.py\n```python\nA = 1\n```\n", ["a.py"]) == [("a.py", "A = 1\n")]
+
+
+def test_header_fence_not_closed_before_the_file_fence():
+    """Harness fix (2026-11-19): Swift answered T090 with ```python / FILE: x / ```python / ...file... / ```: the
+    header's fence is never closed and the file's own fence opens right after it. The file began with ```python."""
+    text = "```python\nFILE: stratos/plan.py\n```python\n\"\"\"Doc.\"\"\"\nX = 1\n```\n"
+    assert patch.parse_files(text, ["stratos/plan.py"]) == [("stratos/plan.py", '"""Doc."""\nX = 1\n')]

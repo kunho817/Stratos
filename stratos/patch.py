@@ -110,6 +110,9 @@ def parse_files(text, allowed=None):
                 j = n
             else:
                 break
+        # ... or never closed at all: ```python / FILE: x / ```python / file (Swift, T090, 2026-11-19)
+        if j + 1 < len(seg) and seg[j + 1].lstrip().startswith("```") and seg[j + 1].strip() != "```":
+            j += 1
         close =max((c for c in range(j + 1, len(seg)) if seg[c].strip() == "```"), default=None)
         if close is None:
             continue

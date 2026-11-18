@@ -52,10 +52,11 @@ def test_extract_tap_mixed_with_pytest():
         "ok 3 - passing\n"
         "ERROR tests/test_b.py - SyntaxError\n"
     )
+    # pytest ids stay full node ids; sorted as strings ("test_" sorts before "tests")
     assert _extract_ids(detail) == [
         "test_alpha",
-        "test_one",
         "test_two",
+        "tests/test_a.py::test_one",
         "tests/test_b.py",
     ]
 
