@@ -223,3 +223,10 @@ def test_system_prompt_top_comment_and_worked_values():
     assert "docstring" not in js and "//" in js
     for text in (py, js):
         assert "step by step" in text
+
+
+def test_uses_patch_header_regex():
+    """Review: plantests reuses patch.HEADER_RE instead of its own copy."""
+    import inspect
+    src = inspect.getsource(plantests)
+    assert "_HEADER_RE = re.compile" not in src

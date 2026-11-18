@@ -196,3 +196,20 @@ def test_triage_returns_unclear_on_garbage(tmp_path):
     gw = FakeGateway("I think the test is wrong.")
     result = triage.triage(gw, task, tmp_path, [], "out")
     assert result == {"verdict": "unclear", "test": "", "reason": ""}
+
+
+def test_test_files_are_read_as_utf8(tmp_path):
+    """Review (2026-11-19): test files were read with the Windows default encoding (cp949 here)."""
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_k.py").write_text("# 한글 주석 — em dash\ndef test_k():\n    assert 1\n", encoding="utf-8")
+    msgs = triage.build_messages({"id": "T1", "goal": "g", "tests": ["tests/test_k.py"]}, tmp_path, [], "out")
+    assert "한글 주석 — em dash" in msgs[1]["content"]
+
+
+def test_triager_settings_are_read_at_call_time(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "TRIAGER", {"model": "other", "effort": "none", "max_tokens": 10})
+    gw = FakeGateway('{"verdict": "unclear", "test": "", "reason": ""}')
+    triage.triage(gw, {"id": "T1", "goal": "g", "tests": []}, tmp_path, [], "out")
+    assert gw.models == ["other"]
+    kw = gw.calls[0][1]
+    assert (kw["model"], kw["effort"], kw["max_tokens"]) == ("other", "none", 10) and "reasoning_budget" not in kw
