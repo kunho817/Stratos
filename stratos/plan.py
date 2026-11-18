@@ -6,6 +6,8 @@ import json
 import re
 from pathlib import Path
 
+from stratos import config
+
 SYSTEM = (
     "You are a planner. Answer with JSON only, no prose. Format:\n"
     '{"tasks": [{"key", "title", "goal", "files", "tests", "protected", "after", "role"}]}\n'
@@ -57,39 +59,72 @@ CONVERT_SYSTEM = (
 )
 
 
-def repo_summary(root):
+_JS_EXPORT_FUNCTION_RE = re.compile(r"export\s+function\s+([A-Za-z0-9_$]+)\s*\(([^)]*)\)")
+_JS_EXPORT_CLASS_RE = re.compile(r"export\s+class\s+([A-Za-z0-9_$]+)")
+
+
+def _js_summary(path):
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
+        return []
+    lines = [f"{path.parent.name}/{path.name}"]
+    for m in _JS_EXPORT_FUNCTION_RE.finditer(text):
+        args = m.group(2).strip()
+        lines.append(f"  export function {m.group(1)}({args})")
+    for m in _JS_EXPORT_CLASS_RE.finditer(text):
+        lines.append(f"  export class {m.group(1)}")
+    return lines
+
+
+def _py_summary(path):
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        doc = ast.get_docstring(tree)
+    except (SyntaxError, UnicodeDecodeError):
+        doc = None
+        return [f"{path.parent.name}/{path.name}"]
+    if doc:
+        first_line = doc.split("\n")[0]
+        lines = [f"{path.parent.name}/{path.name} - {first_line}"]
+    else:
+        lines = [f"{path.parent.name}/{path.name}"]
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if node.name.startswith("_"):
+            continue
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            lines.append(f"  def {node.name}({ast.unparse(node.args)})")
+        else:
+            lines.append(f"  class {node.name}")
+    return lines
+
+
+def repo_summary(root, settings=None):
+    if settings is None:
+        settings = config.PROJECT
     root = Path(root)
     lines = []
-    stratos_dir = root / "stratos"
-    if stratos_dir.is_dir():
-        py_files = sorted(stratos_dir.glob("*.py"))
-        for f in py_files:
-            try:
-                tree = ast.parse(f.read_text(encoding="utf-8"))
-                doc = ast.get_docstring(tree)
-            except (SyntaxError, UnicodeDecodeError):
-                doc = None
-                lines.append(f"stratos/{f.name}")
+    for d in settings["source_dirs"]:
+        src_dir = root / d
+        if not src_dir.is_dir():
+            continue
+        for f in sorted(src_dir.iterdir()):
+            if not f.is_file():
                 continue
-            if doc:
-                first_line = doc.split("\n")[0]
-                lines.append(f"stratos/{f.name} - {first_line}")
-            else:
-                lines.append(f"stratos/{f.name}")
-            for node in tree.body:
-                if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                    continue
-                if node.name.startswith("_"):
-                    continue
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    lines.append(f"  def {node.name}({ast.unparse(node.args)})")
-                else:
-                    lines.append(f"  class {node.name}")
-    tests_dir = root / "tests"
-    if tests_dir.is_dir():
-        py_files = sorted(tests_dir.glob("*.py"))
-        for f in py_files:
-            lines.append(f"tests/{f.name}")
+            suffix = f.suffix.lower()
+            if suffix in (".js", ".mjs"):
+                lines.extend(_js_summary(f))
+            elif suffix == ".py":
+                lines.extend(_py_summary(f))
+    test_dir = root / settings["test_dir"]
+    if test_dir.is_dir():
+        for f in sorted(test_dir.iterdir()):
+            if not f.is_file():
+                continue
+            if any(f.name.endswith(s) for s in settings["test_suffixes"]):
+                lines.append(f"{settings['test_dir']}/{f.name}")
     return "\n".join(lines)
 
 
@@ -218,8 +253,10 @@ def parse_plan(text):
             raise PlanError(f"Task {key}: files must be a non-empty list of strings.")
         if not isinstance(tests, list) or len(tests) == 0:
             raise PlanError(f"Task {key}: tests must be a non-empty list of strings.")
-        if not all(isinstance(t_str, str) and t_str.startswith("tests/") and t_str.endswith(".py") for t_str in tests):
-            raise PlanError(f"Task {key}: tests must be strings starting with 'tests/' and ending with '.py'.")
+        test_dir = config.PROJECT["test_dir"]
+        test_suffixes = config.PROJECT["test_suffixes"]
+        if not all(isinstance(t_str, str) and t_str.startswith(test_dir + "/") and any(t_str.endswith(s) for s in test_suffixes) for t_str in tests):
+            raise PlanError(f"Task {key}: tests must start with '{test_dir}/' and end with one of {test_suffixes}.")
         if not isinstance(protected, list):
             raise PlanError(f"Task {key}: protected must be a list of strings.")
         if not all(isinstance(p, str) for p in protected):
@@ -239,8 +276,8 @@ def parse_plan(text):
         seen_keys.append(key)
 
         # A task whose files are all under tests/ is invalid.
-        if all(f.startswith("tests/") for f in files):
-            raise PlanError(f"Task {key}: files are all under 'tests/', which is not allowed.")
+        if all(f.startswith(test_dir + "/") for f in files):
+            raise PlanError(f"Task {key}: files are all under '{test_dir}/', which is not allowed.")
 
         # A task cannot write to its own test files.
         test_set = set(tests)
@@ -327,4 +364,3 @@ def convert_messages(text):
         {"role": "system", "content": CONVERT_SYSTEM},
         {"role": "user", "content": text},
     ]
-
