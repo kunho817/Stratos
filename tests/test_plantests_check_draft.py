@@ -2,7 +2,7 @@
 
 check_draft(root, path) runs pytest --collect-only on the given file.
 It calls subprocess.run with encoding='utf-8', errors='replace', and timeout=120.
-If the subprocess times out, check_draft returns ('error', 'pytest --collect-only timed out').
+If the subprocess times out, check_draft returns ('error', 'draft check timed out').
 Normal pass/fail logic (syntax_error, collected, import_error, error) stays unchanged.
 """
 
@@ -44,7 +44,7 @@ def test_check_draft_passes_encoding_errors_timeout(tmp_path, monkeypatch):
 
 
 def test_check_draft_timeout(tmp_path, monkeypatch):
-    """When the subprocess times out, check_draft returns ('error', 'pytest --collect-only timed out')."""
+    """When the subprocess times out, check_draft returns ('error', 'draft check timed out')."""
     p = tmp_path / "tests" / "test_x.py"
     p.parent.mkdir()
     p.write_text("def test_a(): pass\n", encoding="utf-8")
@@ -55,7 +55,7 @@ def test_check_draft_timeout(tmp_path, monkeypatch):
     monkeypatch.setattr("stratos.plantests.subprocess.run", fake_run)
     result = check_draft(str(tmp_path), "tests/test_x.py")
 
-    assert result == ("error", "pytest --collect-only timed out")
+    assert result == ("error", "draft check timed out")
 
 
 def test_check_draft_syntax_error(tmp_path):
@@ -138,4 +138,4 @@ def test_check_draft_timeout_preserves_cmd(tmp_path, monkeypatch):
     monkeypatch.setattr("stratos.plantests.subprocess.run", fake_run)
     result = check_draft(str(tmp_path), "tests/test_x.py")
 
-    assert result == ("error", "pytest --collect-only timed out")
+    assert result == ("error", "draft check timed out")
