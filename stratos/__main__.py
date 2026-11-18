@@ -430,7 +430,10 @@ def main(argv=None):
             extra = f" commit {t['commit']}" if t.get("commit") else ""
             wt = t.get("worktree")
             mark = "  [wt]" if wt and (config.WORKTREES / wt).exists() else ""
-            print(f"{t['id']}  {t['status']:<12} {t['title']}{extra}{mark}")
+            triage = ""
+            if t.get("status") == "needs_human" and isinstance(t.get("triage"), dict):
+                triage = f" [triage: {t['triage'].get('verdict')}]"
+            print(f"{t['id']}  {t['status']:<12} {t['title']}{extra}{mark}{triage}")
     return 0
 
 
