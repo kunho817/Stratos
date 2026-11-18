@@ -38,7 +38,18 @@ def ensure_worktree(repo, root, task_id, bases=None):
 
 
 def dependency_bases(repo, task_ids):
-    return [f"stratos/{tid}" for tid in task_ids if git(repo, "branch", "--list", f"stratos/{tid}")]
+    """The branches a dependent task starts from: its dependencies' branches that exist and are not already in HEAD
+    (a merged dependency is in main, and starting from its branch would miss what main got since, T076)."""
+    out = []
+    for tid in task_ids:
+        branch = f"stratos/{tid}"
+        if not git(repo, "branch", "--list", branch):
+            continue
+        merged = subprocess.run(["git", "merge-base", "--is-ancestor", branch, "HEAD"], cwd=repo,
+                                capture_output=True).returncode == 0
+        if not merged:
+            out.append(branch)
+    return out
 
 
 def remove_worktree(repo, root, task_id, delete_branch=True):

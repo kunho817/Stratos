@@ -84,3 +84,15 @@ def test_dependency_bases(repo, tmp_path):
     task_branch(repo, root, "T003", {"c.py": "C = 1\n"})
     assert gitops.dependency_bases(repo, ["T003", "T009", "T001"]) == ["stratos/T003", "stratos/T001"]
     assert gitops.dependency_bases(repo, []) == []
+
+
+def test_merged_dependencies_are_not_bases(repo, tmp_path):
+    """Harness fix (2026-11-18): T076 ran after T075, but T075 was already merged into main, and T076's copy still
+    started from stratos/T075 - without the test fixes made on main since. A dependency whose branch is already in
+    HEAD is left out, so a task whose dependencies are all merged starts from HEAD."""
+    root = tmp_path / "wt"
+    task_branch(repo, root, "T001", {"b.py": "B = 1\n"})
+    task_branch(repo, root, "T003", {"c.py": "C = 1\n"})
+    gitops.git(repo, *gitops.BOT, "merge", "--no-edit", "stratos/T001")
+    assert gitops.dependency_bases(repo, ["T001", "T003"]) == ["stratos/T003"]
+    assert gitops.dependency_bases(repo, ["T001"]) == []
