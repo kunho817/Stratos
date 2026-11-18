@@ -142,6 +142,8 @@ def main(argv=None):
             if budget is not None:
                 kw["reasoning_budget"] = budget
             call_id, text = gw.chat(messages, **kw)
+            (config.STATE_DIR / "answers").mkdir(parents=True, exist_ok=True)
+            (config.STATE_DIR / "answers" / f"plan-{call_id}.md").write_text(text, encoding="utf-8")
             try:
                 tasks = plan_mod.parse_plan(text)
             except plan_mod.PlanError as e:
@@ -350,4 +352,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
-
