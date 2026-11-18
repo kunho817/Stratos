@@ -35,11 +35,22 @@ def repo_summary(root):
                 doc = ast.get_docstring(tree)
             except (SyntaxError, UnicodeDecodeError):
                 doc = None
+                lines.append(f"stratos/{f.name}")
+                continue
             if doc:
                 first_line = doc.split("\n")[0]
                 lines.append(f"stratos/{f.name} - {first_line}")
             else:
                 lines.append(f"stratos/{f.name}")
+            for node in tree.body:
+                if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    continue
+                if node.name.startswith("_"):
+                    continue
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    lines.append(f"  def {node.name}({ast.unparse(node.args)})")
+                else:
+                    lines.append(f"  class {node.name}")
     tests_dir = root / "tests"
     if tests_dir.is_dir():
         py_files = sorted(tests_dir.glob("*.py"))
@@ -183,3 +194,4 @@ def mark_added(state_dir, pid, task_ids):
     data["status"] = "added"
     data["task_ids"] = task_ids
     path.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
+
