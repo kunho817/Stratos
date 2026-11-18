@@ -2,6 +2,7 @@
 before the tasks run."""
 
 import ast
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -10,16 +11,41 @@ from . import config, context, plan, patch
 
 
 def system_prompt(language, test_runner):
+    lower = language.lower()
+    if lower == "python":
+        top_comment = "a module docstring"
+    else:
+        top_comment = "a // comment"
     return (
         f"Write {test_runner} test files for the {language} project. Answer with FILE blocks "
-        '("FILE: tests/test_x.py" then a fenced block). Include a module docstring '
-        "that describes the behaviour, then test functions. Use fakes (monkeypatch) "
-        "instead of the network, the GPU and real models. The tests should fail "
+        '("FILE: tests/test_x.py" then a fenced block). Include a top comment '
+        f"({top_comment}) that describes the behaviour, then test functions. Use fakes (monkeypatch) "
+        "instead of the network, the GPU and real models. Work out every expected value step by step "
+        "in a comment above its assertion. The tests should fail "
         "until the task is done."
     )
 
 
 TEST_SYSTEM = system_prompt(config.PROJECT["language"], config.PROJECT["test_runner"])
+
+_HEADER_RE = re.compile(r"^\s*FILE:\s*`?([^\s`]+)`?\s*$")
+
+
+def _has_file_marker(text):
+    for line in text.splitlines():
+        if _HEADER_RE.match(line):
+            return True
+    return False
+
+
+def _strip_lone_fence(answer):
+    """Return the inner text of a lone fenced block, stripping the language tag.
+    Returns None if the answer is not a lone fenced block."""
+    lines = answer.splitlines(keepends=True)
+    fences = [i for i, line in enumerate(lines) if line.lstrip().startswith("```")]
+    if len(fences) != 2 or lines[fences[1]].strip() != "```":
+        return None
+    return "".join(lines[fences[0] + 1:fences[1]])
 
 
 def build_messages(task, root, example=None):
@@ -86,6 +112,20 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
         answer_path = answers_dir / f"{plan_id}-{key}-tests.md"
         answer_path.write_text(answer, encoding="utf-8")
         files = patch.parse_files(answer, allowed=task["tests"])
+        if len(task["tests"]) == 1 and not files and not _has_file_marker(answer):
+            inner = _strip_lone_fence(answer)
+            if inner is not None:
+                files = [(task["tests"][0], inner)]
+            else:
+                first_line = answer.splitlines()[0] if answer else ""
+                if not first_line.lstrip().startswith("```"):
+                    files = [(task["tests"][0], answer)]
+                else:
+                    lines = answer.splitlines(keepends=True)
+                    fences = [i for i, line in enumerate(lines)
+                              if line.lstrip().startswith("```")]
+                    if fences:
+                        files = [(task["tests"][0], "".join(lines[fences[0] + 1:]))]
         written = {}
         for fpath, fcontent in files:
             written[fpath] = fcontent
