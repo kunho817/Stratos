@@ -5,7 +5,7 @@ A task that still fails is handed to a person (status needs_human). The loop is 
 attempts, committing a candidate when a review is on) and a review phase (judging the candidates)."""
 from pathlib import Path
 
-from . import config, context, decide, diagnose, gitops, jev, patch, review, verify
+from . import config, context, decide, diagnose, gitops, jev, patch, review, triage, verify
 
 
 def save_answer(task_id, attempt, text):
@@ -64,6 +64,9 @@ def write_task(store, gw, task_id, log=print):
     store.update(task_id, status="running", worktree=str(wt))
     failure = task.get("review_feedback")
     attempt = task.get("attempts", 0)
+    last_text = None
+    last_result = None
+    last_detail = None
     for role, tries in attempt_plan(task):
         r = config.ROLES[role]
         history = []
@@ -82,6 +85,9 @@ def write_task(store, gw, task_id, log=print):
                                         attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"])
             save_answer(task_id, attempt, text)
             result, detail = check_answer(task, wt, text, getattr(gw, "last_finish", None))
+            last_text = text
+            last_result = result
+            last_detail = detail
             gw.telemetry.record("outcome", call_id=call_id, task=task_id, result=result, detail=detail[-500:])
             store.decide(task=task_id, attempt=attempt, role=role, model=r["model"], result=result)
             log(f"  attempt {attempt} ({role}, {r['model']}): {result}")
@@ -132,6 +138,16 @@ def write_task(store, gw, task_id, log=print):
             if d["choice"]:
                 log(f"  attempt {attempt}: same failure again, moving to the cross-check")
                 break
+    if config.TRIAGE and last_result == "failed":
+        code_files = patch.parse_files(last_text, task["files"] or None)
+        try:
+            triage_result = triage.triage(gw, task, wt, code_files, last_detail)
+            store.update(task_id, triage=triage_result)
+            gw.telemetry.record("triage", task=task_id, verdict=triage_result["verdict"],
+                                test=triage_result["test"], reason=triage_result["reason"])
+            log(f"  triage: {triage_result['verdict']} - {triage_result['reason']}")
+        except Exception as e:
+            log(f"  triage: {e}")
     store.update(task_id, status="needs_human", attempts=attempt)
     return "needs_human"
 
@@ -228,3 +244,4 @@ def run_task(store, gw, task_id, log=print):
             return "done"
     store.update(task_id, status="needs_human")
     return "needs_human"
+
