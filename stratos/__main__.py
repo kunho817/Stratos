@@ -20,7 +20,7 @@ from . import jev
 from . import replay
 from .gateway import Gateway
 from .loop import run_all, run_task
-from .report import decision_accuracy, escalation_accuracy, replay_summary, summarize
+from .report import decision_accuracy, diagnosis_ab, escalation_accuracy, replay_summary, summarize
 from .scheduler import plan as scheduler_plan
 from .state import Store
 from .telemetry import Telemetry
@@ -183,6 +183,9 @@ def main(argv=None):
                 for name in sorted(esc):
                     d = esc[name]
                     print(f"  {name}: {d['correct']}/{d['judged']} right ({d['decisions']} decided; confidence >= 0.7: {d['confident_correct']}/{d['confident_judged']})")
+            ab = diagnosis_ab(events)
+            if ab["hinted"]["retries"] > 0 or ab["plain"]["retries"] > 0:
+                print(f"diagnosis A/B: with diagnosis {ab['hinted']['passed']}/{ab['hinted']['retries']} retries passed, without {ab['plain']['passed']}/{ab['plain']['retries']}")
         return 0
     elif args.cmd == "clean":
         merged = gitops.git(config.REPO, "branch", "--merged", "HEAD", "--list", "stratos/*")

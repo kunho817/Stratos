@@ -255,3 +255,49 @@ def replay_summary(events):
         bucket["tasks"][task] = task_stats
 
     return summary
+
+
+def diagnosis_ab(events):
+    """Count diagnosis A/B: for each diagnosis event, find the first later call with same task/attempt,
+    then the outcome for that call. used=True goes to hinted, used=False to plain.
+    Missing call or outcome means the diagnosis is not counted."""
+    hinted = {"retries": 0, "passed": 0}
+    plain = {"retries": 0, "passed": 0}
+
+    for i, event in enumerate(events):
+        if event.get("kind") != "diagnosis":
+            continue
+        task = event.get("task")
+        attempt = event.get("attempt")
+        used = event.get("used")
+        bucket = hinted if used else plain
+
+        # find first later call with same task and attempt
+        found_call = None
+        for j in range(i + 1, len(events)):
+            ev = events[j]
+            if ev.get("kind") == "call" and ev.get("task") == task and ev.get("attempt") == attempt:
+                found_call = ev
+                break
+
+        if found_call is None:
+            continue
+
+        call_id = found_call.get("call_id")
+
+        # find outcome with same call_id
+        found_outcome = None
+        for j in range(i + 1, len(events)):
+            ev = events[j]
+            if ev.get("kind") == "outcome" and ev.get("call_id") == call_id:
+                found_outcome = ev
+                break
+
+        if found_outcome is None:
+            continue
+
+        bucket["retries"] += 1
+        if found_outcome.get("result") == "passed":
+            bucket["passed"] += 1
+
+    return {"hinted": hinted, "plain": plain}
