@@ -72,8 +72,14 @@ def write_task(store, gw, task_id, log=print):
             switch = gw.ensure_model(r["model"])
             if switch:
                 log(f"  model switch to {r['model']}: {switch:.1f} s")
-            call_id, text = gw.chat(context.build_messages(task, wt, failure), task=task_id, role=role,
-                                    attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"])
+            budget = r.get("reasoning_budget")
+            if budget is not None:
+                call_id, text = gw.chat(context.build_messages(task, wt, failure), task=task_id, role=role,
+                                        attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"],
+                                        reasoning_budget=budget)
+            else:
+                call_id, text = gw.chat(context.build_messages(task, wt, failure), task=task_id, role=role,
+                                        attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"])
             save_answer(task_id, attempt, text)
             result, detail = check_answer(task, wt, text, getattr(gw, "last_finish", None))
             gw.telemetry.record("outcome", call_id=call_id, task=task_id, result=result, detail=detail[-500:])

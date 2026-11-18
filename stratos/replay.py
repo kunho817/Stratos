@@ -21,7 +21,7 @@ def base_commit(repo, task_id):
     return None
 
 
-def replay(tasks, gw, *, model, effort, max_tokens, tries, repo, root, log=print):
+def replay(tasks, gw, *, model, effort, max_tokens, tries, repo, root, log=print, reasoning_budget=None):
     root = Path(root)
     results = []
     for task in tasks:
@@ -44,8 +44,12 @@ def replay(tasks, gw, *, model, effort, max_tokens, tries, repo, root, log=print
                 gw.ensure_model(model)
                 messages = context.build_messages(task, path, failure)
                 start = time.perf_counter()
-                call_id, text = gw.chat(messages, task=task_id, role="replay", attempt=n, model=model,
-                                        effort=effort, max_tokens=max_tokens)
+                if reasoning_budget is not None:
+                    call_id, text = gw.chat(messages, task=task_id, role="replay", attempt=n, model=model,
+                                            effort=effort, max_tokens=max_tokens, reasoning_budget=reasoning_budget)
+                else:
+                    call_id, text = gw.chat(messages, task=task_id, role="replay", attempt=n, model=model,
+                                            effort=effort, max_tokens=max_tokens)
                 seconds += time.perf_counter() - start
                 d = config.STATE_DIR / "replay_answers"
                 d.mkdir(parents=True, exist_ok=True)
