@@ -28,12 +28,10 @@ def system_prompt(language, test_runner):
 
 TEST_SYSTEM = system_prompt(config.PROJECT["language"], config.PROJECT["test_runner"])
 
-_HEADER_RE = re.compile(r"^\s*FILE:\s*`?([^\s`]+)`?\s*$")
-
 
 def _has_file_marker(text):
     for line in text.splitlines():
-        if _HEADER_RE.match(line):
+        if patch.HEADER_RE.match(line):
             return True
     return False
 
@@ -120,12 +118,6 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                 first_line = answer.splitlines()[0] if answer else ""
                 if not first_line.lstrip().startswith("```"):
                     files = [(task["tests"][0], answer)]
-                else:
-                    lines = answer.splitlines(keepends=True)
-                    fences = [i for i, line in enumerate(lines)
-                              if line.lstrip().startswith("```")]
-                    if fences:
-                        files = [(task["tests"][0], "".join(lines[fences[0] + 1:]))]
         written = {}
         for fpath, fcontent in files:
             written[fpath] = fcontent
