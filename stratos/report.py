@@ -213,7 +213,8 @@ def replay_summary(events):
     for event in events:
         kind = event.get("kind")
         if kind == "call":
-            key = (event.get("model"), event.get("effort"), event.get("task"))
+            budget = event.get("reasoning_budget")
+            key = (event.get("model"), event.get("effort"), budget, event.get("task"))
             attempt = event.get("attempt")
             if attempt is None:
                 attempt = 1
@@ -232,14 +233,17 @@ def replay_summary(events):
                 run["passed"] = True
 
     summary = {}
-    for (model, effort, task), runs in runs_by_key.items():
+    for (model, effort, budget, task), runs in runs_by_key.items():
         task_stats = {
             "runs": len(runs),
             "passed": sum(1 for run in runs if run["passed"]),
             "attempts": sum(run["attempts"] for run in runs),
             "seconds": sum(run["seconds"] for run in runs),
         }
-        key = f"{model} effort={effort}"
+        if budget is not None:
+            key = f"{model} effort={effort} budget={budget}"
+        else:
+            key = f"{model} effort={effort}"
         bucket = summary.setdefault(
             key,
             {"runs": 0, "passed": 0, "attempts": 0, "seconds": 0.0, "tasks": {}},
