@@ -49,6 +49,10 @@ JEV_SHADOW = os.environ.get("STRATOS_JEV", "1") != "0"
 DIAGNOSE_AB = os.environ.get("STRATOS_DIAGNOSE", "1") != "0"
 DIAGNOSER = {"model": "qwen3.6-35b-a3b-ud-q4_k_m", "effort": "low", "max_tokens": 1500}
 
+# The planner (2026-11-18) splits a feature goal into Stratos tasks (stratos plan); a person checks the plan before
+# `stratos plan-add` adds it. Swift is the strongest model here; planning gets more room to think than coding
+PLANNER = {"model": "swift-1.5-iq2_xs", "effort": "medium", "max_tokens": 24000, "reasoning_budget": 8000}
+
 REPO = Path(__file__).resolve().parent.parent
 STATE_DIR = REPO / ".stratos"
 WORKTREES = REPO.parent / "Stratos-wt"
