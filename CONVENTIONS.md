@@ -46,3 +46,11 @@ draft gets one of these wrong.
 - Commands are tested through cli.main([...]) (from stratos import __main__ as cli), checking the return code and
   capsys output.
 - A fake gateway's chat(messages, **kw) returns (call_id, text).
+
+## Plans (lessons from hand edits)
+- Each task's "tests" list starts with a NEW test file for that task (plan-tests never overwrites a file); existing
+  test files that must keep passing may follow it. (P008 named only existing files, so no tests were drafted.)
+- Put the task's own new test file in its "protected" list too, so the coder sees the tests it must pass. (P006)
+- Tasks of one plan share facts: the same value (for example where "edited" comes from) must be described the same
+  way in every task's goal. (P006's two test drafts disagreed.)
+- TEST_SYSTEM is in stratos/plantests.py; CODER_SYSTEM is in stratos/context.py.
