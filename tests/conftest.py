@@ -11,6 +11,7 @@ def no_network(monkeypatch):
     monkeypatch.setattr(config, "DIAGNOSE_AB", False)
     monkeypatch.setattr(config, "PLAN_AS_TEXT", False)
     monkeypatch.setattr(config, "PLAN_CONVERTER", None)
+    monkeypatch.setattr(config, "TRIAGE", False, raising=False)
 
     def refuse(*args, **kwargs):
         raise AssertionError("a test tried to call the real Jev API")
