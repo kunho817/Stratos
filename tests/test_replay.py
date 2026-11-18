@@ -60,7 +60,7 @@ class FakeGateway:
         self.models.append(model)
         return 0.0
 
-    def chat(self, messages, *, task, role, attempt, model, effort, max_tokens):
+    def chat(self, messages, *, task, role, attempt, model, effort, max_tokens, reasoning_budget=None):
         self.calls.append({"task": task, "role": role, "attempt": attempt, "model": model, "effort": effort,
                            "max_tokens": max_tokens, "messages": messages})
         return f"c{len(self.calls)}", self.answers.pop(0)

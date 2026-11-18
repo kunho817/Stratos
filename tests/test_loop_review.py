@@ -41,7 +41,7 @@ class FakeGateway:
         self.switches.append(model)
         return 1.0
 
-    def chat(self, messages, *, task, role, attempt, model, effort, max_tokens):
+    def chat(self, messages, *, task, role, attempt, model, effort, max_tokens, reasoning_budget=None):
         self.calls.append({"role": role, "model": model, "attempt": attempt, "task": task, "messages": messages})
         cid = f"c{len(self.calls)}"
         self.telemetry.record("call", call_id=cid, task=task, role=role, attempt=attempt, model=model)
