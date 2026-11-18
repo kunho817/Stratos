@@ -2,6 +2,8 @@
 
   python -m stratos add --title T --goal G --files a.py,b.py --protected tests/test_x.py --tests tests/test_x.py
   python -m stratos add --title T --goal-file PATH --files a.py,b.py --protected tests/test_x.py --tests tests/test_x.py
+  python -m stratos plan --goal-file PATH [--tries N]
+  python -m stratos plan-add PLAN_ID
   python -m stratos run T001
   python -m stratos run-all
   python -m stratos status
@@ -17,6 +19,7 @@ from . import config
 from . import decide
 from . import gitops
 from . import jev
+from . import plan as plan_mod
 from . import replay
 from .gateway import Gateway
 from .loop import run_all, run_task
@@ -28,6 +31,41 @@ from .telemetry import Telemetry
 
 def split(s):
     return [x for x in (s or "").split(",") if x]
+
+
+def add_one(store, title, goal, files, protected, tests, role, after):
+    if role is None:
+        d = decide.choose_role({'files': files, 'goal': goal})
+        role = d['choice']
+    else:
+        d = None
+    t = store.add_task(title, goal, files, protected, tests, role=role, after=after)
+    if d is not None:
+        store.update(t['id'], role_decision=d)
+        Telemetry(config.STATE_DIR / 'telemetry.jsonl').record('decision', decision='role', decider='rules',
+                                                               task=t['id'], choice=d['choice'],
+                                                               confidence=d['confidence'], reason=d['reason'])
+        print(f"role: {d['choice']} ({d['reason']})")
+    if config.JEV_SHADOW:
+        j = jev.choose_role({'files': files, 'goal': goal})
+        if j is None:
+            choice = confidence = None
+            reason = "jev unavailable"
+            input_tokens = 0
+        else:
+            choice = j['choice']
+            confidence = j['confidence']
+            reason = j['reason']
+            input_tokens = j['input_tokens']
+        Telemetry(config.STATE_DIR / 'telemetry.jsonl').record('decision', decision='role', decider='jev',
+                                                               task=t['id'], choice=choice, confidence=confidence,
+                                                               reason=reason, input_tokens=input_tokens)
+        if j is None:
+            print("jev: unavailable")
+        else:
+            print(f"jev: {j['choice']} {j['confidence']} (shadow)")
+    print(f"added {t['id']}: {t['title']}")
+    return t
 
 
 def main(argv=None):
@@ -43,6 +81,11 @@ def main(argv=None):
     a.add_argument("--tests", required=True)
     a.add_argument("--role", choices=sorted(config.ROLES), default=None, help="which model plays this task")
     a.add_argument("--after", default="", help="comma-separated task ids that must be done first")
+    plan_p = sub.add_parser("plan", help="split a feature goal into tasks")
+    plan_p.add_argument("--goal-file", required=True, help="path to a file containing the feature goal")
+    plan_p.add_argument("--tries", type=int, default=2, help="attempts to get a valid plan")
+    plan_add_p = sub.add_parser("plan-add", help="add a saved plan as tasks")
+    plan_add_p.add_argument("plan_id")
     r = sub.add_parser("run", help="run a task")
     r.add_argument("task_id")
     sub.add_parser("run-all", help="run every todo task, in scheduler order")
@@ -73,39 +116,61 @@ def main(argv=None):
                 a.error(f"cannot read goal file {args.goal_file!r}: {e}")
         else:
             goal = args.goal
-        if args.role is None:
-            d = decide.choose_role({'files': split(args.files), 'goal': goal})
-            role = d['choice']
-        else:
-            d = None
-            role = args.role
-        t = store.add_task(args.title, goal, split(args.files), split(args.protected), split(args.tests),
-                           role=role, after=split(args.after))
-        if d is not None:
-            store.update(t['id'], role_decision=d)
-            Telemetry(config.STATE_DIR / 'telemetry.jsonl').record('decision', decision='role', decider='rules',
-                                                                   task=t['id'], choice=d['choice'],
-                                                                   confidence=d['confidence'], reason=d['reason'])
-            print(f"role: {d['choice']} ({d['reason']})")
-        if config.JEV_SHADOW:
-            j = jev.choose_role({'files': split(args.files), 'goal': goal})
-            if j is None:
-                choice = confidence = None
-                reason = "jev unavailable"
-                input_tokens = 0
-            else:
-                choice = j['choice']
-                confidence = j['confidence']
-                reason = j['reason']
-                input_tokens = j['input_tokens']
-            Telemetry(config.STATE_DIR / 'telemetry.jsonl').record('decision', decision='role', decider='jev',
-                                                                   task=t['id'], choice=choice, confidence=confidence,
-                                                                   reason=reason, input_tokens=input_tokens)
-            if j is None:
-                print("jev: unavailable")
-            else:
-                print(f"jev: {j['choice']} {j['confidence']} (shadow)")
-        print(f"added {t['id']}: {t['title']}")
+        role = args.role
+        add_one(store, args.title, goal, split(args.files), split(args.protected), split(args.tests),
+                role, split(args.after))
+    elif args.cmd == "plan":
+        goal = open(args.goal_file, encoding="utf-8").read()
+        tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
+        gw = Gateway(tel)
+        planner = config.PLANNER
+        gw.ensure_model(planner["model"])
+        messages = plan_mod.build_messages(goal, plan_mod.repo_summary(config.REPO))
+        last_reason = None
+        for attempt in range(1, args.tries + 1):
+            kw = dict(task="plan", role="planner", attempt=attempt,
+                      model=planner["model"], effort=planner["effort"],
+                      max_tokens=planner["max_tokens"])
+            budget = planner.get("reasoning_budget")
+            if budget is not None:
+                kw["reasoning_budget"] = budget
+            call_id, text = gw.chat(messages, **kw)
+            try:
+                tasks = plan_mod.parse_plan(text)
+            except plan_mod.PlanError as e:
+                last_reason = str(e)
+                messages.append({"role": "assistant", "content": text})
+                messages.append({"role": "user",
+                                 "content": f"Your plan was invalid: {e}. Answer with the corrected JSON plan only."})
+                continue
+            pid = plan_mod.save_plan(config.STATE_DIR, goal, tasks)
+            print(f"plan {pid}: {len(tasks)} tasks")
+            for t in tasks:
+                print(f"  {t['key']}. {t['title']}")
+                print(f"    files: {', '.join(t['files'])}  tests: {', '.join(t['tests'])}")
+            return 0
+        print(f"plan invalid: {last_reason}", file=sys.stderr)
+        return 1
+    elif args.cmd == "plan-add":
+        try:
+            p = plan_mod.load_plan(config.STATE_DIR, args.plan_id)
+        except KeyError:
+            print(f"no such plan: {args.plan_id}", file=sys.stderr)
+            return 1
+        if p["status"] != "draft":
+            print(f"plan {args.plan_id} was already added", file=sys.stderr)
+            return 1
+        tasks = p["tasks"]
+        key_to_id = {}
+        for t in tasks:
+            after_ids = [key_to_id[a] for a in t.get("after", [])]
+            task = add_one(store, t["title"], t["goal"], t["files"], t.get("protected", []),
+                           t["tests"], t.get("role"), after_ids)
+            key_to_id[t["key"]] = task["id"]
+        plan_mod.mark_added(config.STATE_DIR, args.plan_id, key_to_id)
+        Telemetry(config.STATE_DIR / "telemetry.jsonl").record("plan", plan=args.plan_id,
+                                                                tasks=len(tasks), edited=plan_mod.edited(p))
+        return 0
     elif args.cmd == "run":
         tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
         print(f"running {args.task_id}")
