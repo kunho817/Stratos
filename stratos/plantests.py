@@ -39,10 +39,14 @@ def check_draft(root, path):
         ast.parse(p.read_text(encoding="utf-8"))
     except SyntaxError as e:
         return ("syntax_error", str(e))
-    result = subprocess.run(
-        [sys.executable, "-m", "pytest", "--collect-only", "-q", path],
-        cwd=str(root), capture_output=True, text=True,
-    )
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "--collect-only", "-q", path],
+            cwd=str(root), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        return ("error", "pytest --collect-only timed out")
     if result.returncode == 0:
         return ("collected", "")
     output = result.stdout + result.stderr
