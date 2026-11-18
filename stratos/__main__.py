@@ -134,10 +134,11 @@ def main(argv=None):
         conv_path = config.REPO / "CONVENTIONS.md"
         conventions = conv_path.read_text(encoding="utf-8") if conv_path.exists() else None
         converter = config.PLAN_CONVERTER
+        as_text = config.PLAN_AS_TEXT
         answers_dir = config.STATE_DIR / "answers"
         answers_dir.mkdir(parents=True, exist_ok=True)
 
-        system = plan_mod.TEXT_SYSTEM if converter is not None else None
+        system = plan_mod.TEXT_SYSTEM if as_text else None
         messages = plan_mod.build_messages(goal, plan_mod.repo_summary(config.REPO),
                                            conventions=conventions, system=system)
         last_reason = None
@@ -152,35 +153,72 @@ def main(argv=None):
             call_id, text = gw.chat(messages, **kw)
             (answers_dir / f"plan-{call_id}.md").write_text(text, encoding="utf-8")
 
-            if converter is not None:
-                gw.ensure_model(converter["model"])
-                conv_kw = dict(task="plan", role="plan_converter", attempt=attempt,
-                               model=converter["model"], effort=converter["effort"],
-                               max_tokens=converter["max_tokens"])
-                conv_call_id, conv_text = gw.chat(plan_mod.convert_messages(text), **conv_kw)
-                (answers_dir / f"plan-{conv_call_id}.md").write_text(conv_text, encoding="utf-8")
-                parse_text = conv_text
-            else:
-                parse_text = text
+            parse_ok = False
+            parse_via = None
+            parse_error = None
+            tasks = None
 
-            try:
-                tasks = plan_mod.parse_plan(parse_text)
-            except plan_mod.PlanError as e:
-                last_reason = str(e)
-                messages.append({"role": "assistant", "content": text})
-                if converter is not None:
-                    messages.append({"role": "user",
-                                     "content": f"Your plan was invalid: {e}. Answer with the corrected plan text only."})
-                else:
-                    messages.append({"role": "user",
-                                     "content": f"Your plan was invalid: {e}. Answer with the corrected JSON plan only."})
-                continue
-            pid = plan_mod.save_plan(config.STATE_DIR, goal, tasks)
-            print(f"plan {pid}: {len(tasks)} tasks")
-            for t in tasks:
-                print(f"  {t['key']}. {t['title']}")
-                print(f"    files: {', '.join(t['files'])}  tests: {', '.join(t['tests'])}")
-            return 0
+            if as_text:
+                try:
+                    tasks = plan_mod.parse_text_plan(text)
+                    parse_ok = True
+                    parse_via = "text"
+                except plan_mod.PlanFormatError as e:
+                    if converter is not None:
+                        gw.ensure_model(converter["model"])
+                        conv_kw = dict(task="plan", role="plan_converter", attempt=attempt,
+                                       model=converter["model"], effort=converter["effort"],
+                                       max_tokens=converter["max_tokens"])
+                        conv_call_id, conv_text = gw.chat(plan_mod.convert_messages(text), **conv_kw)
+                        (answers_dir / f"plan-{conv_call_id}.md").write_text(conv_text, encoding="utf-8")
+                        try:
+                            tasks = plan_mod.parse_plan(conv_text)
+                            parse_ok = True
+                            parse_via = "converter"
+                        except plan_mod.PlanError as e2:
+                            parse_ok = False
+                            parse_via = "converter"
+                            parse_error = e2
+                    else:
+                        parse_ok = False
+                        parse_via = "text"
+                        parse_error = e
+                except plan_mod.PlanError as e:
+                    parse_ok = False
+                    parse_via = "text"
+                    parse_error = e
+            else:
+                try:
+                    tasks = plan_mod.parse_plan(text)
+                    parse_ok = True
+                    parse_via = "json"
+                except plan_mod.PlanError as e:
+                    parse_ok = False
+                    parse_via = "json"
+                    parse_error = e
+
+            kw2 = dict(attempt=attempt, via=parse_via, ok=parse_ok)
+            if parse_error is not None:
+                kw2["error"] = str(parse_error)
+            gw.telemetry.record("plan_parse", **kw2)
+
+            if parse_ok:
+                pid = plan_mod.save_plan(config.STATE_DIR, goal, tasks)
+                print(f"plan {pid}: {len(tasks)} tasks")
+                for t in tasks:
+                    print(f"  {t['key']}. {t['title']}")
+                    print(f"    files: {', '.join(t['files'])}  tests: {', '.join(t['tests'])}")
+                return 0
+
+            last_reason = str(parse_error)
+            messages.append({"role": "assistant", "content": text})
+            if as_text:
+                messages.append({"role": "user",
+                                 "content": f"Your plan was invalid: {parse_error}. Answer with the corrected plan text only."})
+            else:
+                messages.append({"role": "user",
+                                 "content": f"Your plan was invalid: {parse_error}. Answer with the corrected JSON plan only."})
+            continue
         print(f"plan invalid: {last_reason}", file=sys.stderr)
         return 1
     elif args.cmd == "plan-add":
@@ -375,3 +413,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+
