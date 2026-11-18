@@ -4,6 +4,7 @@
   python -m stratos add --title T --goal-file PATH --files a.py,b.py --protected tests/test_x.py --tests tests/test_x.py
   python -m stratos plan --goal-file PATH [--tries N]
   python -m stratos plan-add PLAN_ID
+  python -m stratos plan-tests PLAN_ID
   python -m stratos run T001
   python -m stratos run-all
   python -m stratos status
@@ -20,6 +21,7 @@ from . import decide
 from . import gitops
 from . import jev
 from . import plan as plan_mod
+from . import plantests
 from . import replay
 from .gateway import Gateway
 from .loop import run_all, run_task
@@ -86,6 +88,8 @@ def main(argv=None):
     plan_p.add_argument("--tries", type=int, default=2, help="attempts to get a valid plan")
     plan_add_p = sub.add_parser("plan-add", help="add a saved plan as tasks")
     plan_add_p.add_argument("plan_id")
+    plan_tests_p = sub.add_parser("plan-tests", help="draft the test files of every task in a plan")
+    plan_tests_p.add_argument("plan_id")
     r = sub.add_parser("run", help="run a task")
     r.add_argument("task_id")
     sub.add_parser("run-all", help="run every todo task, in scheduler order")
@@ -170,6 +174,17 @@ def main(argv=None):
         plan_mod.mark_added(config.STATE_DIR, args.plan_id, key_to_id)
         Telemetry(config.STATE_DIR / "telemetry.jsonl").record("plan", plan=args.plan_id,
                                                                 tasks=len(tasks), edited=plan_mod.edited(p))
+        return 0
+    elif args.cmd == "plan-tests":
+        tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
+        gw = Gateway(tel)
+        try:
+            results = plantests.draft_tests(gw, args.plan_id, config.REPO, config.STATE_DIR)
+        except KeyError:
+            print(f"no such plan: {args.plan_id}", file=sys.stderr)
+            return 1
+        for r in results:
+            print(f"{r['key']} {r['file']}: {r['status']}")
         return 0
     elif args.cmd == "run":
         tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
