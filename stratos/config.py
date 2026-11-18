@@ -32,9 +32,6 @@ ATTEMPT_PLANS = {
 }
 ATTEMPT_PLAN = ATTEMPT_PLANS["coder"]   # the plan before tasks had roles
 
-# files a model may write (anything else in its answer is refused)
-WRITABLE_SUFFIXES = {".py", ".md", ".toml", ".txt", ".json"}
-
 TEST_TIMEOUT_S = 300
 VERIFY_RUNS = 3          # each with a different PYTHONHASHSEED; all must pass
 REQUEST_TIMEOUT_S = 900
@@ -58,6 +55,17 @@ PLANNER = {"model": "swift-1.5-iq2_xs", "effort": "medium", "max_tokens": 24000,
 PLAN_AS_TEXT = True
 PLAN_CONVERTER = {"model": "qwen3.6-35b-a3b-ud-q4_k_m", "effort": "none", "max_tokens": 8000}
 
-REPO = Path(__file__).resolve().parent.parent
+_stratos_repo = os.environ.get("STRATOS_REPO")
+if _stratos_repo:
+    REPO = Path(_stratos_repo)
+    WORKTREES = REPO.parent / (REPO.name + "-wt")
+else:
+    REPO = Path(__file__).resolve().parent.parent
+    WORKTREES = REPO.parent / "Stratos-wt"
+
 STATE_DIR = REPO / ".stratos"
-WORKTREES = REPO.parent / "Stratos-wt"
+
+from stratos import project
+
+PROJECT = project.load_settings(REPO)
+WRITABLE_SUFFIXES = set(PROJECT["writable_suffixes"])

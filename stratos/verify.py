@@ -10,7 +10,7 @@ from . import config
 
 
 def run_tests(worktree, tests):
-    cmd = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *tests]
+    cmd = [*config.PROJECT["test_command"], *tests]
     out = ""
     for seed in range(1, config.VERIFY_RUNS + 1):
         # UTF-8 both ways: with the Windows default (cp949 here) a test's Korean text crashed the run (T019, 2026-11-17)
