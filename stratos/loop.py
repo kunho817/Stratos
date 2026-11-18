@@ -67,7 +67,7 @@ def write_task(store, gw, task_id, log=print):
     for role, tries in attempt_plan(task):
         r = config.ROLES[role]
         history = []
-        for _ in range(tries):
+        for i in range(tries):
             attempt += 1
             switch = gw.ensure_model(r["model"])
             if switch:
@@ -106,7 +106,7 @@ def write_task(store, gw, task_id, log=print):
                                     role=role, choice=j["choice"], confidence=j["confidence"],
                                     reason=j["reason"], input_tokens=j["input_tokens"])
             diag_needed = (config.DIAGNOSE_AB and role == "coder" and not d["choice"]
-                           and attempt < tries)
+                           and i < tries - 1)
             if diag_needed:
                 diff = gitops.diff(wt)
             gitops.discard_changes(wt)
