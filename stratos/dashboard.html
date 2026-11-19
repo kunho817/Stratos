@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Stratos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0b0f17; --panel: #121826; --panel2: #171f30; --line: #243049; --text: #d8e1f0; --dim: #7d8aa5;
+    --faint: #4a5672; --ok: #3fd18b; --bad: #ff5d6c; --warn: #ffb547; --info: #59b8ff; --violet: #b18cff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 "Segoe UI", "Malgun Gothic", system-ui, sans-serif; }
+  .mono { font-family: "Cascadia Mono", Consolas, monospace; }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 22px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #101728, var(--bg)); }
+  header h1 { margin: 0; font-size: 18px; letter-spacing: .12em; font-weight: 600; }
+  header h1 span { color: var(--info); }
+  #project { color: var(--dim); }
+  #clock { margin-left: auto; color: var(--dim); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); display: inline-block; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  main { display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; padding: 16px 22px 28px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .panel h2 { margin: 0 0 12px; font-size: 12px; letter-spacing: .14em; color: var(--dim); font-weight: 600;
+    text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .panel h2 .right { margin-left: auto; letter-spacing: 0; text-transform: none; }
+  .span2 { grid-column: 1 / 3; }
+
+  /* live */
+  #live { position: relative; overflow: hidden; min-height: 250px; }
+  #live.busy::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(600px 160px at 10% 0%, var(--glow, #59b8ff22), transparent 70%); }
+  .who { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .model { padding: 4px 11px; border-radius: 999px; font-weight: 600; font-size: 13px; border: 1px solid; }
+  .role { color: var(--dim); }
+  .task { font-size: 22px; font-weight: 600; margin: 12px 0 2px; }
+  .task .id { color: var(--info); margin-right: 8px; }
+  .sub { color: var(--dim); }
+  .phase { margin-top: 16px; display: flex; align-items: baseline; gap: 14px; }
+  .phase .name { font-size: 15px; }
+  .phase .tps { margin-left: auto; font-size: 34px; font-weight: 700; letter-spacing: -.02em; }
+  .phase .tps small { font-size: 13px; color: var(--dim); font-weight: 400; margin-left: 4px; }
+  .bar { height: 10px; border-radius: 6px; background: #0d1320; border: 1px solid var(--line); overflow: hidden;
+    margin-top: 10px; position: relative; }
+  .bar > i { display: block; height: 100%; width: 0%; border-radius: 6px; transition: width .6s ease;
+    background: linear-gradient(90deg, var(--c1, #59b8ff), var(--c2, #b18cff)); }
+  .bar.indet > i { width: 30% !important; animation: slide 1.4s ease-in-out infinite; }
+  @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
+  .barlabel { display: flex; justify-content: space-between; color: var(--dim); font-size: 12px; margin-top: 5px; }
+  .idle { color: var(--dim); font-size: 16px; padding: 40px 0; text-align: center; }
+  .pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .45; } }
+
+  /* hardware */
+  .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .gauge { text-align: center; }
+  .gauge svg { width: 100%; max-width: 120px; }
+  .gauge .v { font-size: 20px; font-weight: 700; }
+  .gauge .l { color: var(--dim); font-size: 12px; }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 12px; font-size: 13px; }
+  .kv div { display: flex; justify-content: space-between; border-bottom: 1px dashed #1f2940; padding: 3px 0; }
+  .kv span:first-child { color: var(--dim); }
+  #spark { width: 100%; height: 54px; margin-top: 10px; display: block; }
+
+  /* board */
+  .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .col h3 { margin: 0 0 8px; font-size: 12px; color: var(--dim); font-weight: 600; display: flex; gap: 6px; }
+  .col h3 b { color: var(--text); }
+  .cards { display: flex; flex-direction: column; gap: 7px; max-height: 330px; overflow-y: auto; padding-right: 3px; }
+  .card { background: var(--panel2); border: 1px solid var(--line); border-left: 3px solid var(--faint);
+    border-radius: 8px; padding: 7px 10px; font-size: 13px; }
+  .card .t { color: var(--dim); font-size: 12px; }
+  .card.todo { border-left-color: var(--faint); }
+  .card.running { border-left-color: var(--info); box-shadow: 0 0 0 1px #59b8ff33, 0 0 14px #59b8ff22; }
+  .card.awaiting_review { border-left-color: var(--violet); }
+  .card.done { border-left-color: var(--ok); opacity: .82; }
+  .card.needs_human { border-left-color: var(--bad); }
+  .tag { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 4px; margin-left: 4px;
+    background: #2a1a22; color: #ff9aa5; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tabs button { background: transparent; color: var(--dim); border: 1px solid var(--line); border-radius: 999px;
+    padding: 3px 11px; cursor: pointer; font: inherit; font-size: 12px; }
+  .tabs button.on { color: var(--text); border-color: var(--info); background: #59b8ff14; }
+  .progress { display: flex; height: 8px; border-radius: 5px; overflow: hidden; margin: 0 0 14px; background: #0d1320; }
+  .progress i { display: block; height: 100%; transition: width .6s; }
+
+  /* feed */
+  #feed { display: flex; flex-direction: column; gap: 4px; max-height: 420px; overflow-y: auto; font-size: 13px; }
+  .ev { display: grid; grid-template-columns: 62px 22px 1fr; gap: 8px; padding: 4px 6px; border-radius: 6px; }
+  .ev:hover { background: var(--panel2); }
+  .ev .ts { color: var(--faint); }
+  .ev .ic { text-align: center; }
+  .ev .msg { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+  .ev .msg em { color: var(--dim); font-style: normal; }
+  .ev.new { animation: flash 1.8s ease-out; }
+  @keyframes flash { from { background: #59b8ff2a; } to { background: transparent; } }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .stat { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .stat .v { font-size: 22px; font-weight: 700; }
+  .stat .l { color: var(--dim); font-size: 12px; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } .span2 { grid-column: auto; }
+    .board { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="conn"></span>
+  <h1>STRAT<span>OS</span></h1>
+  <span id="project"></span>
+  <span id="clock" class="mono"></span>
+</header>
+<main>
+  <section class="panel" id="live"><h2>지금 하는 일 <span class="right mono" id="elapsed"></span></h2><div id="liveBody"></div></section>
+  <section class="panel"><h2>하드웨어 <span class="right mono" id="gpuName"></span></h2>
+    <div class="gauges" id="gauges"></div>
+    <svg id="spark" viewBox="0 0 300 54" preserveAspectRatio="none"></svg>
+    <div class="kv mono" id="hw"></div>
+  </section>
+  <section class="panel span2"><h2>작업 <span class="right"><span class="tabs" id="tabs"></span></span></h2>
+    <div class="progress" id="progress"></div>
+    <div class="board" id="board"></div>
+  </section>
+  <section class="panel"><h2>최근 이벤트</h2><div id="feed"></div></section>
+  <section class="panel"><h2>누적</h2><div class="stats" id="stats"></div></section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const MODEL_COLORS = { tiel: "#3fd1c5", swift: "#ffb547", qwen: "#b18cff", flint: "#59b8ff", agentworld: "#ff7ab6" };
+function modelColor(m) {
+  m = (m || "").toLowerCase();
+  for (const k in MODEL_COLORS) if (m.startsWith(k)) return MODEL_COLORS[k];
+  let h = 0; for (const c of m) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `hsl(${h} 70% 65%)`;
+}
+function modelShort(m) {
+  m = m || "?";
+  if (m.startsWith("tiel")) return "Tiel"; if (m.startsWith("swift")) return "Swift 1.5";
+  if (m.startsWith("qwen3.6")) return "Qwen3.6"; if (m.startsWith("flint")) return "Flint";
+  return m;
+}
+const ROLE_KO = { coder: "코더", coder_hard: "어려운 코더", reviewer: "리뷰어", planner: "계획자", test_writer: "테스트 작성",
+  triager: "분류", learner: "학습기", wiki: "위키 작성", diagnoser: "진단", "planner-eval": "계획 측정" };
+const PHASE_KO = { "reading the prompt": "프롬프트 읽는 중", thinking: "생각하는 중", answering: "답 쓰는 중",
+  generating: "생성 중" };
+const STATUS = [["todo", "대기"], ["running", "진행"], ["done", "완료"], ["needs_human", "사람 확인"]];
+const fmtT = (s) => { s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60);
+  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}:${String(s % 60).padStart(2, "0")}`; };
+const hhmm = (ts) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
+const gb = (b) => (b / 1073741824).toFixed(1);
+
+let state = null, selected = null, lastSeen = 0, serverSkew = 0;
+function setHTML(el, html) { if (el._html !== html) { el._html = html; el.innerHTML = html; } }
+
+function gauge(value, max, label, unit, color) {
+  const f = Math.max(0, Math.min(1, (value ?? 0) / max)), r = 42, c = 2 * Math.PI * r;
+  return `<div class="gauge"><svg viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="${r}" fill="none" stroke="#1b2438" stroke-width="9"/>
+    <circle cx="50" cy="50" r="${r}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round"
+      stroke-dasharray="${c * f} ${c}" transform="rotate(-90 50 50)" style="transition: stroke-dasharray .6s"/>
+    <text x="50" y="56" text-anchor="middle" fill="#d8e1f0" font-size="19" font-weight="700">${value == null ? "–" : Math.round(value)}${unit}</text>
+  </svg><div class="l">${label}</div></div>`;
+}
+
+function renderHardware(engine) {
+  if (!engine) { $("gauges").innerHTML = `<div class="idle" style="grid-column:1/4">PolyStrata에 연결되지 않음</div>`;
+    $("hw").innerHTML = ""; $("spark").innerHTML = ""; return; }
+  const h = engine.hardware || {};
+  const memPct = h.gpu_mem_total ? 100 * h.gpu_mem_used / h.gpu_mem_total : null;
+  const heat = h.gpu_temp ?? 0, heatColor = heat > 80 ? "#ff5d6c" : heat > 70 ? "#ffb547" : "#3fd18b";
+  $("gauges").innerHTML = gauge(h.gpu_util, 100, "GPU 사용률", "%", "#59b8ff") +
+    gauge(memPct, 100, `VRAM ${h.gpu_mem_used ? gb(h.gpu_mem_used) : "–"} / ${h.gpu_mem_total ? gb(h.gpu_mem_total) : "–"} GB`, "%", "#b18cff") +
+    gauge(h.gpu_temp, 100, "GPU 온도", "°", heatColor);
+  $("hw").innerHTML = [
+    ["전력", h.gpu_power != null ? `${Math.round(h.gpu_power)} / ${Math.round(h.gpu_power_limit || 0)} W` : "–"],
+    ["CPU", h.cpu != null ? `${Math.round(h.cpu)} %` : "–"],
+    ["RAM", h.ram_used ? `${gb(h.ram_used)} / ${gb(h.ram_total)} GB` : "–"],
+    ["PCIe 수신", h.gpu_pcie_rx_mb != null ? `${Math.round(h.gpu_pcie_rx_mb)} MB/s` : "–"],
+    ["평균 생성", h.tok_s_mean ? `${h.tok_s_mean.toFixed(0)} tok/s` : "–"],
+    ["올라간 모델", modelShort(engine.model)],
+  ].map(([k, v]) => `<div><span>${k}</span><span>${esc(v)}</span></div>`).join("");
+  const util = (engine.history || {}).gpu_util || [];
+  if (util.length > 1) {
+    const step = 300 / (util.length - 1);
+    const pts = util.map((u, i) => `${(i * step).toFixed(1)},${(52 - u * 0.5).toFixed(1)}`).join(" ");
+    $("spark").innerHTML = `<defs><linearGradient id="sg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#59b8ff" stop-opacity=".45"/><stop offset="1" stop-color="#59b8ff" stop-opacity="0"/></linearGradient></defs>
+      <polygon points="0,54 ${pts} 300,54" fill="url(#sg)"/><polyline points="${pts}" fill="none" stroke="#59b8ff" stroke-width="1.6"/>`;
+  }
+}
+
+function taskTitle(project, id) { const t = (project?.tasks || []).find((x) => x.id === id); return t ? t.title : ""; }
+
+function renderLive() {
+  const p = state.projects[0], cur = p?.current, live = state.engine?.live, el = $("liveBody");
+  const now = Date.now() / 1000 - serverSkew;
+  $("live").classList.toggle("busy", !!cur);
+  if (!cur) {
+    setHTML(el, `<div class="idle">쉬는 중 <span class="sub">— 마지막 활동 ${p?.updated ? fmtT(now - p.updated) + " 전" : "없음"}</span></div>`);
+    $("elapsed").textContent = ""; return;
+  }
+  $("elapsed").textContent = fmtT(now - cur.since);
+  if (cur.kind === "switch") {
+    const c = modelColor(cur.model);
+    $("live").style.setProperty("--glow", c + "22");
+    setHTML(el, `<div class="who"><span class="model" style="color:${c};border-color:${c}66">${esc(modelShort(cur.model))}</span>
+      <span class="role">모델을 올리는 중</span></div>
+      <div class="task pulse">${esc(modelShort(cur.from_model))} → ${esc(modelShort(cur.model))}</div>
+      <div class="sub">모델 교체에는 보통 6~100초가 걸립니다</div>
+      <div class="bar indet" style="--c1:${c};--c2:${c}"><i></i></div>`);
+    return;
+  }
+  const c = modelColor(cur.model);
+  $("live").style.setProperty("--glow", c + "22");
+  let phase = "", bar = "", tps = "";
+  if (live && live.state && live.state !== "unloaded" && live.state !== "idle") {
+    const gen = live.generated || 0, max = live.max_tokens || 0;
+    const reading = live.state === "reading";
+    phase = PHASE_KO[live.phase] || live.phase || live.state;
+    if (reading && live.prompt_total) {
+      const f = 100 * (live.prompt_read || 0) / live.prompt_total;
+      bar = `<div class="bar" style="--c1:#59b8ff;--c2:#3fd1c5"><i style="width:${f}%"></i></div>
+        <div class="barlabel mono"><span>프롬프트 ${live.prompt_read || 0} / ${live.prompt_total} tok</span><span>${f.toFixed(0)}%</span></div>`;
+    } else if (reading) {
+      bar = `<div class="bar indet"><i></i></div><div class="barlabel mono"><span>프롬프트 ${live.prompt_tokens || "?"} tok</span><span></span></div>`;
+    } else {
+      const f = max ? 100 * gen / max : 0;
+      bar = `<div class="bar" style="--c1:${c};--c2:#b18cff"><i style="width:${f}%"></i></div>
+        <div class="barlabel mono"><span>생성 ${gen.toLocaleString()} / ${max.toLocaleString()} tok</span><span>프롬프트 ${(live.prompt_tokens || 0).toLocaleString()} tok</span></div>`;
+    }
+    if (live.tok_s) tps = `<span class="tps mono">${live.tok_s.toFixed(0)}<small>tok/s</small></span>`;
+  } else {
+    phase = "요청 보내는 중"; bar = `<div class="bar indet"><i></i></div>`;
+  }
+  setHTML(el, `<div class="who"><span class="model" style="color:${c};border-color:${c}66">${esc(modelShort(cur.model))}</span>
+      <span class="role">${esc(ROLE_KO[cur.role] || cur.role)} · 시도 ${esc(cur.attempt)}</span></div>
+    <div class="task"><span class="id mono">${esc(cur.task)}</span>${esc(taskTitle(p, cur.task))}</div>
+    <div class="sub">${esc(p.name)}</div>
+    <div class="phase"><span class="name">${esc(phase)}</span>${tps}</div>${bar}`);
+}
+
+function renderBoard() {
+  const projects = state.projects;
+  if (!selected || !projects.find((p) => p.path === selected)) selected = projects[0]?.path;
+  $("tabs").innerHTML = projects.map((p) => {
+    const n = p.tasks.length, d = p.counts.done || 0;
+    return `<button class="${p.path === selected ? "on" : ""}" data-path="${esc(p.path)}">${esc(p.name)} <span class="mono">${d}/${n}</span></button>`;
+  }).join("");
+  for (const b of $("tabs").querySelectorAll("button")) b.onclick = () => { selected = b.dataset.path; renderBoard(); };
+  const p = projects.find((x) => x.path === selected);
+  if (!p) { $("board").innerHTML = ""; return; }
+  const n = p.tasks.length || 1;
+  const colors = { done: "#3fd18b", running: "#59b8ff", awaiting_review: "#b18cff", needs_human: "#ff5d6c", todo: "#2b3653" };
+  $("progress").innerHTML = ["done", "awaiting_review", "running", "needs_human", "todo"].map((s) =>
+    `<i style="width:${100 * (p.counts[s] || 0) / n}%;background:${colors[s]}" title="${s} ${p.counts[s] || 0}"></i>`).join("");
+  const running = p.current?.kind === "call" ? p.current.task : null;
+  const groups = { todo: [], running: [], done: [], needs_human: [] };
+  for (const t of [...p.tasks].reverse()) {
+    let s = t.status;
+    if (s === "awaiting_review") s = "running";
+    if (t.id === running) s = "running";
+    (groups[s] || groups.todo).push(t);
+  }
+  $("board").innerHTML = STATUS.map(([s, label]) => `<div class="col"><h3>${label} <b>${groups[s].length}</b></h3><div class="cards">${
+    groups[s].slice(0, s === "done" ? 40 : 100).map((t) => `<div class="card ${t.id === running ? "running" : esc(t.status)}">
+      <span class="mono">${esc(t.id)}</span>${t.triage ? `<span class="tag">${esc(t.triage)}</span>` : ""}
+      <div class="t">${esc(t.title)}</div></div>`).join("")}</div></div>`).join("");
+}
+
+function evLine(e) {
+  const m = e.model ? `<em>${esc(modelShort(e.model))}</em>` : "";
+  switch (e.kind) {
+    case "call_start": return ["▶", `${esc(e.task)} ${m} ${esc(ROLE_KO[e.role] || e.role)} 시작 <em>시도 ${esc(e.attempt)}</em>`];
+    case "call": return ["◆", `${esc(e.task)} ${m} 응답 <em>${e.completion_tokens ?? "?"} tok · ${e.seconds}s${e.finish === "length" ? " · 길이 제한" : ""}</em>`];
+    case "outcome": {
+      const r = e.result || "", ok = /passed|approve/.test(r), bad = /fail|no_files|changes|error|conflict|dropped/.test(r);
+      return [ok ? "✔" : bad ? "✘" : "•", `${esc(e.task)} <span style="color:${ok ? "var(--ok)" : bad ? "var(--bad)" : "var(--dim)"}">${esc(r)}</span>`];
+    }
+    case "switch_start": return ["⇄", `모델 교체 시작 ${m}`];
+    case "switch": return ["⇄", `모델 교체 ${esc(modelShort(e.from_model))} → ${m} <em>${e.seconds}s</em>`];
+    case "triage": return ["⚖", `${esc(e.task)} 분류: <b>${esc(e.verdict)}</b> <em>${esc((e.reason || "").slice(0, 120))}</em>`];
+    case "verdict": return ["✋", `${esc(e.task)} ${esc(e.result)} <em>${esc((e.reason || "").slice(0, 100))}</em>`];
+    case "diagnosis": return ["🩺", `${esc(e.task)} 진단`];
+    case "decision": return null;
+    default: return ["·", `${esc(e.kind)} ${esc(e.task || "")}`];
+  }
+}
+
+function renderFeed() {
+  const p = state.projects[0];
+  if (!p) return;
+  const evs = p.events.slice().reverse();
+  $("feed").innerHTML = evs.map((e) => {
+    const l = evLine(e); if (!l) return "";
+    return `<div class="ev${e.ts > lastSeen && lastSeen ? " new" : ""}"><span class="ts mono">${hhmm(e.ts)}</span><span class="ic">${l[0]}</span><span class="msg">${l[1]}</span></div>`;
+  }).join("");
+  lastSeen = Math.max(lastSeen, ...p.events.map((e) => e.ts), 0);
+}
+
+function renderStats() {
+  const t = state.engine?.totals || {}, p = state.projects[0] || {}, s = p.stats || {};
+  const all = state.projects.reduce((a, x) => ({ d: a.d + (x.counts.done || 0), n: a.n + x.tasks.length }), { d: 0, n: 0 });
+  const items = [
+    [`${all.d}`, `완료한 작업 (전체 ${all.n})`],
+    [t.output_tokens ? (t.output_tokens / 1e6).toFixed(2) + "M" : "–", "생성한 토큰 (PolyStrata 시작 후)"],
+    [s.model_seconds ? fmtT(s.model_seconds) : "–", `모델 시간 · ${esc(p.name || "")}`],
+    [s.switch_seconds ? fmtT(s.switch_seconds) : "–", `모델 교체 시간 · ${esc(p.name || "")}`],
+  ];
+  $("stats").innerHTML = items.map(([v, l]) => `<div class="stat"><div class="v mono">${v}</div><div class="l">${l}</div></div>`).join("");
+}
+
+function render() {
+  if (!state) return;
+  $("project").textContent = state.projects[0] ? `· ${state.projects[0].name}` : "";
+  renderLive(); renderHardware(state.engine); renderBoard(); renderFeed(); renderStats();
+}
+
+async function poll() {
+  try {
+    const r = await fetch("/api/state", { cache: "no-store" });
+    state = await r.json();
+    serverSkew = Date.now() / 1000 - state.time;
+    $("conn").classList.add("on");
+    render();
+  } catch (e) { $("conn").classList.remove("on"); }
+  setTimeout(poll, 1500);
+}
+setInterval(() => {
+  $("clock").textContent = new Date().toLocaleTimeString("ko-KR", { hour12: false });
+  const cur = state?.projects[0]?.current;
+  if (cur) $("elapsed").textContent = fmtT(Date.now() / 1000 - serverSkew - cur.since);
+}, 1000);
+poll();
+</script>
+</body>
+</html>
