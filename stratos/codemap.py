@@ -4,7 +4,7 @@ Scan a source file into a list of symbol dicts."""
 
 import ast
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import stratos.config as config
 
@@ -261,6 +261,57 @@ def _uses(code, own_name):
     return sorted(ids)
 
 
+def imports_python(text):
+    """Return the sorted distinct list of module names a Python file imports."""
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return []
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                names.add(alias.name.split(".")[-1])
+        elif isinstance(node, ast.ImportFrom):
+            if node.module is not None:
+                names.add(node.module.split(".")[-1])
+            for alias in node.names:
+                names.add(alias.name)
+    return sorted(names)
+
+
+def imports_js(text):
+    """Return the sorted distinct list of module stems imported in a JS file."""
+    specs = []
+    for m in re.finditer(r"import\s+[\s\S]*?\s+from\s*['\"]([^'\"]+)['\"]", text):
+        specs.append(m.group(1))
+    for m in re.finditer(r"export\s+[\s\S]*?\s+from\s*['\"]([^'\"]+)['\"]", text):
+        specs.append(m.group(1))
+    for m in re.finditer(r"import\s*['\"]([^'\"]+)['\"]", text):
+        specs.append(m.group(1))
+    for m in re.finditer(r"import\s*\(\s*['\"]([^'\"]+)['\"]\s*\)", text):
+        specs.append(m.group(1))
+    for m in re.finditer(r"require\s*\(\s*['\"]([^'\"]+)['\"]\s*\)", text):
+        specs.append(m.group(1))
+    stems = set()
+    for spec in specs:
+        last = spec.split("/")[-1]
+        dot = last.rfind(".")
+        if dot != -1:
+            last = last[:dot]
+        stems.add(last)
+    return sorted(stems)
+
+
+def module_name(path):
+    """Return the module name for a path: stem of last part, folder name for __init__/index."""
+    p = PurePosixPath(path)
+    stem = p.stem
+    if stem == "__init__" or stem == "index":
+        return p.parent.name
+    return stem
+
+
 def symbol_text(text, sym):
     """Return the source lines of sym from text.
 
@@ -279,6 +330,7 @@ def build(root, settings=None):
 
     root = Path(root)
     files = {}
+    imports = {}
 
     dirs = list(settings["source_dirs"])
     if settings["test_dir"]:
@@ -293,25 +345,44 @@ def build(root, settings=None):
                 continue
             suffix = path.suffix.lower()
             if suffix == ".py":
-                symbols = scan_python(path.read_text(encoding="utf-8"))
+                text = path.read_text(encoding="utf-8")
+                symbols = scan_python(text)
             elif suffix in (".js", ".mjs"):
-                symbols = scan_js(path.read_text(encoding="utf-8"))
+                text = path.read_text(encoding="utf-8")
+                symbols = scan_js(text)
             else:
                 continue
             relpath = path.relative_to(root).as_posix()
             files[relpath] = symbols
+            if suffix == ".py":
+                imports[relpath] = imports_python(text)
+            else:
+                imports[relpath] = imports_js(text)
 
-    return {"test_dir": settings["test_dir"], "files": dict(sorted(files.items()))}
+    sorted_files = dict(sorted(files.items()))
+    imports_dict = {path: imports[path] for path in sorted_files}
+    return {"test_dir": settings["test_dir"], "files": sorted_files, "imports": imports_dict}
 
 
-def users(cmap, name):
+def users(cmap, name, path=None):
     """Return the sorted list of f"{path}:{symbol name}" for every symbol whose uses contain name."""
-    return sorted(
-        f"{path}:{sym['name']}"
-        for path, syms in cmap["files"].items()
-        for sym in syms
-        if name in sym["uses"]
-    )
+    results = []
+    for p, syms in cmap["files"].items():
+        for sym in syms:
+            if name in sym["uses"]:
+                results.append((p, sym["name"]))
+
+    if path is not None and "imports" in cmap:
+        module = module_name(path)
+        filtered = []
+        for p, sym_name in results:
+            if p == path:
+                filtered.append(f"{p}:{sym_name}")
+            elif module in cmap["imports"].get(p, []):
+                filtered.append(f"{p}:{sym_name}")
+        return sorted(filtered)
+
+    return sorted(f"{p}:{sym_name}" for p, sym_name in results)
 
 
 def uses_summary(cmap, max_chars=6000):
@@ -324,7 +395,7 @@ def uses_summary(cmap, max_chars=6000):
         for sym in syms:
             if sym["kind"] not in ("function", "class", "constant"):
                 continue
-            us = users(cmap, sym["name"])
+            us = users(cmap, sym["name"], path)
             if not us:
                 continue
             code = [u for u in us if not u.startswith(test_dir + "/")]
