@@ -109,6 +109,51 @@ CONVENTIONS.md this time, no data model. So far:
    c. The risky/leaks checks skip drafts whose status is import_error - which is every draft of a new module. Run
       risky_patterns on every written .py draft.
 
+**Trial 4: Orbit, a gravity slingshot puzzle (D:\Strata\Trials\Orbit, 2026-11-19).** JS + node --test, no data model
+given (the planner had to define it), memory, lessons, wiki on. Round 1: 6 tasks, 129 tests, all 4 levels' logic
+verified headless (a brute-force launch search wins every level). Found:
+   a. **Parallel tasks disagreed on shared data again.** physics used planet.pos and a constant G, levels used
+      {x, y, r} with no mass; both were planned with no After between them, so neither saw the other's shape. index.html
+      loaded "main.js" from the root (src/main.js). Game state rules (when shotsUsed rises, what happens with no
+      shots left) were vague. Claude rewrote 5 of 6 goals. The tasks and their order were right. Idea: when two tasks
+      both use a shape (planet, level), the planner must write it in a first "contract" task or in both goals - a
+      check could look for the same noun in two goals with different field lists.
+   b. **Drafts far too long:** game 1,285 lines / 37 tests (cut at the length limit), main 550 lines; the main answer
+      came header-less in two ```python blocks. Fixed by T144 (at most 15 tests / 300 lines; the longest block).
+   c. **Wrong drafts, by kind:** self-contradiction (reads probe.x, then asserts probe null), arithmetic
+      (250 + 7*2 = 364), a test that depends on level data (the 240-step cap test ended early because the probe left
+      level 1), and DOM tests of main.js that share the module's state between tests (an open drag, piled-up shots)
+      and expect movement from frames whose timestamps do not advance. Triage named the first two exactly. T006 went
+      to needs_human 3 times with no triage at all: its last attempt was no_files (Tiel cut off), and triage only
+      runs after a test failure - run triage on the last *failed* attempt's output instead.
+      Swift's attempt 7 of T006 was right; 3 rounds (10 attempts) were spent on wrong tests.
+   d. **A missing After from Claude's own plan edit** (levels' test uses vec.length) failed T003 3 times; triage said
+      test_wrong (the test depends on src/vec.js) - right about the cause, wrong about the remedy. Check mechanically:
+      a task whose tests import a module another task of the plan creates or changes needs that task in After.
+   e. **Bugs the tests missed (found by reading main.js):** after the last level levelIndex = LEVELS.length, so
+      main.js reads LEVELS[3].launch and render reads level.field -> the game freezes at the end. Level 3 was the
+      easiest (103 winning launches of 6840 vs 69 for level 1). The levels task wrote a "game state" section into
+      CONVENTIONS.md before game.js existed (said main.js owns the state; fixed by Claude).
+   f. Code quality: game.js copies the whole state by hand 6 times (no spread/helper); render.js sets no colours.
+   g. Harness: `stratos reset` failed (Permission denied) while Claude's shell stood in the worktree (known; hit again).
+
+**Watching and measuring (user, 2026-11-19): dashboard, efficiency, push per P (T145-T153).**
+`stratos dashboard` (127.0.0.1:8765): the gateway now writes call_start/switch_start, so the page shows who is
+writing which task right now, PolyStrata's live /metrics (phase, generated/max tokens, tok/s), GPU/VRAM/temperature
+gauges and history, a task board per project, an event feed and an efficiency panel. The page (stratos/dashboard.html)
+was written by Claude; the data side by Stratos. `stratos report --efficiency`: waste by cause (completion tokens only;
+the old "wasted tokens" also counted reviewer approvals and prompt tokens: 4.0M vs 0.80M), time split, first try.
+First reading (Stratos, all history): 2.15M tokens generated, 37.5% waste (tests_failed 650k, cut_off 66k); of 14.8 h
+active, model 48%, **model switches 19% (2.9 h)**, other (tests, git) 33%; first try 83/152 (coder 56/108, coder_hard
+27/44), 2.65 attempts per passed task. Orbit: 24.5% waste, first try 4/10. -> item 5 (switch cost) is now the
+cheapest measurable win. `stratos push`: refuses with uncommitted changes, off main, failing tests or a secret-looking
+added line (`# pragma: allowlist secret` marks deliberate fakes); first real push not done yet (277 commits, public
+repo: the user decides).
+   Found on the way: the triage reason with an em dash broke log() on a cp949 stdout (fixed in main(): streams replace
+   what they cannot encode). Claude's own test lists for tasks again included tests that need another task of the same
+   batch (T151 x2, T153 nearly): when tests are added to main while tasks wait, `stratos status` could warn "T151 lists
+   tests/test_x.py, changed after the task was added".
+
 0. **Memory system - the central goal (user, 2026-11-19).** Local models are weaker than frontier models; close the
    gap with memory and retrieval, comprehensively (vector DB, RAG, an LLM-written wiki, lessons). Both trials failed
    for missing context, not missing skill: the planner did not know who reads a field (trial 2 a), a test draft did
@@ -159,11 +204,34 @@ CONVENTIONS.md this time, no data model. So far:
        groups), many were vague. Next for the learner: at most 25 words and one concrete action in the prompt,
        duplicates by embedding similarity, and learn from edited plans and rewritten drafts too (keep the planner's
        original tasks in the plan file).
+       **Learner step 2 (T140, T143, 2026-11-19):** at most 25 words and one action in the prompt, answers over 30
+       words dropped; duplicates also by embedding (cosine >= 0.72: unrelated lessons reach 0.68, paraphrases
+       0.65-0.76, so about 2 of 3 restatements are caught); save_plan keeps "original" and learn reads every task a
+       person changed, removed or added in an added plan (plan:<pid>:<key>). Not yet: rewritten test drafts.
        A/B 2 (5 runs per variant, with the lessons): mean of parsed plans base 2.4, uses 2.0, memory 3.67, but
        memory had 2 parse failures - both a docs-only CONVENTIONS task without tests, caused by the wording of one
        lesson (reworded). Variance between runs is large (base 1-4): compare means over 5+ runs.
    M4. **LLM wiki**: a page per module written by Tiel from the code map and the code (purpose, data shapes, who uses
        it, invariants, traps), rebuilt when the module's hash changes; a project overview page; hand edits kept.
+       **M4 done (T135-T139, 2026-11-19).** wiki.py: Tiel writes .stratos/wiki/<path>.md per code file (Purpose, Data
+       shapes, Used by, Invariants, Traps; <= 400 words) from the source and the code map's users; index.json keeps
+       the hash of the prompt (source + users) and of the page written, so a page is rewritten when its file or its
+       users change and kept when a person edited it. memindex indexes pages as "wiki" chunks; recall puts "MODULE
+       NOTES" after the lessons (planner 3, coder 2). `stratos memory wiki [--only ...]`. Stratos: 32 pages in 6 min,
+       ~10,500 words. Read by Claude: Purpose and Data shapes mostly right; Traps partly invented ("fix_new_tests does
+       not check existence" - it does) -> the prompt now says "only what a line of the code shows, else none found".
+       **Found on the way (T138):** codemap.users matched by name only, so plan.py's page said diagnose/triage/wiki use
+       plan.build_messages (they have their own). Now build records each file's imports and users(cmap, name, path)
+       counts only files that import the defining module; uses_summary, memsearch and wiki pass the path. Known loss:
+       methods called on an object passed in (store.get in recall) without importing its module are no longer users.
+       **Wiki A/B (scratchpad mem_eval_wiki.py, trial 2's goal at 89feb4f, 5 plans each, same 12,000 budget):** first
+       read: memory 4.0, wiki 1.8 - 3 of 5 wiki plans failed to parse, all on form: notes in list items ("tests/x
+       (existing, add level checks)", the comma split it), the new test file in Files too, a file both changed and
+       "protected" for part of it. T141/T143 read these (notes go into the goal, test files leave Files, Files wins
+       over Protected). Rescored with the new parser: memory [3,4,4,5,4] 4.0, wiki [4,6,5,4,4] 4.6, no parse failures
+       left. The wiki plans named old tests to update more often (wiki-2: "tests/towers.test.js (existing, updated
+       for level/totalSpent)"). Still nobody: boss_rule_safe 0/10. Next: an overview page; wiki pages for the test
+       writer (it sees only the pack's code); notes on old tests that need changes should reach the test drafts.
    M5. **Retrieval agent + context packs**: hybrid search + code-map expansion (users of the symbols a goal names),
        then a fast local model picks the ids that matter in short calls (reading is cheap, writing is not); a
        budgeted pack per role (planner, test writer, coder, reviewer, triage).
@@ -211,6 +279,12 @@ CONVENTIONS.md this time, no data model. So far:
    twice for low memory, both times during a switch to Swift (2026-11-18). Run Claude Code with
    CLAUDE_CODE_DISABLE_BG_SHELL_PRESSURE_REAP=1 (user's choice); still consider a lighter coder_hard or unloading
    the old model fully before Swift loads.
+
+11. **No way to drop a task.** T142 (a cleanup Tiel failed 3 times on the 470-line plan.py: the reviewer rightly
+   said the comments were not put back) stays needs_human; its work went into T143. Add `stratos drop TID --reason`.
+12. **Old fakes break when a signature grows** (T136 test_memory_refresh, T140 test_cli_memory): Claude's test lists
+   for a task miss other tests that fake the changed function. Before `add`, grep tests/ for fakes of the changed
+   names (monkeypatch.setattr(<module>, "<name>", ...)) and put those files into --tests.
 
 ## Done
 
