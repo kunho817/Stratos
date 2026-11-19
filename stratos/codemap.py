@@ -162,7 +162,7 @@ def scan_js(text):
         # Walk lines; depth ends the declaration at its closing brace or semicolon.
         depth = 0
         brace_seen = False
-        end = i
+        end = min(n, next_idx) - 1
         for j in range(i, min(n, next_idx)):
             stripped = _strip_js_line(lines[j])
             opens = stripped.count("{")
