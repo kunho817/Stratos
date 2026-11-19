@@ -270,6 +270,25 @@ missed: `list` crashed sorting None against a unit, `--servings 4 2` was refused
 "2 eggs" + "3 eggs" stay two lines - Claude's own goal said lines without a unit are not added up. 88 tests, private
 repo stratos-trial-pantry.
 
+**Trial 7: Pantry round 2 (P002: counting, unit aliases, show, --json; 2026-11-20) - the trial after P3.**
+The plan critic (Flint) ran live: 11 lines, 3-4 real (JSON needs the tuples turned into dicts, show printed
+"ingredient unit amount" unlike list, None vs piece display); 5 were "test files should be tests/test_<module>.py"
+(it does not know Stratos's own new-test-file rule - tell it), 2 wrong. Claude applied the 2 clear ones.
+**OUTDATED did not fire:** the planner listed the old test files (tests/test_shopping.py ...) as the tasks' own
+tests, so old_tests() left them out and no draft got the OUTDATED instruction; 3 old shopping tests pinned "no unit
+-> other" and Claude fixed them by hand. Fix: also give the instruction for existing files in task["tests"].
+The draft checker flagged 0 of 5 drafts again; the json draft split an unknown unit "oz" off the name (against round
+1's rule) - missed by the checker, found by triage's explanation.
+Run: T009-T012 passed their tests on the first try (4/4); the reviewer then rejected T012 twice, the second time
+wrongly ("best_size used before set" - it is behind a short-circuit `or`), and T013 three times: once wrongly
+("missing import json" - it was there) and twice rightly (an attempt padded servings with len(recipes) -
+len(recipes) = 0, which no test caught). Both done with `stratos accept` (first real use) after a one-line hand fix
+and a new test. T013 also ran without T011's counting: **cli_json lacked After shopping_count** (a behaviour
+dependency, not an import, so preflight cannot see it); Claude then fixed the json test wrongly once more (forgot
+round 2's counting). Worktree removal failed 3 times with "Permission denied" while Claude's shell had been in it.
+Left: `have 6 eggs` needs a unit (round 1's CLI). 159 tests.
+Pantry overall: first try 7/13, 3.08 attempts per passed task, waste 18.3%.
+
 **Watching and measuring (user, 2026-11-19): dashboard, efficiency, push per P (T145-T153).**
 `stratos dashboard` (127.0.0.1:8765): the gateway now writes call_start/switch_start, so the page shows who is
 writing which task right now, PolyStrata's live /metrics (phase, generated/max tokens, tok/s), GPU/VRAM/temperature
