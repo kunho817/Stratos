@@ -91,3 +91,26 @@ def test_empty(tmp_path):
     s = memstore.Store(tmp_path / "memory.db")
     assert memsearch.search(s, "anything", embedder=FakeEmbedder([1.0])) == []
     s.close()
+
+
+# --- task memsearch_cap (2026-11-19): one hit on step pulled in 20 tests of step through the expansion ---
+# For each hit, its users are taken code chunks first, then test chunks (each group in codemap.users order), and at
+# most 3 code users and 2 test users are appended per hit (still each id once in the whole result).
+
+def test_expansion_is_capped(tmp_path):
+    s = memstore.Store(tmp_path / "memory.db")
+    s.upsert({"id": "code:src/a.js:core", "kind": "code", "source": "src/a.js", "title": "src/a.js:core",
+              "text": "core engine"})
+    files = {"src/a.js": [{"name": "core", "kind": "function", "uses": []}]}
+    for i in range(5):
+        s.upsert({"id": f"test:tests/t.js:test: t{i}", "kind": "test", "source": "tests/t.js",
+                  "title": f"tests/t.js:test: t{i}", "text": "x"})
+        s.upsert({"id": f"code:src/u{i}.js:u{i}", "kind": "code", "source": f"src/u{i}.js",
+                  "title": f"src/u{i}.js:u{i}", "text": "y"})
+        files.setdefault("tests/t.js", []).append({"name": f"test: t{i}", "kind": "test", "uses": ["core"]})
+        files[f"src/u{i}.js"] = [{"name": f"u{i}", "kind": "function", "uses": ["core"]}]
+    cmap = {"test_dir": "tests", "files": files}
+    hits = memsearch.search(s, "core engine", cmap=cmap, k=1)
+    assert [h["id"] for h in hits] == ["code:src/a.js:core", "code:src/u0.js:u0", "code:src/u1.js:u1",
+                                       "code:src/u2.js:u2", "test:tests/t.js:test: t0", "test:tests/t.js:test: t1"]
+    s.close()
