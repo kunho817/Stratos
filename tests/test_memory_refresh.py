@@ -23,7 +23,7 @@ def test_refresh(tmp_path, monkeypatch):
     order = []
     monkeypatch.setattr(memindex, "index_history", lambda store, tasks, events: order.append(
         ("history", type(store).__name__, [t["id"] for t in tasks], events)) or {})
-    monkeypatch.setattr(memindex, "index_project", lambda repo, store, embedder: order.append(
+    monkeypatch.setattr(memindex, "index_project", lambda repo, store, embedder, state_dir=None: order.append(
         ("project", repo, embedder)) or {"chunks": 1, "changed": 1, "removed": 0, "embedded": 1})
     assert memindex.refresh(tmp_path / "repo", state, "EMB") == {"chunks": 1, "changed": 1, "removed": 0, "embedded": 1}
     assert order == [("history", "Store", ["T001"], []), ("project", tmp_path / "repo", "EMB")]
