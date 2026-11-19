@@ -60,6 +60,9 @@ PLAN_CONVERTER = {"model": "qwen3.6-35b-a3b-ud-q4_k_m", "effort": "none", "max_t
 TRIAGE = os.environ.get("STRATOS_TRIAGE", "1") != "0"
 TRIAGER = {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 8000, "reasoning_budget": 3000}
 
+# run each task's tests on its base before any model call (preflight); refuse impossible tasks early. STRATOS_PREFLIGHT=0 off.
+PREFLIGHT = os.environ.get("STRATOS_PREFLIGHT", "1") != "0"
+
 # feed the memory's context packs to the models
 MEMORY = True
 

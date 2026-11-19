@@ -5,7 +5,7 @@ A task that still fails is handed to a person (status needs_human). The loop is 
 attempts, committing a candidate when a review is on) and a review phase (judging the candidates)."""
 from pathlib import Path
 
-from . import codemap, config, context, decide, diagnose, embed, gitops, jev, memstore, patch, recall, review, triage, verify
+from . import codemap, config, context, decide, diagnose, embed, gitops, jev, memstore, patch, preflight, recall, review, triage, verify
 
 CODER_SECTIONS = [
     ("guide", "GENERAL LESSONS (from earlier projects)", 3),
@@ -68,8 +68,15 @@ def check_answer(task, wt, text, finish=None):
             except patch.PatchRefused as e:
                 result, detail = "refused", str(e)
             else:
-                ok, out = verify.run_tests(wt, task["tests"])
-                result, detail = ("passed" if ok else "failed"), out
+                errors = verify.syntax_errors(wt, written)
+                if errors:
+                    result, detail = "syntax_error", (
+                        "Your files do not compile:\n"
+                        + "\n".join(errors)
+                        + "\nWrite each file completely and check its syntax.")
+                else:
+                    ok, out = verify.run_tests(wt, task["tests"])
+                    result, detail = ("passed" if ok else "failed"), out
     if finish == "length" and result != "passed":
         detail = ("Your answer was cut off: it reached the length limit. Think briefly and write only the "
                   "files the task needs, completely.\n" + detail)
@@ -89,6 +96,18 @@ def write_task(store, gw, task_id, log=print):
         log(f"  task {task_id}: base conflict, handing to a person ({e})")
         return "needs_human"
     store.update(task_id, status="running", worktree=str(wt))
+    before = None
+    if config.PREFLIGHT:
+        pre = preflight.check(task, wt)
+        if pre["verdict"] == "refuse":
+            store.update(task_id, status="needs_human", preflight=pre["reason"])
+            store.decide(task=task_id, result="preflight_refused", reason=pre["reason"])
+            gw.telemetry.record("preflight", task=task_id, verdict="refuse", reason=pre["reason"])
+            log(f"  preflight: {pre['reason']}")
+            return "needs_human"
+        gw.telemetry.record("preflight", task=task_id, verdict="run", reason=pre["reason"])
+        if pre["output"]:
+            before = pre["output"][-3000:]
     failure = task.get("review_feedback")
     attempt = task.get("attempts", 0)
     last_text = None
@@ -103,12 +122,13 @@ def write_task(store, gw, task_id, log=print):
             if switch:
                 log(f"  model switch to {r['model']}: {switch:.1f} s")
             budget = r.get("reasoning_budget")
+            extra = {"before": before} if before else {}
             if budget is not None:
-                call_id, text = gw.chat(context.build_messages(task, wt, failure, memory=memory), task=task_id, role=role,
+                call_id, text = gw.chat(context.build_messages(task, wt, failure, memory=memory, **extra), task=task_id, role=role,
                                         attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"],
                                         reasoning_budget=budget)
             else:
-                call_id, text = gw.chat(context.build_messages(task, wt, failure, memory=memory), task=task_id, role=role,
+                call_id, text = gw.chat(context.build_messages(task, wt, failure, memory=memory, **extra), task=task_id, role=role,
                                         attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"])
             save_answer(task_id, attempt, text)
             result, detail = check_answer(task, wt, text, getattr(gw, "last_finish", None))
@@ -271,4 +291,3 @@ def run_task(store, gw, task_id, log=print):
             return "done"
     store.update(task_id, status="needs_human")
     return "needs_human"
-
