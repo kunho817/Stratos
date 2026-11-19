@@ -31,3 +31,4 @@ lines; a person reads them before they are committed.
 - [plan, data] Static data such as a default map must satisfy what its users need (a path from start to end); test that too. (tower defense T005, from memory learn)
 - [tests, edge-cases] Grid placement tests must cover the start, end and edge cells, where floor/ceil and off-by-one mistakes show. (tower defense T007, from memory learn)
 - [tests, js] Inside a JS template literal or a new RegExp(...) string write \d for \d; a single backslash is dropped. (tower defense T016, from memory learn)
+- [plan, cli, errors] A command-line tool needs a task for bad input: a missing file, a malformed number or date gives one clear message and exit code 1, never a traceback. (Ledger trial 3: nobody asked, nobody planned it)

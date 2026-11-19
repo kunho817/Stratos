@@ -91,6 +91,12 @@ CONVENTIONS.md this time, no data model. So far:
       says categorize(transaction, rules) (a draft disagreeing with its own plan - check drafts' calls against the
       plan's signatures in code), and duplicates inside one import were dropped (a judgement call; the goal only
       forbids duplicates of what the ledger holds). Expected values were right everywhere (trial 1: 8 wrong).
+   d. **Run: 6 tasks, 6 attempts, all passed on the first try** (trial 1 round 1: 10 tasks with many retries and
+      Claude's help; trial 2: 9 attempts for 6). 111 tests. The CLI works end to end on a real-looking export:
+      in-file duplicates kept, re-import adds 0, food 94.35, balance 1705.65, "Over budget: food by 14.35".
+   e. **What a frontier model would have added and nobody asked for:** error handling. A missing file, an amount
+      "abc" or a budget "lots" end in a traceback; "report 2026-13" is accepted. Lesson candidate: a command-line
+      tool's plan needs a task for bad input (clear message, exit code 1). Small: an unused DEFAULT in storage.py.
    c. The risky/leaks checks skip drafts whose status is import_error - which is every draft of a new module. Run
       risky_patterns on every written .py draft.
 
