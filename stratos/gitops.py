@@ -117,3 +117,20 @@ def commit_all(worktree, message):
     git(worktree, "add", "-A")
     git(worktree, *BOT, "commit", "-m", message)
     return git(worktree, "rev-parse", "--short", "HEAD")
+
+
+def changed_since(repo, paths, since):
+    """Return the paths (in given order, ::... suffixes cut off, each path once) whose last commit in
+    repo is later than since (a time.time() float). Paths with no commit are left out."""
+    seen = set()
+    out = []
+    for path in paths:
+        base = path.split("::")[0]
+        if base in seen:
+            continue
+        seen.add(base)
+        r = git(repo, "log", "-1", "--format=%ct", "--", base, check=False)
+        if r and int(r) > since:
+            out.append(base)
+    return out
+

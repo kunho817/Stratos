@@ -12,6 +12,7 @@
   python -m stratos push [--dry-run]
   python -m stratos clean
   python -m stratos reset T001 --reason R
+  python -m stratos drop T001 --reason R
   python -m stratos replay T001 T002 --role coder --model M --effort E --max-tokens N --tries K
   python -m stratos memory index [--no-vectors]
   python -m stratos memory search QUERY [-k N] [--no-vectors]
@@ -138,6 +139,9 @@ def main(argv=None):
     reset = sub.add_parser("reset", help="throw away a task's result so it runs again")
     reset.add_argument("task_id")
     reset.add_argument("--reason", required=True, help="why the task is being reset")
+    drop = sub.add_parser("drop", help="give a task up for good")
+    drop.add_argument("task_id")
+    drop.add_argument("--reason", required=True, help="why the task is being dropped")
     replay_p = sub.add_parser("replay", help="try a model on past tasks; nothing is committed")
     replay_p.add_argument("task_ids", nargs="+")
     replay_p.add_argument("--role", choices=sorted(config.ROLES), default="coder",
@@ -492,6 +496,24 @@ def main(argv=None):
                                                                result="reset_by_human", reason=args.reason)
         print(f"reset {args.task_id}")
         return 0
+    elif args.cmd == "drop":
+        try:
+            task = store.get(args.task_id)
+        except KeyError:
+            print(f"no such task {args.task_id}", file=sys.stderr)
+            return 1
+        commit = task.get("commit")
+        if commit and subprocess.run(["git", "merge-base", "--is-ancestor", commit, "HEAD"],
+                                     cwd=config.REPO, capture_output=True).returncode == 0:
+            print(f"{args.task_id} is merged; drop would not take it out of HEAD", file=sys.stderr)
+            return 1
+        gitops.remove_worktree(config.REPO, config.WORKTREES, args.task_id)
+        store.update(args.task_id, status="dropped", worktree=None, dropped_reason=args.reason)
+        store.decide(task=args.task_id, result="dropped_by_human", reason=args.reason)
+        Telemetry(config.STATE_DIR / "telemetry.jsonl").record("verdict", task=args.task_id,
+                                                               result="dropped_by_human", reason=args.reason)
+        print(f"dropped {args.task_id}")
+        return 0
     elif args.cmd == "replay":
         tasks = []
         for tid in args.task_ids:
@@ -575,8 +597,12 @@ def main(argv=None):
             if t.get("status") == "needs_human" and isinstance(t.get("triage"), dict):
                 triage = f" [triage: {t['triage'].get('verdict')}]"
             print(f"{t['id']}  {t['status']:<12} {t['title']}{extra}{mark}{triage}")
+            if t.get("status") in ("todo", "needs_human") and t.get("created") is not None:
+                for path in gitops.changed_since(config.REPO, t["tests"], t["created"]):
+                    print(f"  warning: {path} changed after {t['id']} was added")
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
+
