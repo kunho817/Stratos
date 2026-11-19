@@ -74,7 +74,7 @@ else:
     REPO = Path(__file__).resolve().parent.parent
     WORKTREES = REPO.parent / "Stratos-wt"
 
-STRATOS_HOME = REPO
+STRATOS_HOME = Path(__file__).resolve().parent.parent
 LESSONS = STRATOS_HOME / "LESSONS.md"   # general lessons shared by every project
 
 STATE_DIR = REPO / ".stratos"
