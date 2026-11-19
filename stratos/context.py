@@ -78,7 +78,7 @@ def related_files(root, files):
     return sorted(found)
 
 
-def build_messages(task, root, failure=None):
+def build_messages(task, root, failure=None, memory=None):
     parts = [f"TASK {task['id']}: {task['title']}", task["goal"]]
     for path in task["files"]:
         parts.append(show_file(root, path, "FILE YOU MAY WRITE"))
@@ -88,6 +88,9 @@ def build_messages(task, root, failure=None):
         if path in task["files"] or path in task["protected"]:
             continue
         parts.append(show_file(root, path, "READ-ONLY (imported by the files you write)"))
+    if memory:
+        parts.append("MEMORY (found for this task: lessons and related code):\n" + memory)
     if failure:
         parts.append("YOUR PREVIOUS ATTEMPT FAILED. Test output:\n```\n" + failure + "\n```\nFix it.")
     return [{"role": "system", "content": CODER_SYSTEM}, {"role": "user", "content": "\n\n".join(parts)}]
+
