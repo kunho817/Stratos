@@ -128,6 +128,12 @@ keys. The new check made every task start with a new test file (first try). Foun
    M5. **Retrieval agent + context packs**: hybrid search + code-map expansion (users of the symbols a goal names),
        then a fast local model picks the ids that matter in short calls (reading is cheap, writing is not); a
        budgeted pack per role (planner, test writer, coder, reviewer, triage).
+       **M5 first step done (T118-T120, 2026-11-19).** memsearch kinds filter; recall.pack builds a budgeted pack
+       per kind (code 6, tests 4, conventions 3, past tasks 3, lessons 5); `stratos plan` adds it when memory.db
+       exists (config.MEMORY). One A/B run on trial 2's goal: as good as the code map alone on step/levels, no
+       unasked hp change, preview consistent, but it invented a towerId and still missed "wave 0" and the path
+       recompute. Next: the test writer, the coder and the reviewer get packs too; a fast model picks from a larger
+       candidate set (M5b); memsearch rebuilds an id set per vector in the kinds filter (quadratic, fine at ~1000).
    M6. **Measure**: plan_eval A/B with and without memory on fixed goals (trial 2's goal has a known answer: the
        5 goal fixes Claude made), then trial 3 on a new project.
 1. **Planner quality.** Record: P001-P004 all needed hand edits (rules, invented APIs, data shapes). Then
