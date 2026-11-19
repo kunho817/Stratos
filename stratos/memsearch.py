@@ -78,7 +78,7 @@ def search(store, query, embedder=None, cmap=None, k=10, kinds=None):
                     kind, path, name = parts
                     code_users = []
                     test_users = []
-                    for u in codemap.users(cmap, name):
+                    for u in codemap.users(cmap, name, path):
                         candidate = f"code:{u}"
                         if store.get(candidate) is None:
                             candidate = f"test:{u}"

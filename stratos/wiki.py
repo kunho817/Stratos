@@ -10,7 +10,8 @@ SYSTEM = (
     "Write a short reference page for the code file below. Use ONLY facts visible in the code given. "
     "At most 400 words. The page must have exactly these sections, in this order: "
     "## Purpose\n## Data shapes\n## Used by\n## Invariants\n## Traps\n"
-    "Use short bullet lines under each heading. Do not add any other headings."
+    "Use short bullet lines under each heading. Do not add any other headings. "
+    "Under ## Traps name only problems that a line of the code shows; write \"- none found\" rather than guess."
 )
 
 MAX_SOURCE = 20000
@@ -26,7 +27,7 @@ def used_by(cmap, path):
     lines = []
     for sym in cmap["files"].get(path, []):
         name = sym["name"]
-        us = codemap.users(cmap, name)
+        us = codemap.users(cmap, name, path)
         others = [u for u in us if not u.startswith(path + ":")]
         if others:
             lines.append(f"- {name}: {', '.join(others)}")
@@ -102,7 +103,9 @@ def build(gw, root, state_dir, cmap, only=None, log=print):
         source = (root / path).read_text(encoding="utf-8")
         page_path = wiki_dir / page_name(path)
 
-        source_sha = _sha(source)
+        used = used_by(cmap, path)
+        msgs = messages(path, source, used)
+        source_sha = _sha(msgs[1]["content"])
 
         if page_path.exists():
             page_text = page_path.read_text(encoding="utf-8")
@@ -125,8 +128,6 @@ def build(gw, root, state_dir, cmap, only=None, log=print):
             gw.ensure_model(config.WIKI["model"])
             ensure_done = True
 
-        used = used_by(cmap, path)
-        msgs = messages(path, source, used)
         kw = {
             "task": "wiki",
             "role": "wiki",
