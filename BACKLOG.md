@@ -102,6 +102,15 @@ keys. The new check made every task start with a new test file (first try). Foun
        function, tests per test, wiki pages, episodes, lessons, CONVENTIONS sections) with BM25 (own code) and
        embedding vectors (CPU ONNX model via fastembed, cosine in numpy, re-embedded only when a chunk's hash
        changes), fused by reciprocal rank. `stratos memory index|search`.
+       **M2 done (T107-T115, 2026-11-19).** memstore.py (SQLite chunks + float32 vectors, tokenize with camelCase
+       split and a light stemmer, BM25), embed.py (fastembed, jina-v2-base-code on CPU, models in
+       C:\PolyStrata-data\embeddings), memindex.py (a chunk per code map symbol incl. one per JS test(...) call,
+       CONVENTIONS sections; re-embeds only changed chunks), memsearch.py (BM25 + cosine fused by RRF, then up to 3
+       code + 2 test users per hit from the code map), `stratos memory index|search`. Tower defense: 253 chunks,
+       first index 80 s; the three trial-2 queries now find step+towerStats, sellTower, the click handlers.
+       Weak spots: on Stratos tests outrank code, and __main__.main is one 400-line chunk (split long symbols into
+       windows); the seen-check runs after the cap (fewer than 3 when earlier hits took them). Not yet used by any
+       role - that is M5; the next trial comes after M5.
    M3. **Episodes and lessons**: every finished task (goal, files, attempts, failure signatures, review issues,
        triage, resets with their reason) becomes an episode; every human correction (an edited plan vs. the planner's
        text, a rewritten draft vs. the model's answer, a reset reason) is distilled by a local model into a one-line
