@@ -81,3 +81,27 @@ def test_search_nothing(env, monkeypatch, capsys):
     monkeypatch.setattr(memsearch, "search", lambda store, query, embedder, cmap, k: [])
     assert cli.main(["memory", "search", "x", "--no-vectors"]) == 0
     assert capsys.readouterr().out.strip() == "no results"
+
+
+# --- task learn: `stratos memory learn` ---
+# learn.learn(Gateway(Telemetry(...)), Store(config.STATE_DIR).tasks(), Telemetry(...).load(), config.LESSONS,
+# config.STATE_DIR, config.REPO.name) (through the learn module); prints
+# f"learn: {corrections} corrections, {added} added, {duplicates} duplicates, {skipped} skipped" and returns 0.
+# It does not open the memory store.
+
+def test_learn_command(env, monkeypatch, capsys):
+    from stratos import learn
+    seen = []
+
+    class FakeGateway:
+        def __init__(self, telemetry):
+            self.telemetry = telemetry
+    monkeypatch.setattr(cli, "Gateway", FakeGateway)
+
+    def fake_learn(gw, tasks, events, lessons_path, state_dir, project):
+        seen.append((type(gw).__name__, tasks, events, lessons_path, state_dir, project))
+        return {"corrections": 3, "added": 1, "duplicates": 1, "skipped": 1}
+    monkeypatch.setattr(learn, "learn", fake_learn)
+    assert cli.main(["memory", "learn"]) == 0
+    assert capsys.readouterr().out.strip() == "learn: 3 corrections, 1 added, 1 duplicates, 1 skipped"
+    assert seen == [("FakeGateway", [], [], config.LESSONS, config.STATE_DIR, "repo")]
