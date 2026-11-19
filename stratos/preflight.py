@@ -65,7 +65,7 @@ def _to_relative(p, wt):
     except ValueError:
         return None
     try:
-        return p.relative_to(wt).as_posix()
+        return p.relative_to(Path(wt).resolve()).as_posix()
     except ValueError:
         return None
 
@@ -85,7 +85,7 @@ def _node_spec_path(spec, wt, js_folder):
 
 def missing_imports(output, wt, tests):
     """Repo-relative POSIX paths the tests import that do not exist or lack a name, in output order, no repeats."""
-    wt = Path(wt)
+    wt = Path(wt).resolve()
     js_tests = [t for t in tests if _cut_suffix(t).lower().endswith((".js", ".mjs", ".cjs"))]
     js_folder = str(Path(_cut_suffix(js_tests[0])).parent) if js_tests else ""
 
@@ -105,7 +105,12 @@ def missing_imports(output, wt, tests):
 
     for _, m in matches:
         if m.re is _PY_CANNOT_IMPORT:
-            rel = _to_relative(m.group(3), wt)
+            name, module, file = m.group(1), m.group(2), m.group(3)
+            rel = _to_relative(file, wt)
+            if rel is not None and rel.endswith("__init__.py"):
+                sub = Path(rel).parent / (name + ".py")
+                if not (wt / sub).exists():
+                    rel = sub.as_posix()
             if rel is not None:
                 add(rel)
         elif m.re is _PY_NO_MODULE:
