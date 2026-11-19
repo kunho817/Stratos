@@ -73,6 +73,15 @@ keys. The new check made every task start with a new test file (first try). Foun
       (impossible), a float compared with === (1.2000000000000002), a test for exported constants nobody asked for,
       a "cooldown gets shorter" rule nobody asked for. 2 of 5 drafts were rewritten, 3 needed additions.
 
+   e. **Result:** T011-T016 done in 9 attempts in all (Tiel 2 tasks, Swift 4), 183 tests, the game plays headless
+      to wave 13. Triage met three real wrong tests: T097 (Stratos) and T012 "test_wrong" with the exact reason
+      (old waves.test.js pinned wave 5 as a normal wave - trial 1 h again); T016 "unclear" with an empty reason
+      although the cause was in the test (a `\d` lost in a JS template literal, by Claude) - an empty reason should
+      be retried or shown as "no reason".
+   f. **Layout is untested.** T014 drew the panel below the map, outside the 640 x 400 canvas; the tests checked only
+      the text. Found by Claude reading the diff. A headless smoke check that every fillText lands inside the
+      canvas would catch this class.
+
 0. **Memory -> retrieval -> planner (user's idea, 2026-11-18).** Keep a memory of the project (code split by
    function, tests, past tasks with goal/diff/failures/review issues, and lessons: what a person changed in a plan or a
    test draft and why) and let a fast model (Tiel or AgentWorld, one load, many short calls) pick what the planner
