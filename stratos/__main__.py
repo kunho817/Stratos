@@ -181,7 +181,7 @@ def main(argv=None):
             try:
                 store2 = memstore.Store(config.STATE_DIR / "memory.db")
                 try:
-                    memory = recall.pack(store2, goal, embed.Embedder(), cmap)
+                    memory = recall.pack(store2, goal, embed.Embedder(), cmap, always_tags={"plan"})
                 finally:
                     store2.close()
             except Exception as e:
@@ -248,11 +248,9 @@ def main(argv=None):
                     parse_error = e
 
             if parse_ok:
-                try:
-                    plan_mod.check_new_tests(tasks, config.REPO)
-                except plan_mod.PlanError as e:
-                    parse_ok = False
-                    parse_error = e
+                msgs = plan_mod.fix_new_tests(tasks, config.REPO)
+                for msg in msgs:
+                    print(msg)
 
             kw2 = dict(attempt=attempt, via=parse_via, ok=parse_ok)
             if parse_error is not None:
