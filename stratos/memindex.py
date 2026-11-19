@@ -88,10 +88,9 @@ def index_project(root, store, embedder=None, settings=None):
     if embedder is not None:
         stale_ids = store.stale(embedder.name)
         embedded = len(stale_ids)
-        chunk_map = {c["id"]: c for c in chunks}
         for i in range(0, len(stale_ids), 32):
             batch = stale_ids[i:i + 32]
-            texts = [chunk_map[cid]["text"] for cid in batch]
+            texts = [store.get(cid)["text"] for cid in batch]   # stale chunks may come from index_history too
             vectors = embedder.embed(texts)
             for cid, vec in zip(batch, vectors):
                 h = store.get(cid)["hash"]

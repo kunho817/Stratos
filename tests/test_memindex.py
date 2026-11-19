@@ -89,3 +89,14 @@ def test_without_an_embedder(tmp_path):
     counts = memindex.index_project(project(tmp_path), store, None, SETTINGS)
     assert counts["embedded"] == 0 and counts["chunks"] == 6
     store.close()
+
+
+def test_stale_chunks_from_elsewhere_are_embedded_too(tmp_path):
+    """Harness fix (2026-11-19): `memory index` puts the task history in first, and index_project's embedding step
+    looked the stale ids up among its own chunks only (KeyError: 'episode:T001')."""
+    store = memstore.Store(tmp_path / "memory.db")
+    store.upsert({"id": "episode:T001", "kind": "episode", "source": "tasks.json", "title": "T001: a", "text": "ep"})
+    emb = FakeEmbedder()
+    assert memindex.index_project(project(tmp_path), store, emb, SETTINGS)["embedded"] == 7
+    assert "episode:T001" in store.vectors("fake")
+    store.close()
