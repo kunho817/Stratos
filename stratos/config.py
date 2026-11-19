@@ -83,3 +83,6 @@ from stratos import project
 
 PROJECT = project.load_settings(REPO)
 WRITABLE_SUFFIXES = set(PROJECT["writable_suffixes"])
+
+# the model that turns people's corrections into general lessons (M3b); same model as reviewer, loaded at end of run
+LEARNER = {"model": "qwen3.6-35b-a3b-ud-q3_k_m", "effort": "none", "max_tokens": 600}
