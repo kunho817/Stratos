@@ -16,6 +16,7 @@ def summarize_output(out):
 
     not_ok_pattern = re.compile(r'^\s*not ok \d+ - .+')
     keywords = ("error:", "expected:", "actual:", "location:")
+    block_scalar = ("|", "|-", ">", ">-")
 
     not_ok_indices = []
     for i, line in enumerate(lines):
@@ -36,13 +37,31 @@ def summarize_output(out):
             count = 0
             while i < len(lines):
                 s = lines[i].strip()
-                if s == '---':
+                if s == '---' or s == '...':
                     i += 1
                     break
                 if any(kw in lines[i] for kw in keywords):
                     if count < 8:
                         result.append(lines[i])
                         count += 1
+                        # If the value is empty or a block scalar, keep the indented value lines.
+                        value = lines[i].split(":", 1)[1].strip()
+                        if value == "" or value in block_scalar:
+                            key_indent = len(lines[i]) - len(lines[i].lstrip())
+                            value_count = 0
+                            j = i + 1
+                            while j < len(lines) and value_count < 20:
+                                if lines[j].strip() == "":
+                                    result.append(lines[j])
+                                    value_count += 1
+                                    j += 1
+                                    continue
+                                indent = len(lines[j]) - len(lines[j].lstrip())
+                                if indent <= key_indent:
+                                    break
+                                result.append(lines[j])
+                                value_count += 1
+                                j += 1
                 i += 1
 
     # Append summary lines (# tests, # pass, # fail)
