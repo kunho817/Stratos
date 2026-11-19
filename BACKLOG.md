@@ -33,6 +33,15 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
   checker; offline experiment (a): how many known wrong drafts (trial 1 x8, Orbit x5) each of Qwen3.6, Flint,
   Gemma 4 catches; then a draft check before running; the test writer proposes edits to old tests that call changed
   names; data files whole in its pack; drafts see the goals of the tasks they come after.
+  **Gemma 4 31B (2026-11-20): does not run.** strata-poly's gemma4 code needs gemma4.expert_count (26B-A4B MoE
+  only); the 31B is dense. User: no llama.cpp side server (PolyStrata's GPU + RAM split is the point), so it stays
+  unused (file kept in G:\PolyStrata-models\supergemma4-31b).
+  **Experiment (a) done (scratchpad draft_eval.py, 2026-11-20).** 6 fixed draft files from trials 1 and 4: 20 wrong
+  tests (changed or removed by a person later), 108 kept; a "check each test by hand" prompt, 2 runs per model:
+  Qwen3.6 Q3 caught 3/2 (false alarms 0/1), Tiel 7/7 (2/4), **Swift 13/13 (3/1), ~4 min per run**, Flint 16/12
+  (3/3) but 12 min. Swift found the shared-state DOM tests Claude removed by hand; nobody found "pixel (0,0) places
+  a tower at (0,0)" (the start cell) or "trail last entry equals probe position". The reviewer model (Qwen3.6) is the
+  weakest checker by far. -> the draft check uses Swift (it is loaded right after it writes the drafts: no switch).
 - P3 plan critique (experiment (b) on Ledger's goal), a second model checks wiki pages, a wiki overview page, packs
   for test writer / reviewer / triage, M6 A/B.
 - P4 time: fewer model switches, Tiel 2 tries (item 4), worktrees get main (item 8), decide diagnosis A/B and Jev.
