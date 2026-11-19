@@ -51,7 +51,7 @@ writes, os.environ writes, `config.X = ` or its own MonkeyPatch() gets status "r
 with the whole suite and gets "leaks" when tests outside the drafts of this run fail; `stratos plan` sends back a plan
 whose task starts with an existing (or shared) test file; plan-add puts each task's tests into its protected list.
 First real triage (T097): "test_wrong", correct - my old fakes lacked the new ignore parameter; it named both files.
-Still open: dependents of a task that finishes in the last round stay todo (T094 needed a second run-all again);
+T098: run-all runs a next pass for todo tasks whose dependencies became done (fixes trial 1's g). Still open:
 a risky draft gets no second try with the reason (a person fixes it); the suite check costs one full test run per
 draft (~40 s here).
 
