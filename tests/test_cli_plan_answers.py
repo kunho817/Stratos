@@ -185,8 +185,9 @@ def test_answer_content_is_raw_no_trim(tmp_path, monkeypatch):
     monkeypatch.setattr("stratos.__main__.Gateway", lambda tel: gw)
     monkeypatch.setattr("stratos.__main__.Telemetry", lambda p: None)
     # parse_plan will succeed on the stripped version
+    # (P010: a task always has a test file, as parse_plan requires; check_new_tests reads the first one)
     monkeypatch.setattr("stratos.plan.parse_plan", lambda text: [{"key": "1", "title": "T", "goal": "G",
-                                                                   "files": [], "tests": []}])
+                                                                   "files": [], "tests": ["tests/test_t.py"]}])
 
     main(["plan", "--goal-file", goal])
 
