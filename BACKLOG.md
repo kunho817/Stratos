@@ -115,6 +115,14 @@ keys. The new check made every task start with a new test file (first try). Foun
        triage, resets with their reason) becomes an episode; every human correction (an edited plan vs. the planner's
        text, a rewritten draft vs. the model's answer, a reset reason) is distilled by a local model into a one-line
        lesson with tags. Lessons replace hand-written CONVENTIONS "lessons".
+       **M3a done (T116-T117, 2026-11-19).** episodes.py: an "episode" chunk per finished task (goal, files, results,
+       failing tests, review, triage, resets) and a "lesson" chunk per person's reset reason; `memory index` adds
+       them (Stratos: 143 history chunks, 1090 in all). Search finds T117 for "answer cut off at the length limit",
+       but code and tests outrank history in a mixed search: M5 must search per kind. remove_except("lesson")
+       would delete M3b's distilled lessons - give those their own kind. Found on the way: index_project embedded
+       only its own stale chunks (KeyError on history chunks; fixed by Claude with a test).
+       Also seen in M3a: Swift's whole-file answers for __main__.py (499 lines) hit the length limit (T117 no_files
+       twice) - big files need edit-style answers or smaller modules.
    M4. **LLM wiki**: a page per module written by Tiel from the code map and the code (purpose, data shapes, who uses
        it, invariants, traps), rebuilt when the module's hash changes; a project overview page; hand edits kept.
    M5. **Retrieval agent + context packs**: hybrid search + code-map expansion (users of the symbols a goal names),
