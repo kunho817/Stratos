@@ -335,7 +335,13 @@ def main(argv=None):
             print(f"no such plan: {args.plan_id}", file=sys.stderr)
             return 1
         for r in results:
-            print(f"{r['key']} {r['file']}: {r['status']}")
+            flags = r.get("flags")
+            if flags:
+                print(f"{r['key']} {r['file']}: {r['status']}, {len(flags)} flagged")
+                for f in flags:
+                    print(f'  - "{f["test"]}": {f["reason"]}')
+            else:
+                print(f"{r['key']} {r['file']}: {r['status']}")
         return 0
     elif args.cmd == "run":
         tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
@@ -605,4 +611,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
-

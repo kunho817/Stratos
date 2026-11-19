@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import codemap, config, context, decide, embed, memstore, plan, patch, recall
+from . import codemap, config, context, decide, draftcheck, embed, memstore, plan, patch, recall
 
 
 def system_prompt(language, test_runner):
@@ -22,7 +22,9 @@ def system_prompt(language, test_runner):
         f"({top_comment}) that describes the behaviour, then test functions. Use fakes (monkeypatch) "
         "instead of the network, the GPU and real models. Work out every expected value step by step "
         "in a comment above its assertion. At most 15 tests per file, one per behaviour; keep each file "
-        "under 300 lines. The tests should fail until the task is done."
+        "under 300 lines. When the code under test reads data that another task writes (levels, settings, "
+        "tables), do not assume its contents: build your own small inputs or take cases from the data at "
+        "run time. The tests should fail until the task is done."
     )
 
 
@@ -254,7 +256,20 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                 else:
                     gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
                                         status=status)
-                results.append({"key": key, "file": tpath, "status": status})
+                entry = {"key": key, "file": tpath, "status": status}
+                if config.DRAFT_CHECK and status not in ("missing", "exists"):
+                    try:
+                        flags = draftcheck.check(gw, plan_id, p, task, root, tpath)
+                    except Exception as e:
+                        log(f"{tpath}: draft check failed: {e}")
+                        flags = []
+                    else:
+                        for f in flags:
+                            log(f'{tpath}: checker flags "{f["test"]}": {f["reason"]}')
+                        gw.telemetry.record("draft_check", plan=plan_id, key=key, file=tpath,
+                                            flags=[f["test"] for f in flags])
+                    entry["flags"] = flags
+                results.append(entry)
     finally:
         if store is not None:
             store.close()
