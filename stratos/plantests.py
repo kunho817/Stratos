@@ -46,10 +46,20 @@ def _strip_lone_fence(answer):
     return "".join(lines[fences[0] + 1:fences[1]])
 
 
-def build_messages(task, root, example=None):
+def build_messages(task, root, example=None, earlier=()):
     if example is None:
         example = config.PROJECT["example_test"]
     parts = [f"TASK {task['key']}: {task['title']}", task["goal"]]
+    if earlier:
+        parts.append(
+            "EARLIER TASKS OF THIS PLAN (done before this one; use their functions, names and numbers exactly as "
+            "they say):")
+        for t in earlier:
+            parts.append(f"{t['key']}: {t['title']}\n{t['goal']}")
+        for t in earlier:
+            first = t["tests"][0]
+            if Path(root, first).exists():
+                parts.append(context.show_file(root, first, "TEST OF AN EARLIER TASK"))
     parts.append("PROJECT FILES:\n" + plan.repo_summary(root))
     conventions = Path(root, "CONVENTIONS.md")
     if conventions.exists():
@@ -62,7 +72,11 @@ def build_messages(task, root, example=None):
     example_path = Path(root, example)
     if example_path.exists():
         parts.append(context.show_file(root, example, "EXAMPLE OF THE TEST STYLE"))
-    parts.append("WRITE THESE TEST FILES: " + ", ".join(task["tests"]))
+    new = [p for p in task["tests"] if not Path(root, p).exists()]
+    for p in task["tests"]:
+        if Path(root, p).exists():
+            parts.append(context.show_file(root, p, "EXISTING TEST, DO NOT REWRITE"))
+    parts.append("WRITE THESE TEST FILES: " + ", ".join(new or task["tests"]))
     return [{"role": "system", "content": TEST_SYSTEM},
             {"role": "user", "content": "\n\n".join(parts)}]
 
@@ -137,9 +151,9 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
     answers_dir.mkdir(parents=True, exist_ok=True)
     results = []
     written_so_far = []
-    for task in p["tasks"]:
+    for i, task in enumerate(p["tasks"]):
         key = task["key"]
-        messages = build_messages(task, root)
+        messages = build_messages(task, root, earlier=p["tasks"][:i])
         kw = {"task": f"{plan_id}-{key}", "role": "test_writer", "attempt": 1,
               "model": model_cfg["model"], "effort": model_cfg["effort"],
               "max_tokens": model_cfg["max_tokens"]}
