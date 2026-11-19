@@ -11,6 +11,7 @@ def no_network(monkeypatch, tmp_path_factory):
     monkeypatch.setattr(config, "STATE_DIR", tmp_path_factory.mktemp("state"))
     monkeypatch.setattr(config, "JEV_SHADOW", False)
     monkeypatch.setattr(config, "DIAGNOSE_AB", False)
+    monkeypatch.setattr(config, "DIAGNOSE_ALWAYS", False, raising=False)
     monkeypatch.setattr(config, "PLAN_AS_TEXT", False)
     monkeypatch.setattr(config, "PLAN_CONVERTER", None)
     monkeypatch.setattr(config, "TRIAGE", False, raising=False)
