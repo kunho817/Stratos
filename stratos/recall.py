@@ -5,6 +5,7 @@ SECTIONS = [
     ("test", "RELEVANT TESTS", 4),
     ("doc", "PROJECT CONVENTIONS", 3),
     ("episode", "PAST TASKS", 3),
+    ("guide", "GENERAL LESSONS (from earlier projects)", 4),
     ("lesson", "LESSONS FROM PEOPLE'S CORRECTIONS", 5),
 ]
 

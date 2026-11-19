@@ -2,6 +2,7 @@ from pathlib import Path
 
 import stratos.codemap as codemap
 import stratos.episodes as episodes
+from stratos import config, lessons
 
 
 def index_history(store, tasks, events):
@@ -20,7 +21,7 @@ def index_history(store, tasks, events):
     return {"chunks": len(chunks), "changed": changed, "removed": removed}
 
 
-def index_project(root, store, embedder=None, settings=None):
+def index_project(root, store, embedder=None, settings=None, lessons_path=None):
     root = Path(root)
     cmap = codemap.build(root, settings)
 
@@ -71,18 +72,26 @@ def index_project(root, store, embedder=None, settings=None):
                 "text": section_text,
             })
 
+    if lessons_path is None:
+        lessons_path = config.LESSONS
+    lessons_path = Path(lessons_path)
+    if lessons_path.exists():
+        lesson_chunks = lessons.chunks(lessons_path.read_text(encoding="utf-8"))
+        chunks.extend(lesson_chunks)
+
     changed = 0
     for chunk in chunks:
         if store.upsert(chunk):
             changed += 1
 
-    ids_by_kind = {"code": [], "test": [], "doc": []}
+    ids_by_kind = {"code": [], "test": [], "doc": [], "guide": []}
     for chunk in chunks:
         ids_by_kind[chunk["kind"]].append(chunk["id"])
 
     removed = 0
     for kind in ("code", "test", "doc"):
         removed += store.remove_except(kind, ids_by_kind[kind])
+    removed += store.remove_except("guide", ids_by_kind["guide"])
 
     embedded = 0
     if embedder is not None:
