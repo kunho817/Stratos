@@ -26,7 +26,7 @@ _DECL_RE = re.compile(
 def scan_python(text):
     """Scan Python source text into a list of symbol dicts in file order.
 
-    Each symbol is {"name", "kind", "line", "signature", "uses"}.
+    Each symbol is {"name", "kind", "line", "signature", "uses", "end"}.
     Returns [] if the text does not parse.
     """
     try:
@@ -42,7 +42,7 @@ def scan_python(text):
             sig = f"def {node.name}({ast.unparse(node.args)})"
             uses = _collect_uses(node, node.name)
             symbols.append({"name": node.name, "kind": "function", "line": node.lineno,
-                            "signature": sig, "uses": uses})
+                            "signature": sig, "uses": uses, "end": node.end_lineno})
 
         elif isinstance(node, ast.ClassDef):
             # uses = names in its bases
@@ -53,14 +53,15 @@ def scan_python(text):
                         uses.add(n.id)
             uses = sorted(uses)
             symbols.append({"name": node.name, "kind": "class", "line": node.lineno,
-                            "signature": f"class {node.name}", "uses": uses})
+                            "signature": f"class {node.name}", "uses": uses, "end": node.end_lineno})
 
             for item in node.body:
                 if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     sig = f"def {item.name}({ast.unparse(item.args)})"
                     uses = _collect_uses(item, item.name)
                     symbols.append({"name": f"{node.name}.{item.name}", "kind": "method",
-                                    "line": item.lineno, "signature": sig, "uses": uses})
+                                    "line": item.lineno, "signature": sig, "uses": uses,
+                                    "end": item.end_lineno})
 
         elif isinstance(node, (ast.Import, ast.ImportFrom)):
             continue
@@ -71,7 +72,7 @@ def scan_python(text):
                 if re.match(r'^[A-Z][A-Z0-9_]*$', target.id):
                     uses = _collect_uses(node.value, target.id)
                     symbols.append({"name": target.id, "kind": "constant", "line": node.lineno,
-                                    "signature": target.id, "uses": uses})
+                                    "signature": target.id, "uses": uses, "end": node.end_lineno})
                     continue
             top_level.append(node)
 
@@ -91,8 +92,9 @@ def scan_python(text):
                 elif isinstance(n, ast.Attribute):
                     uses.add(n.attr)
         uses = sorted(uses)
+        last = top_level[-1]
         symbols.append({"name": "(top level)", "kind": "script", "line": top_level[0].lineno,
-                        "signature": "(top level)", "uses": uses})
+                        "signature": "(top level)", "uses": uses, "end": last.end_lineno})
 
     return symbols
 
@@ -115,7 +117,7 @@ def _collect_uses(node, own_name):
 def scan_js(text):
     """Scan JavaScript source text into a list of top-level declaration symbols.
 
-    Each symbol is {"name", "kind", "line", "signature", "uses"}.
+    Each symbol is {"name", "kind", "line", "signature", "uses", "end"}.
     Returns [] when there are no top-level declarations.
     """
     lines = text.splitlines()
@@ -181,23 +183,27 @@ def scan_js(text):
         signature = _signature(lines[i])
         uses = _uses(code, name)
         symbols.append({"name": name, "kind": kind, "line": i + 1,
-                        "signature": signature, "uses": uses})
+                        "signature": signature, "uses": uses, "end": end + 1})
 
     # Top-level code: lines in no declaration and not import lines.
     top_lines = []
     first_line = None
+    last_line = None
     for i in range(n):
         if i in covered or i in import_lines:
             continue
         top_lines.append(lines[i])
         if first_line is None and lines[i].strip():
             first_line = i
+        if lines[i].strip():
+            last_line = i
 
     if first_line is not None:
         uses = _uses("\n".join(top_lines), "(top level)")
         if uses:
             symbols.append({"name": "(top level)", "kind": "script", "line": first_line + 1,
-                            "signature": "(top level)", "uses": uses})
+                            "signature": "(top level)", "uses": uses, "end": last_line + 1,
+                            "lines": list(range(first_line + 1, last_line + 2))})
 
     return symbols
 
@@ -232,6 +238,17 @@ def _uses(code, own_name):
     ids.discard(own_name)
     ids -= JS_KEYWORDS
     return sorted(ids)
+
+
+def symbol_text(text, sym):
+    """Return the source lines of sym from text.
+
+    When sym has "lines", the lines with those 1-based numbers; otherwise the lines
+    from sym["line"] to sym["end"], joined with a newline."""
+    lines = text.splitlines()
+    if "lines" in sym:
+        return "\n".join(lines[n - 1] for n in sym["lines"])
+    return "\n".join(lines[sym["line"] - 1:sym["end"]])
 
 
 def build(root, settings=None):
