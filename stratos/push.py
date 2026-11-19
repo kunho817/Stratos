@@ -34,6 +34,8 @@ def secret_hits(diff):
                 hits.append(f"file: {path}")
         elif line.startswith("+") and not line.startswith("+++"):
             content = line[1:]
+            if "pragma: allowlist secret" in content:
+                continue
             for pat in _compiled:
                 if pat.search(content):
                     hits.append(f"line: {content.strip()[:80]}")

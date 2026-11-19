@@ -363,11 +363,12 @@ def efficiency(events):
             if cid not in outcome_by_call:
                 outcome_by_call[cid] = event
 
-    # Build verdict index: task -> first verdict with result "reset_by_human"
-    reset_tasks = set()
-    for event in events:
+    # For each task, the index of its last reset_by_human verdict
+    reset_index = {}
+    for i, event in enumerate(events):
         if event.get("kind") == "verdict" and event.get("result") == "reset_by_human":
-            reset_tasks.add(event.get("task"))
+            task = event.get("task")
+            reset_index[task] = i
 
     # Assign cause to each call
     by_cause = {}
@@ -375,7 +376,7 @@ def efficiency(events):
     model_seconds = 0.0
     switch_seconds = 0.0
 
-    for event in events:
+    for i, event in enumerate(events):
         kind = event.get("kind")
         if kind == "call":
             c = event.get("completion_tokens") or 0
@@ -392,7 +393,7 @@ def efficiency(events):
             else:
                 result = outcome.get("result")
                 if result == "passed":
-                    if task in reset_tasks:
+                    if task in reset_index and reset_index[task] > i:
                         cause = "discarded"
                     else:
                         cause = "useful"
