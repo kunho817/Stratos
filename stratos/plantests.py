@@ -91,6 +91,28 @@ def check_draft(root, path):
     return ("error", output[-2000:])
 
 
+RISKY_LABELS = [
+    ("importlib.reload", re.compile(r"importlib\.reload\(|from\s+importlib\s+import\s+reload")),
+    ("sys.modules", re.compile(r"sys\.modules\s*\[[^\]]*\]\s*=(?!=)|del\s+sys\.modules|sys\.modules\.(pop|update|setdefault|clear)\(")),
+    ("os.environ assignment", re.compile(r"os\.environ\s*\[[^\]]*\]\s*=(?!=)|del\s+os\.environ|os\.environ\.(pop|update|setdefault|clear)\(")),
+    ("config assignment", re.compile(r"^\s*config\.\w+(\[[^\]]*\])*\s*=(?!=)")),
+    ("own MonkeyPatch", re.compile(r"MonkeyPatch\(\)")),
+]
+
+
+def risky_patterns(text):
+    """Return labels of risky global-state patterns found in text, each at most once, in fixed order."""
+    found = set()
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("#"):
+            continue
+        for label, pattern in RISKY_LABELS:
+            if label not in found and pattern.search(line):
+                found.add(label)
+    return [label for label, _ in RISKY_LABELS if label in found]
+
+
 def draft_tests(gw, plan_id, root, state_dir, log=print):
     p = plan.load_plan(state_dir, plan_id)
     model_cfg = config.PLANNER
@@ -132,6 +154,16 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.write_text(written[tpath], encoding="utf-8")
                 status = check_draft(root, tpath)[0]
-            gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath, status=status)
+                if tpath.endswith(".py") and status == "collected":
+                    labels = risky_patterns(written[tpath])
+                    if labels:
+                        status = "risky"
+                        log(f"{tpath}: risky: {', '.join(labels)}")
+            if status == "risky":
+                gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
+                                    status=status, risks=labels)
+            else:
+                gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
+                                    status=status)
             results.append({"key": key, "file": tpath, "status": status})
     return results
