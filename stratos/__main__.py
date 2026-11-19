@@ -47,6 +47,16 @@ def split(s):
     return [x for x in (s or "").split(",") if x]
 
 
+def refresh_memory():
+    if not config.MEMORY:
+        return
+    try:
+        c = memindex.refresh(config.REPO, config.STATE_DIR, embed.Embedder())
+        print(f"memory: {c['changed']} changed, {c['embedded']} embedded")
+    except Exception as e:
+        print(f"memory: {e}", file=sys.stderr)
+
+
 def add_one(store, title, goal, files, protected, tests, role, after):
     if role is None:
         d = decide.choose_role({'files': files, 'goal': goal})
@@ -152,6 +162,7 @@ def main(argv=None):
             goal = open(args.goal_file, encoding="utf-8").read()
         except OSError as e:
             plan_p.error(f"cannot read goal file {args.goal_file}: {e}")
+        refresh_memory()
         tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
         gw = Gateway(tel)
         planner = config.PLANNER
@@ -292,6 +303,7 @@ def main(argv=None):
                                                                 tasks=len(tasks), edited=plan_mod.edited(p))
         return 0
     elif args.cmd == "plan-tests":
+        refresh_memory()
         tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
         gw = Gateway(tel)
         try:
@@ -309,6 +321,7 @@ def main(argv=None):
         print(f"{args.task_id}: {result}")
         return 0 if result == "done" else 1
     elif args.cmd == "run-all":
+        refresh_memory()
         tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
         gw = Gateway(tel)
         try:
