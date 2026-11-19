@@ -32,3 +32,4 @@ lines; a person reads them before they are committed.
 - [tests, edge-cases] Grid placement tests must cover the start, end and edge cells, where floor/ceil and off-by-one mistakes show. (tower defense T007, from memory learn)
 - [tests, js] Inside a JS template literal or a new RegExp(...) string write \d for \d; a single backslash is dropped. (tower defense T016, from memory learn)
 - [plan, cli, errors] A command-line tool needs a task for bad input: a missing file, a malformed number or date gives one clear message and exit code 1, never a traceback. (Ledger trial 3: nobody asked, nobody planned it)
+- [code, tests, cli] A command-line entry point passes run()'s result to sys.exit(); test the real process exit code with a subprocess, not only run()'s return value. (Ledger trial 3: run returned 1, the process exited 0)

@@ -97,6 +97,15 @@ CONVENTIONS.md this time, no data model. So far:
    e. **What a frontier model would have added and nobody asked for:** error handling. A missing file, an amount
       "abc" or a budget "lots" end in a traceback; "report 2026-13" is accepted. Lesson candidate: a command-line
       tool's plan needs a task for bad input (clear message, exit code 1). Small: an unused DEFAULT in storage.py.
+   f. **Round 2 (list, rules list/remove, budget list, "1,500.00").** First planning failed 3 times: Swift kept the
+      existing test file first whenever it extended a module, and once wrote "After: T004" (a past task id from the
+      memory pack); the search did not bring the [plan, cli, errors] lesson for a goal about lists. Fixed in code
+      (T131-T134): fix_new_tests adds tests/test_<key>.py in front instead of refusing, past task ids are dropped
+      from After, and each role gets all lessons of its tag (plan / tests / code) instead of a search. Re-plan: valid
+      at once, and it planned "bad arguments print a clear message and exit code 1" by itself. Drafts 4/4 usable,
+      run 4/4 on the first attempt, 178 tests. Running the commands found one bug the tests missed: run returned 1
+      but `python -m ledger` exited 0 (__main__ ignored the result) - fixed by T011 with a subprocess test; lesson
+      added.
    c. The risky/leaks checks skip drafts whose status is import_error - which is every draft of a new module. Run
       risky_patterns on every written .py draft.
 
