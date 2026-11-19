@@ -14,6 +14,7 @@
   python -m stratos replay T001 T002 --role coder --model M --effort E --max-tokens N --tries K
   python -m stratos memory index [--no-vectors]
   python -m stratos memory search QUERY [-k N] [--no-vectors]
+  python -m stratos memory learn
 """
 import argparse
 import json
@@ -26,6 +27,7 @@ from . import decide
 from . import embed
 from . import gitops
 from . import jev
+from . import learn
 from . import memindex
 from . import memsearch
 from . import memstore
@@ -129,6 +131,7 @@ def main(argv=None):
     memory_search_p.add_argument("query")
     memory_search_p.add_argument("-k", "--k", type=int, default=10, help="number of results")
     memory_search_p.add_argument("--no-vectors", action="store_true", help="skip vector search")
+    memory_sub.add_parser("learn", help="learn lessons from people's corrections")
 
     args = ap.parse_args(argv)
 
@@ -479,6 +482,13 @@ def main(argv=None):
         print(f"replay {model}: {passed}/{len(results)} passed, {total_seconds:.0f} s")
         return 0
     elif args.cmd == "memory":
+        if args.memory_cmd == "learn":
+            r = learn.learn(Gateway(Telemetry(config.STATE_DIR / "telemetry.jsonl")),
+                            Store(config.STATE_DIR).tasks(),
+                            Telemetry(config.STATE_DIR / "telemetry.jsonl").load(),
+                            config.LESSONS, config.STATE_DIR, config.REPO.name)
+            print(f"learn: {r['corrections']} corrections, {r['added']} added, {r['duplicates']} duplicates, {r['skipped']} skipped")
+            return 0
         store = memstore.Store(config.STATE_DIR / "memory.db")
         try:
             embedder = None if args.no_vectors else embed.Embedder()
@@ -513,3 +523,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+
