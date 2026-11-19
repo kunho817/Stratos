@@ -52,6 +52,8 @@ PLANNER = {"model": "swift-1.5-iq2_xs", "effort": "medium", "max_tokens": 24000,
 
 # PLAN_CRITIC: reviews a plan before its tests are drafted; Flint named 17 of 24 known plan problems in experiment b
 PLAN_CRITIC = {"model": "flint-40b-a2.5b-ud-q4_k_xl", "effort": "low", "max_tokens": 12000}
+# STRATOS_PLAN_CRITIQUE=0 turns the plan critique off (run from CLI after plan, and via plan-critique)
+PLAN_CRITIQUE = os.environ.get("STRATOS_PLAN_CRITIQUE", "1") != "0"
 
 # Text planning (2026-11-18): the planner writes the plan as Key:/Title:/Goal:... text, which plan.parse_text_plan
 # reads (AgentWorld as a JSON converter broke the JSON on quotes in goals twice). PLAN_CONVERTER is only the fallback

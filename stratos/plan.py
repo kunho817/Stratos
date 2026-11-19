@@ -464,6 +464,14 @@ def load_plan(state_dir, pid):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def save_critique(state_dir, plan_id, problems):
+    p = load_plan(state_dir, plan_id)
+    p["critique"] = problems
+    state_dir = Path(state_dir)
+    path = state_dir / "plans" / f"{plan_id}.json"
+    path.write_text(json.dumps(p, indent=1, ensure_ascii=False), encoding="utf-8")
+
+
 def edited(plan):
     return plan_hash(plan["tasks"]) != plan["hash"]
 
