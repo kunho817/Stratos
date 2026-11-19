@@ -1,7 +1,8 @@
 """Tests for task recall: a context pack from memory for one role's prompt (memory M5).
 
 recall.SECTIONS = [("guide", "GENERAL LESSONS (from earlier projects)", 4), ("lesson", "LESSONS FROM PEOPLE'S
-CORRECTIONS", 5), ("episode", "PAST TASKS", 3), ("doc", "PROJECT CONVENTIONS", 3), ("code", "RELEVANT CODE", 6),
+CORRECTIONS", 5), ("wiki", "MODULE NOTES (written by a model from the code;
+check the code)", 3), ("episode", "PAST TASKS", 3), ("doc", "PROJECT CONVENTIONS", 3), ("code", "RELEVANT CODE", 6),
 ("test", "RELEVANT TESTS", 4)] (kind, heading, how many). (Memory A/B 2, 2026-11-19: code entries filled the budget
 first and only 2 general lessons fit, so the short, general sections come first, task recall_order.)
 
@@ -50,7 +51,7 @@ def test_sections(store, monkeypatch):
     monkeypatch.setattr(memsearch, "search", search)
     text = recall.pack(store, "make f faster")
     # (task recall_order: the short, general sections come first; code entries are cut at 1000)
-    assert [c[1:] for c in calls] == [(4, {"guide"}), (5, {"lesson"}), (3, {"episode"}), (3, {"doc"}), (6, {"code"}),
+    assert [c[1:] for c in calls] == [(4, {"guide"}), (5, {"lesson"}), (3, {"wiki"}), (3, {"episode"}), (3, {"doc"}), (6, {"code"}),
                                       (4, {"test"})]
     assert text == "\n\n".join([
         "LESSONS FROM PEOPLE'S CORRECTIONS:\n--- T1: a (keyword)\nT1 a: the old test pinned wave 5",

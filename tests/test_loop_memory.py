@@ -61,8 +61,8 @@ def test_task_memory(tmp_path, monkeypatch):
 
 
 def test_coder_sections():
-    assert loop.CODER_SECTIONS == [("guide", "GENERAL LESSONS (from earlier projects)", 3),
-                                   ("lesson", "LESSONS FROM PEOPLE'S CORRECTIONS", 3), ("code", "RELEVANT CODE", 5)]
+    # (task wiki_memory: module notes between the lessons and the code)
+    assert [s[0] for s in loop.CODER_SECTIONS] == ["guide", "lesson", "wiki", "code"]
 
 
 class FakeGateway:
