@@ -86,3 +86,5 @@ WRITABLE_SUFFIXES = set(PROJECT["writable_suffixes"])
 
 # the model that turns people's corrections into general lessons (M3b); same model as reviewer, loaded at end of run
 LEARNER = {"model": "qwen3.6-35b-a3b-ud-q3_k_m", "effort": "none", "max_tokens": 600}
+# the coder's model writes the module notes of the wiki
+WIKI = {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "none", "max_tokens": 3000}
