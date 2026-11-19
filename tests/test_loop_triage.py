@@ -5,7 +5,9 @@ Right before write_task sets a task to needs_human: when config.TRIAGE is on and
 text>, task["files"]) and detail = the last attempt's test output. Then store.update(task_id, triage=result),
 gw.telemetry.record("triage", task=task_id, verdict=..., test=..., reason=...) and a log line
 "  triage: <verdict> - <reason>". An exception from triage.triage is logged and ignored: the task still becomes
-needs_human. Nothing happens when TRIAGE is off or when the last result was not "failed" (e.g. "no_files").
+needs_human. Nothing happens when TRIAGE is off or when no attempt's result was "failed".
+(task triage_last_failed, 2026-11-20: the last *failed* attempt is triaged, even when a later attempt was
+"no_files" or another result; before, only a last attempt that failed was.)
 (The planner model's draft replaced stratos.triage in sys.modules and built its own MonkeyPatch; rewritten.)"""
 import pytest
 
@@ -103,10 +105,20 @@ def test_no_triage_when_off(env, monkeypatch):
     assert rec["calls"] == []
 
 
-def test_no_triage_when_the_last_result_was_not_failed(env):
+def test_triage_uses_the_last_failed_attempt(env):
+    """(task triage_last_failed, P1 2026-11-20) Orbit T006 went to a person 3 times with no triage because its last
+    attempt was no_files. Triage now runs on the last attempt whose result was "failed" (its answer and its test
+    output), whatever came after it."""
     store, tel, rec = env
     answers = [WRITER, WRITER, WRITER, "no files here"]
     assert run(env, answers, failures(3))[0] == "needs_human"
+    assert rec["calls"] == [("T001", "T001", [("pkg/a.py", "X = 1\n")], "FAILED tests/x.py::t3")]
+    assert store.get("T001")["triage"] == RESULT
+
+
+def test_no_triage_when_no_attempt_failed_its_tests(env):
+    store, tel, rec = env
+    assert run(env, ["no files here"] * 4, [])[0] == "needs_human"
     assert rec["calls"] == []
 
 

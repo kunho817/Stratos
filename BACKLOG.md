@@ -10,6 +10,22 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
 
 ## Open (top first)
 
+**Work order (user, 2026-11-20): P1 -> P2 -> P3 -> P4, each P ends with push + a trial.**
+- P1 first-try pass rate without more model calls: preflight (run the task's tests on its base before any model
+  call; refuse import errors of other modules, broken test files, failing old tests), the preflight failures in the
+  first prompt, a syntax check of each answer with a quick re-ask, triage on the last *failed* attempt,
+  `stratos drop`, `status` warns about stale test lists (items 11, 12). Measure with `report --efficiency`.
+  Evidence (4 projects, 192 tasks): 107 first-try passes; of 85 first failures 36 tasks were later reset by a
+  person, 38 of 50 reset reasons "test wrong or outdated"; 263 failed attempts before a pass, 2.9 h model time.
+- P2 test drafts with a second model (missed request of 2026-11-19: multi-model cross-checks): Gemma 4 31B
+  uncensored (Jiunsong SuperGemma4-31b-abliterated Q4_K_M, G:\PolyStrata-models, user 2026-11-20) as a non-Qwen
+  checker; offline experiment (a): how many known wrong drafts (trial 1 x8, Orbit x5) each of Qwen3.6, Flint,
+  Gemma 4 catches; then a draft check before running; the test writer proposes edits to old tests that call changed
+  names; data files whole in its pack; drafts see the goals of the tasks they come after.
+- P3 plan critique (experiment (b) on Ledger's goal), a second model checks wiki pages, a wiki overview page, packs
+  for test writer / reviewer / triage, M6 A/B.
+- P4 time: fewer model switches, Tiel 2 tries (item 4), worktrees get main (item 8), decide diagnosis A/B and Jev.
+
 Process (user, 2026-11-18): after each feature chunk (one "push"), build a larger throwaway project with Stratos
 (e.g. a web game) in D:\Strata\Trials\<name> and log what breaks here. Next trial: after the planner chunk (P006).
 
