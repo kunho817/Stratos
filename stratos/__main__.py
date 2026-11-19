@@ -469,6 +469,9 @@ def main(argv=None):
         try:
             embedder = None if args.no_vectors else embed.Embedder()
             if args.memory_cmd == "index":
+                h = memindex.index_history(store, Store(config.STATE_DIR).tasks(),
+                                           Telemetry(config.STATE_DIR / "telemetry.jsonl").load())
+                print(f"history: {h['chunks']} chunks, {h['changed']} changed, {h['removed']} removed")
                 counts = memindex.index_project(config.REPO, store, embedder)
                 print(f"memory: {counts['chunks']} chunks, {counts['changed']} changed, {counts['removed']} removed, {counts['embedded']} embedded")
                 return 0
@@ -496,4 +499,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
-

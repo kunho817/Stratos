@@ -1,6 +1,23 @@
 from pathlib import Path
 
 import stratos.codemap as codemap
+import stratos.episodes as episodes
+
+
+def index_history(store, tasks, events):
+    chunks = episodes.history_chunks(tasks, events)
+
+    changed = 0
+    for chunk in chunks:
+        if store.upsert(chunk):
+            changed += 1
+
+    episode_ids = [c["id"] for c in chunks if c["kind"] == "episode"]
+    lesson_ids = [c["id"] for c in chunks if c["kind"] == "lesson"]
+
+    removed = store.remove_except("episode", episode_ids) + store.remove_except("lesson", lesson_ids)
+
+    return {"chunks": len(chunks), "changed": changed, "removed": removed}
 
 
 def index_project(root, store, embedder=None, settings=None):
