@@ -85,8 +85,8 @@ def test_none_words_in_list_fields_mean_empty():
     """Memory A/B (2026-11-19): 4 of 9 plans failed because Swift wrote "After: none" or "After: (none)". In the list
     fields (Files, Tests, Protected, After) an item that is, case-insensitively, one of none, (none), -, n/a, nothing,
     [] is dropped, so such a field is empty."""
-    text = ("Key: a\nTitle: A\nGoal: g\nFiles: src/a.js\nTests: tests/a.test.js\nProtected: None\nAfter: none\n\n"
-            "Key: b\nTitle: B\nGoal: g\nFiles: src/b.js\nTests: tests/b.test.js\nProtected: -\nAfter: (none)\n\n"
-            "Key: c\nTitle: C\nGoal: g\nFiles: src/c.js\nTests: tests/c.test.js\nProtected: n/a\nAfter: a, b, []\n")
+    text = ("Key: a\nTitle: A\nGoal: g\nFiles: stratos/a.py\nTests: tests/test_a.py\nProtected: None\nAfter: none\n\n"
+            "Key: b\nTitle: B\nGoal: g\nFiles: stratos/b.py\nTests: tests/test_b.py\nProtected: -\nAfter: (none)\n\n"
+            "Key: c\nTitle: C\nGoal: g\nFiles: stratos/c.py\nTests: tests/test_c.py\nProtected: n/a\nAfter: a, b, []\n")
     tasks = plan.parse_text_plan(text)
     assert [(t["key"], t["protected"], t["after"]) for t in tasks] == [("a", [], []), ("b", [], []), ("c", [], ["a", "b"])]
