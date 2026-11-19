@@ -8,6 +8,9 @@ format_issues(review)      -> the issues as lines for the next attempt's prompt
 import ast
 import json
 import re
+from pathlib import Path
+
+from stratos import config
 
 REVIEW_SYSTEM = (
     "You review the diff against the task. "
@@ -28,14 +31,42 @@ REVIEW_SYSTEM = (
 )
 
 
-def build_messages(task, diff):
+def project_files(root, settings=None):
+    if settings is None:
+        settings = config.PROJECT
+    root = Path(root)
+    paths = []
+    for rel in settings["source_dirs"]:
+        base = root / rel
+        if not base.is_dir():
+            continue
+        for path in base.rglob("*"):
+            if not path.is_file():
+                continue
+            rel_path = path.relative_to(root)
+            if "__pycache__" in rel_path.parts:
+                continue
+            if path.suffix == ".pyc":
+                continue
+            paths.append(rel_path.as_posix())
+    return sorted(paths)
+
+
+def build_messages(task, diff, files=None):
     task_id = task.get("id", "")
     title = task.get("title", "")
     goal = task.get("goal", "")
+    files_part = ""
+    if files:
+        files_part = (
+            "PROJECT FILES (every module that exists; a name that is not here is not a module):\n"
+            + "\n".join(files) + "\n\n"
+        )
     user = (
         "Task id: {id}\n"
         "Title: {title}\n"
         "Goal: {goal}\n\n"
+        + files_part +
         "Diff:\n"
         "```diff\n"
         "{diff}\n"
