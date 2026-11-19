@@ -12,13 +12,35 @@ SECTIONS = [
 ]
 
 
-def pack(store, query, embedder=None, cmap=None, budget=12000, sections=None):
+def pack(store, query, embedder=None, cmap=None, budget=12000, sections=None, always_tags=None):
     if sections is None:
         sections = SECTIONS
 
     finished_sections = []
 
+    if always_tags:
+        heading = "GENERAL LESSONS (from earlier projects)"
+        lines = []
+        for chunk in store.all("guide"):
+            tags = set(chunk["title"].split(", "))
+            if tags & always_tags:
+                line = f"- {chunk['text']}"
+                new_lines = lines + [line]
+                section_text = heading + ":\n" + "\n".join(new_lines)
+                total = section_text
+                if finished_sections:
+                    total = "\n\n".join([section_text] + finished_sections)
+                if len(total) <= budget:
+                    lines = new_lines
+
+        if lines:
+            section_text = heading + ":\n" + "\n".join(lines)
+            finished_sections.append(section_text)
+
     for kind, heading, n in sections:
+        if always_tags and kind == "guide":
+            continue
+
         hits = memsearch.search(store, query, embedder, cmap, k=n, kinds={kind})
         if not hits:
             continue
