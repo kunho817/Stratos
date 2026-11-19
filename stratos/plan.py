@@ -166,6 +166,47 @@ _LIST_FIELDS = {"Files", "Tests", "Protected", "After"}
 _NONE_WORDS = {"none", "(none)", "-", "n/a", "nothing", "[]"}
 
 
+def fix_new_tests(tasks, root, settings=None):
+    if settings is None:
+        settings = config.PROJECT
+    test_dir = settings["test_dir"]
+    suffix = settings["test_suffixes"][0]
+    root = Path(root)
+    taken = set()
+    for task in tasks:
+        for t in task["tests"]:
+            taken.add(t)
+    firsts = {}
+    messages = []
+    for task in tasks:
+        key = task["key"]
+        first = task["tests"][0]
+        reason = None
+        if first in firsts:
+            reason = f"{first} is task {firsts[first]}'s first test file"
+        elif Path(root, first).exists():
+            reason = f"{first} already existed"
+        if reason:
+            slug = re.sub(r"[^a-z0-9]+", "_", task["key"].lower()).strip("_")
+            if suffix == ".py":
+                base_name = f"{test_dir}/test_{slug}.py"
+            else:
+                base_name = f"{test_dir}/{slug}{suffix}"
+            name = base_name
+            i = 2
+            while Path(root, name).exists() or name in taken:
+                if suffix == ".py":
+                    name = f"{test_dir}/test_{slug}_{i}.py"
+                else:
+                    name = f"{test_dir}/{slug}_{i}{suffix}"
+                i += 1
+            task["tests"].insert(0, name)
+            taken.add(name)
+            messages.append(f"Task {key}: added the new test file {name} ({reason})")
+        firsts[task["tests"][0]] = key
+    return messages
+
+
 def parse_text_plan(text):
     lines = text.split("\n")
     tasks = []
@@ -224,6 +265,21 @@ def parse_text_plan(text):
                 else:
                     task["role"] = None
         result_tasks.append(task)
+
+    # Filter After items: drop ^T\d+$ that are not keys of earlier tasks
+    earlier_keys = set()
+    for task in result_tasks:
+        new_after = []
+        for item in task.get("after", []):
+            if item in earlier_keys:
+                new_after.append(item)
+            elif re.match(r"^T\d+$", item):
+                continue
+            else:
+                new_after.append(item)
+        task["after"] = new_after
+        if "key" in task:
+            earlier_keys.add(task["key"])
 
     return parse_plan(json.dumps({"tasks": result_tasks}))
 
