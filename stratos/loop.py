@@ -110,9 +110,8 @@ def write_task(store, gw, task_id, log=print):
             before = pre["output"][-3000:]
     failure = task.get("review_feedback")
     attempt = task.get("attempts", 0)
-    last_text = None
-    last_result = None
-    last_detail = None
+    last_failed_text = None
+    last_failed_detail = None
     for role, tries in attempt_plan(task):
         r = config.ROLES[role]
         history = []
@@ -132,9 +131,9 @@ def write_task(store, gw, task_id, log=print):
                                         attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"])
             save_answer(task_id, attempt, text)
             result, detail = check_answer(task, wt, text, getattr(gw, "last_finish", None))
-            last_text = text
-            last_result = result
-            last_detail = detail
+            if result == "failed":
+                last_failed_text = text
+                last_failed_detail = detail
             gw.telemetry.record("outcome", call_id=call_id, task=task_id, result=result, detail=detail[-500:])
             store.decide(task=task_id, attempt=attempt, role=role, model=r["model"], result=result)
             log(f"  attempt {attempt} ({role}, {r['model']}): {result}")
@@ -185,10 +184,10 @@ def write_task(store, gw, task_id, log=print):
             if d["choice"]:
                 log(f"  attempt {attempt}: same failure again, moving to the cross-check")
                 break
-    if config.TRIAGE and last_result == "failed":
-        code_files = patch.parse_files(last_text, task["files"] or None)
+    if config.TRIAGE and last_failed_text is not None:
+        code_files = patch.parse_files(last_failed_text, task["files"] or None)
         try:
-            triage_result = triage.triage(gw, task, wt, code_files, last_detail)
+            triage_result = triage.triage(gw, task, wt, code_files, last_failed_detail)
             store.update(task_id, triage=triage_result)
             gw.telemetry.record("triage", task=task_id, verdict=triage_result["verdict"],
                                 test=triage_result["test"], reason=triage_result["reason"])
