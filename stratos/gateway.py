@@ -26,6 +26,7 @@ class Gateway:
         current = self.health().get("model")
         if current == model:
             return 0.0
+        self.telemetry.record("switch_start", model=model, from_model=current)
         t0 = time.time()
         self._req("/api/models/load", {"model": model})
         secs = round(time.time() - t0, 2)
@@ -36,6 +37,7 @@ class Gateway:
         """Returns (call_id, text). text is the answer, or the reasoning when the answer is empty (some models
         leave their output inside the thinking)."""
         call_id = new_call_id()
+        self.telemetry.record("call_start", call_id=call_id, task=task, role=role, attempt=attempt, model=model)
         t0 = time.time()
         body = {"model": model, "messages": messages, "reasoning_effort": effort, "max_tokens": max_tokens}
         if reasoning_budget is not None:
