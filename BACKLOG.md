@@ -42,6 +42,18 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
   (3/3) but 12 min. Swift found the shared-state DOM tests Claude removed by hand; nobody found "pixel (0,0) places
   a tower at (0,0)" (the start cell) or "trail last entry equals probe position". The reviewer model (Qwen3.6) is the
   weakest checker by far. -> the draft check uses Swift (it is loaded right after it writes the drafts: no switch).
+  **P2 built (T161-T165, 744 tests, 2026-11-20):** TAP multi-line expected/actual/error values kept (item 13; known
+  nit: value lines are scanned again by the outer loop, so a nested "error:" inside a value can appear twice),
+  draftcheck.py (Swift, the whole plan's goals + the task's files, flags only names that exist in the draft), plan-tests
+  runs it on every written draft and prints the flags (advisory: a person still reads every draft), the test writer is
+  told not to assume the contents of data another task writes, the reviewer rates repeated work medium only when it
+  grows with the input (item 14), `stratos accept` (item 15, first half). Not built from the P2 list: edits to old
+  tests proposed by the test writer (moved to P3).
+  Run: first try 2 of 5 (T162, T164). T163 failed on Claude's own wrong test (a plain-text answer becomes a draft, so
+  it is never "missing") - Swift tried to change the fallback to pass it and the reviewer rejected that as unrequested
+  twice, correctly; Claude's fix then had a broken escape and **preflight refused it before any model call** (the first
+  real refusal). T165: Tiel answered no_files twice on the 640-line __main__.py (M3a's note again: big files need
+  edit-style answers or smaller modules).
 - P3 plan critique (experiment (b) on Ledger's goal), a second model checks wiki pages, a wiki overview page, packs
   for test writer / reviewer / triage, M6 A/B.
 - P4 time: fewer model switches, Tiel 2 tries (item 4), worktrees get main (item 8), decide diagnosis A/B and Jev.
