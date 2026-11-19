@@ -343,3 +343,240 @@ def plans_summary(plans, events):
             "drafts": drafts,
         })
     return result
+
+
+WASTE_CAUSES = ("tests_failed", "cut_off", "no_files", "dropped_defs", "other_failure", "discarded")
+
+
+def efficiency(events):
+    # Build call index: call_id -> event
+    call_by_id = {}
+    for event in events:
+        if event.get("kind") == "call":
+            call_by_id[event["call_id"]] = event
+
+    # Build outcome index: call_id -> first outcome event
+    outcome_by_call = {}
+    for event in events:
+        if event.get("kind") == "outcome":
+            cid = event["call_id"]
+            if cid not in outcome_by_call:
+                outcome_by_call[cid] = event
+
+    # Build verdict index: task -> first verdict with result "reset_by_human"
+    reset_tasks = set()
+    for event in events:
+        if event.get("kind") == "verdict" and event.get("result") == "reset_by_human":
+            reset_tasks.add(event.get("task"))
+
+    # Assign cause to each call
+    by_cause = {}
+    all_completion_tokens = 0
+    model_seconds = 0.0
+    switch_seconds = 0.0
+
+    for event in events:
+        kind = event.get("kind")
+        if kind == "call":
+            c = event.get("completion_tokens") or 0
+            s = event.get("seconds") or 0
+            all_completion_tokens += c
+            model_seconds += s
+
+            cid = event["call_id"]
+            outcome = outcome_by_call.get(cid)
+            task = event.get("task")
+
+            if outcome is None:
+                cause = "support"
+            else:
+                result = outcome.get("result")
+                if result == "passed":
+                    if task in reset_tasks:
+                        cause = "discarded"
+                    else:
+                        cause = "useful"
+                elif result in ("review_approve", "review_changes"):
+                    cause = "review"
+                elif result == "failed":
+                    cause = "tests_failed"
+                elif result == "no_files":
+                    if event.get("finish") == "length":
+                        cause = "cut_off"
+                    else:
+                        cause = "no_files"
+                elif result == "dropped_defs":
+                    cause = "dropped_defs"
+                else:
+                    cause = "other_failure"
+
+            bucket = by_cause.setdefault(cause, {"calls": 0, "completion_tokens": 0, "seconds": 0.0})
+            bucket["calls"] += 1
+            bucket["completion_tokens"] += c
+            bucket["seconds"] += s
+
+        elif kind == "switch":
+            switch_seconds += event.get("seconds") or 0
+
+    # waste
+    waste_tokens = 0
+    waste_seconds = 0.0
+    for cause in WASTE_CAUSES:
+        if cause in by_cause:
+            waste_tokens += by_cause[cause]["completion_tokens"]
+            waste_seconds += by_cause[cause]["seconds"]
+
+    if all_completion_tokens > 0:
+        share = round(waste_tokens / all_completion_tokens, 3)
+    else:
+        share = 0.0
+
+    waste = {"completion_tokens": waste_tokens, "seconds": round(waste_seconds, 1), "share": share}
+
+    # time: active seconds from sessions
+    ts_values = sorted(e["ts"] for e in events if "ts" in e)
+    active_seconds = 0.0
+    if ts_values:
+        session_start = ts_values[0]
+        prev = ts_values[0]
+        for ts in ts_values[1:]:
+            if ts - prev > 600:
+                active_seconds += prev - session_start
+                session_start = ts
+            prev = ts
+        active_seconds += prev - session_start
+
+    model_seconds = round(model_seconds, 1)
+    switch_seconds = round(switch_seconds, 1)
+    active_seconds = round(active_seconds, 1)
+    other_seconds = round(max(0, active_seconds - model_seconds - switch_seconds), 1)
+
+    time_info = {
+        "model_seconds": model_seconds,
+        "switch_seconds": switch_seconds,
+        "active_seconds": active_seconds,
+        "other_seconds": other_seconds,
+    }
+
+    # first_try
+    coder_calls = []
+    for event in events:
+        if event.get("kind") == "call" and event.get("role") in ("coder", "coder_hard"):
+            cid = event["call_id"]
+            outcome = outcome_by_call.get(cid)
+            task = event.get("task")
+            coder_calls.append((cid, task, event["role"], outcome))
+
+    # Find first coder/coder_hard call per task (by event order)
+    first_coder_by_task = {}
+    for cid, task, role, outcome in coder_calls:
+        if task is not None and task not in first_coder_by_task:
+            first_coder_by_task[task] = (cid, role, outcome)
+
+    tasks_count = 0
+    passed_count = 0
+    by_role = {}
+
+    for task, (cid, role, outcome) in first_coder_by_task.items():
+        tasks_count += 1
+        is_passed = outcome is not None and outcome.get("result") == "passed"
+        if is_passed:
+            passed_count += 1
+        if role not in by_role:
+            by_role[role] = [0, 0]
+        by_role[role][1] += 1
+        if is_passed:
+            by_role[role][0] += 1
+
+    first_try = {"tasks": tasks_count, "passed": passed_count, "by_role": by_role}
+
+    # attempts: mean number of coder/coder_hard outcomes for tasks whose last such outcome is "passed"
+    coder_outcomes_by_task = {}
+    for cid, task, role, outcome in coder_calls:
+        if task is not None:
+            coder_outcomes_by_task.setdefault(task, []).append(outcome)
+
+    passed_task_counts = []
+    for task, outcome_list in coder_outcomes_by_task.items():
+        # last outcome
+        last_outcome = outcome_list[-1]
+        if last_outcome is not None and last_outcome.get("result") == "passed":
+            passed_task_counts.append(len(outcome_list))
+
+    if passed_task_counts:
+        attempts = round(sum(passed_task_counts) / len(passed_task_counts), 2)
+    else:
+        attempts = 0.0
+
+    # cut_off: calls with finish "length"
+    cut_off_calls = 0
+    cut_off_tokens = 0
+    for event in events:
+        if event.get("kind") == "call" and event.get("finish") == "length":
+            cut_off_calls += 1
+            cut_off_tokens += event.get("completion_tokens") or 0
+
+    cut_off = {"calls": cut_off_calls, "completion_tokens": cut_off_tokens}
+
+    # top_tasks: top 5 tasks by completion tokens across all calls
+    task_tokens = {}
+    task_seconds = {}
+    task_calls = {}
+    for event in events:
+        if event.get("kind") == "call":
+            task = event.get("task")
+            c = event.get("completion_tokens") or 0
+            s = event.get("seconds") or 0
+            if task not in task_tokens:
+                task_tokens[task] = 0
+                task_seconds[task] = 0.0
+                task_calls[task] = 0
+            task_tokens[task] += c
+            task_seconds[task] += s
+            task_calls[task] += 1
+
+    top_sorted = sorted(task_tokens.keys(), key=lambda t: task_tokens[t], reverse=True)
+    top_tasks = []
+    for t in top_sorted[:5]:
+        top_tasks.append({
+            "task": t,
+            "completion_tokens": task_tokens[t],
+            "seconds": round(task_seconds[t], 1),
+            "calls": task_calls[t],
+        })
+
+    return {
+        "by_cause": by_cause,
+        "waste": waste,
+        "time": time_info,
+        "first_try": first_try,
+        "attempts": attempts,
+        "cut_off": cut_off,
+        "top_tasks": top_tasks,
+    }
+
+
+def format_efficiency(e):
+    lines = ["efficiency:"]
+    total_tokens = sum(b["completion_tokens"] for b in e["by_cause"].values())
+    w = e["waste"]
+    lines.append(f"  generated: {total_tokens} tokens, waste {w['completion_tokens']} ({w['share']*100:.1f}%) in {w['seconds']:.0f} s")
+    lines.append("  by cause:")
+    sorted_causes = sorted(e["by_cause"].keys(), key=lambda c: e["by_cause"][c]["completion_tokens"], reverse=True)
+    for cause in sorted_causes:
+        b = e["by_cause"][cause]
+        lines.append(f"    {cause}: {b['calls']} calls, {b['completion_tokens']} tokens, {b['seconds']:.0f} s")
+    t = e["time"]
+    lines.append(f"  time: model {t['model_seconds']:.0f} s, switches {t['switch_seconds']:.0f} s, other {t['other_seconds']:.0f} s of {t['active_seconds']:.0f} s active")
+    ft = e["first_try"]
+    first_try_line = f"  first try: {ft['passed']}/{ft['tasks']} tasks"
+    first_try_line += "".join(f", {role} {p}/{n}" for role, (p, n) in sorted(ft["by_role"].items()))
+    lines.append(first_try_line)
+    lines.append(f"  attempts per passed task: {e['attempts']}")
+    co = e["cut_off"]
+    lines.append(f"  cut off at the length limit: {co['calls']} calls, {co['completion_tokens']} tokens")
+    lines.append("  most expensive tasks:")
+    for tt in e["top_tasks"]:
+        task_str = tt["task"] if tt["task"] is not None else "-"
+        lines.append(f"    {task_str}: {tt['completion_tokens']} tokens, {tt['seconds']:.0f} s, {tt['calls']} calls")
+    return lines
