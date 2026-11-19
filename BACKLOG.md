@@ -17,6 +17,17 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
   `stratos drop`, `status` warns about stale test lists (items 11, 12). Measure with `report --efficiency`.
   Evidence (4 projects, 192 tasks): 107 first-try passes; of 85 first failures 36 tasks were later reset by a
   person, 38 of 50 reset reasons "test wrong or outdated"; 263 failed attempts before a pass, 2.9 h model time.
+  **P1 built (T154-T160, 721 tests, 2026-11-20):** verify.syntax_errors (py compile, node --check; trap: node 24
+  passes an ESM syntax error in a .js file when no package.json says "type": "module", so such files are checked
+  again as --input-type=module - plantests' JS draft check has the same hole), preflight.py (refuses missing or broken
+  test files, imports of files the task does not write, uninstalled modules; otherwise its failing output goes into
+  the first prompt), check_answer stops at "syntax_error" before the tests, triage on the last *failed* attempt,
+  `stratos drop` (T142 dropped), `status` warns about test files changed after a task was added (it flagged T142's).
+  Run: 7 tasks, 10 attempts (4 first-try of 7). Claude found one bug by reading T155: `from stratos import x` with x
+  missing names stratos/__init__.py in the ImportError, so preflight would have refused every new-module task (T160).
+  Seen: the diagnosis switches to another model and back between two Tiel attempts (6 s each way) - P4.
+  Not built: the "quick re-ask" on a syntax error (it is a normal failed attempt). The first-try effect is measured
+  on the next trial.
 - P2 test drafts with a second model (missed request of 2026-11-19: multi-model cross-checks): Gemma 4 31B
   uncensored (Jiunsong SuperGemma4-31b-abliterated Q4_K_M, G:\PolyStrata-models, user 2026-11-20) as a non-Qwen
   checker; offline experiment (a): how many known wrong drafts (trial 1 x8, Orbit x5) each of Qwen3.6, Flint,
