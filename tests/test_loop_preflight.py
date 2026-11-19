@@ -1,4 +1,4 @@
-"""Tests for task loop_preflight (P1, 2026-11-20, after the preflight task): write_task runs preflight.check before any
+r"""Tests for task loop_preflight (P1, 2026-11-20, after the preflight task): write_task runs preflight.check before any
 model call and shows the base's failing output in the first prompt; check_answer stops at a syntax error.
 
 1. config.PREFLIGHT (True by default; tests/conftest.py turns it off). When on, write_task calls

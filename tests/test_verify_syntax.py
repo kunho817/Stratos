@@ -1,4 +1,4 @@
-"""Tests for task syntax_errors (P1, 2026-11-20): verify.syntax_errors(root, paths) -> list of str.
+r"""Tests for task syntax_errors (P1, 2026-11-20): verify.syntax_errors(root, paths) -> list of str.
 
 A cheap check that runs before any test: the files a model wrote (or a task's test files) must at least compile.
 For each path in `paths`, in order (paths are relative to root, POSIX or not):

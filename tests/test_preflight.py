@@ -1,4 +1,4 @@
-"""Tests for task preflight (P1, 2026-11-20): stratos/preflight.py checks a task's tests on its base before any model
+r"""Tests for task preflight (P1, 2026-11-20): stratos/preflight.py checks a task's tests on its base before any model
 call, so a task that no coder can pass is handed to a person at once instead of after several attempts and model
 switches. Evidence: of 85 first-try failures in 4 projects, 36 tasks were later reset by a person; causes seen: a
 test that imports a module another task writes (Orbit T003, a missing After), test files with syntax errors.
