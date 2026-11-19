@@ -17,6 +17,7 @@ def test_index_history(tmp_path):
     s.upsert({"id": "code:a.py:f", "kind": "code", "source": "a.py", "title": "a.py:f", "text": "x"})
     assert memindex.index_history(s, [T1, T2], EV) == {"chunks": 3, "changed": 3, "removed": 0}
     assert [c["id"] for c in s.all()] == ["code:a.py:f", "episode:T001", "episode:T002", "lesson:reset:T001:1"]
-    assert memindex.index_history(s, [T1], []) == {"chunks": 1, "changed": 0, "removed": 2}
+    # T001 lost its reset event, so its episode text changed
+    assert memindex.index_history(s, [T1], []) == {"chunks": 1, "changed": 1, "removed": 2}
     assert [c["id"] for c in s.all()] == ["code:a.py:f", "episode:T001"]
     s.close()
