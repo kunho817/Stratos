@@ -501,7 +501,8 @@ def main(argv=None):
             r = learn.learn(Gateway(Telemetry(config.STATE_DIR / "telemetry.jsonl")),
                             Store(config.STATE_DIR).tasks(),
                             Telemetry(config.STATE_DIR / "telemetry.jsonl").load(),
-                            config.LESSONS, config.STATE_DIR, config.REPO.name)
+                            config.LESSONS, config.STATE_DIR, config.REPO.name,
+                            embedder=embed.Embedder())
             print(f"learn: {r['corrections']} corrections, {r['added']} added, {r['duplicates']} duplicates, {r['skipped']} skipped")
             return 0
         if args.memory_cmd == "wiki":

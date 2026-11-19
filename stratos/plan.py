@@ -1,6 +1,7 @@
 """Planner's pure parts: prompt, parsing, checking and storing plans."""
 
 import ast
+import copy
 import hashlib
 import json
 import re
@@ -234,7 +235,6 @@ def parse_text_plan(text):
         else:
             if current_field_name is not None:
                 current_fields[current_field_name] += "\n" + line
-            # blank line: current_field_name stays the same (blank lines end nothing)
 
     if not seen_key:
         raise PlanFormatError("No 'Key:' line found in the text.")
@@ -266,7 +266,6 @@ def parse_text_plan(text):
                     task["role"] = None
         result_tasks.append(task)
 
-    # Filter After items: drop ^T\d+$ that are not keys of earlier tasks
     earlier_keys = set()
     for task in result_tasks:
         new_after = []
@@ -342,11 +341,9 @@ def parse_plan(text):
             raise PlanError(f"Task {key}: key '{key}' is duplicated.")
         seen_keys.append(key)
 
-        # A task whose files are all under tests/ is invalid.
         if all(f.startswith(test_dir + "/") for f in files):
             raise PlanError(f"Task {key}: files are all under '{test_dir}/', which is not allowed.")
 
-        # A task cannot write to its own test files.
         test_set = set(tests)
         for f in files:
             if f in test_set:
@@ -417,6 +414,7 @@ def save_plan(state_dir, goal, tasks):
         "id": pid,
         "goal": goal,
         "tasks": tasks,
+        "original": copy.deepcopy(tasks),
         "status": "draft",
         "hash": plan_hash(tasks),
     }
