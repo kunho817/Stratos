@@ -99,7 +99,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "PLANNER", {"model": "m", "effort": "low", "max_tokens": 100})
     monkeypatch.setattr(plantests, "check_draft", lambda root, path: ("collected", ""))
     # the suite check of a later task must not run a real test suite here
-    monkeypatch.setattr(plantests, "suite_leaks", lambda root, path: [], raising=False)
+    monkeypatch.setattr(plantests, "suite_leaks", lambda root, path, ignore=(): [], raising=False)
     root = tmp_path / "repo"
     root.mkdir()
 

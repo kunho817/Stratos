@@ -93,7 +93,7 @@ def env(tmp_path, monkeypatch):
     calls = []
     leaks = {"ids": []}
 
-    def fake_leaks(root, path):
+    def fake_leaks(root, path, ignore=()):
         calls.append(path)
         return list(leaks["ids"])
     monkeypatch.setattr(plantests, "suite_leaks", fake_leaks)
