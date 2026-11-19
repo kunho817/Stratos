@@ -55,6 +55,24 @@ T098: run-all runs a next pass for todo tasks whose dependencies became done (fi
 a risky draft gets no second try with the reason (a person fixes it); the suite check costs one full test run per
 draft (~40 s here).
 
+**Trial 2: tower defense round 2 (P002 in the trial, 2026-11-19).** Upgrades/sell, boss waves, wave preview, panel,
+keys. The new check made every task start with a new test file (first try). Found:
+   a. **The planner did not follow the data to where it is used.** Upgrades changed damage/range in towers.js, but
+      step.js reads TOWER_TYPES directly, so upgraded towers would have done nothing in play; a "step_boss" task
+      was planned for behaviour step already had; a "state_level" task had nothing to do; the preview was called
+      with wave + 1 although it already returns the next wave. Claude rewrote 5 of 6 goals (towerStats, towerAt,
+      exact numbers, the boss rule "wave > 0"). Same root as trial 1 c: the planner needs the data flow (who reads
+      which field) - item 0's memory should hold "who calls/reads what" per function.
+   b. **A later task's test draft cannot see an earlier task's rules.** render_panel's draft invented its own
+      upgrade and refund numbers (70% refund, double cost) because only render's goal was shown, and towers.js did
+      not have the functions yet. Show each draft the goals (and drafts) of the tasks it comes after.
+   c. **Drafts for tasks with several test files.** Two drafts were dropped: the answer was one header-less block per
+      listed file (rewriting the existing ones too). Fixed: the header-less fallback counts only files still to write
+      (fa90ca1). Better: list only the new file under "WRITE THESE TEST FILES" and show the others read-only.
+   d. JS drafts: `await` inside a non-async test (2 drafts), replacing an ES module export
+      (impossible), a float compared with === (1.2000000000000002), a test for exported constants nobody asked for,
+      a "cooldown gets shorter" rule nobody asked for. 2 of 5 drafts were rewritten, 3 needed additions.
+
 0. **Memory -> retrieval -> planner (user's idea, 2026-11-18).** Keep a memory of the project (code split by
    function, tests, past tasks with goal/diff/failures/review issues, and lessons: what a person changed in a plan or a
    test draft and why) and let a fast model (Tiel or AgentWorld, one load, many short calls) pick what the planner
