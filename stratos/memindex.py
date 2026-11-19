@@ -2,7 +2,9 @@ from pathlib import Path
 
 import stratos.codemap as codemap
 import stratos.episodes as episodes
-from stratos import config, lessons
+from stratos import config, lessons, memstore
+from stratos.state import Store as TaskStore
+from stratos.telemetry import Telemetry
 
 
 def index_history(store, tasks, events):
@@ -106,3 +108,14 @@ def index_project(root, store, embedder=None, settings=None, lessons_path=None):
                 store.set_vector(cid, embedder.name, h, vec)
 
     return {"chunks": len(chunks), "changed": changed, "removed": removed, "embedded": embedded}
+
+
+def refresh(repo, state_dir, embedder):
+    state_dir = Path(state_dir)
+    store = memstore.Store(state_dir / "memory.db")
+    try:
+        index_history(store, TaskStore(state_dir).tasks(), Telemetry(state_dir / "telemetry.jsonl").load())
+        return index_project(repo, store, embedder)
+    finally:
+        store.close()
+
