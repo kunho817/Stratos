@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import config, context, plan, patch
+from . import config, context, decide, plan, patch
 
 
 def system_prompt(language, test_runner):
@@ -91,6 +91,22 @@ def check_draft(root, path):
     return ("error", output[-2000:])
 
 
+def suite_leaks(root, path):
+    """Run the full suite with the draft in it and return the failing ids outside the draft path."""
+    if not path.endswith(".py"):
+        return []
+    try:
+        result = subprocess.run(
+            config.PROJECT["test_command"] + [config.PROJECT["test_dir"]],
+            cwd=str(root), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=600,
+        )
+    except subprocess.TimeoutExpired:
+        return []
+    ids = decide._extract_ids(result.stdout + result.stderr)
+    return sorted([i for i in ids if i.split("::")[0] != path])
+
+
 RISKY_LABELS = [
     ("importlib.reload", re.compile(r"importlib\.reload\(|from\s+importlib\s+import\s+reload")),
     ("sys.modules", re.compile(r"sys\.modules\s*\[[^\]]*\]\s*=(?!=)|del\s+sys\.modules|sys\.modules\.(pop|update|setdefault|clear)\(")),
@@ -159,9 +175,17 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                     if labels:
                         status = "risky"
                         log(f"{tpath}: risky: {', '.join(labels)}")
+                if tpath.endswith(".py") and status == "collected":
+                    ids = suite_leaks(root, tpath)
+                    if ids:
+                        status = "leaks"
+                        log(f"{tpath}: leaks into: {', '.join(ids[:5])}")
             if status == "risky":
                 gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
                                     status=status, risks=labels)
+            elif status == "leaks":
+                gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
+                                    status=status, leaks=ids[:10])
             else:
                 gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
                                     status=status)
