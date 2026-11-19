@@ -30,8 +30,9 @@ from stratos import memstore
 
 
 def test_tokenize():
+    # (task memstore_stem: every token is stemmed, see test_stem)
     assert memstore.tokenize("towerStats TOWER_TYPES sell-refund") == [
-        "towerstats", "tower", "stats", "tower_types", "tower", "types", "sell", "refund"]
+        "towerstat", "tower", "stat", "tower_type", "tower", "type", "sell", "refund"]
     assert memstore.tokenize("HTTPServer2 x") == ["httpserver2", "http", "server", "2", "x"]
     assert memstore.tokenize("") == []
 
@@ -100,3 +101,13 @@ def test_remove_except(tmp_path):
     assert [c["id"] for c in s.all()] == ["a", "d"]
     assert s.vectors("m1") == {}
     s.close()
+
+
+# --- task memstore_stem (2026-11-19): "selling a tower" did not find sellTower ---
+# stem(token): a token longer than 5 ending in "ing" loses it; else longer than 4 ending in "ed" loses it; else longer
+# than 3 ending in "s" but not "ss" loses the "s". tokenize applies stem to every token it emits.
+
+def test_stem():
+    assert [memstore.stem(t) for t in ("selling", "sing", "placed", "red", "towers", "class", "gas", "stats")] == [
+        "sell", "sing", "plac", "red", "tower", "class", "gas", "stat"]
+    assert memstore.tokenize("Selling towers") == ["sell", "tower"]

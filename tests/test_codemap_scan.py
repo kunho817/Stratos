@@ -176,3 +176,26 @@ def test_js_a_declaration_that_never_closes_runs_to_the_next_one():
     text = "const f = (a) =>\n  helper(a)\nexport function g() {\n  return 1;\n}\n"
     syms = codemap.scan_js(text)
     assert [(s["name"], s["uses"]) for s in syms] == [("f", ["a", "helper"]), ("g", [])]
+
+
+# --- task codemap_tests (2026-11-19): a JS test call is its own symbol ---
+# Indexing the tower defense, a whole test file was one "(top level)" chunk and crowded out the code in search.
+# Now a top-level line (no indentation) matching ^(test|it|describe)\(\s*(['"`])(.*?)\2 starts a symbol
+# {"name": f"test: {title}", "kind": "test", "line", "end", "signature": the line stripped and cut like a declaration's,
+# "uses"}; it ends by the same walk as a declaration (depth 0 with a brace seen or a line ending with ";"), at the
+# latest before the next declaration, test or import line. Its lines are not "(top level)" code. Symbols stay in line
+# order, "(top level)" last.
+
+def test_js_test_calls_are_symbols():
+    text = ('import { step } from "../src/step.js";\n\nconst S = 1;\n\n'
+            'test("moves one cell", () => {\n  step(S);\n});\n\n'
+            "describe('waves', () => {\n  it(\"spawns\", () => {\n    waveDef(1);\n  });\n});\n\nsetup();\n")
+    syms = codemap.scan_js(text)
+    assert [(s["name"], s["kind"], s["line"], s["end"]) for s in syms] == [
+        ("S", "constant", 3, 3), ("test: moves one cell", "test", 5, 7), ("test: waves", "test", 9, 13),
+        ("(top level)", "script", 15, 15)]
+    by = {s["name"]: s for s in syms}
+    assert by["test: moves one cell"]["uses"] == ["S", "step", "test"]
+    assert by["test: moves one cell"]["signature"] == 'test("moves one cell", () =>'
+    assert by["test: waves"]["uses"] == ["describe", "it", "waveDef"]
+    assert by["(top level)"]["uses"] == ["setup"]
