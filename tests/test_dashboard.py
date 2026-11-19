@@ -204,3 +204,24 @@ def test_cli(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(dashboard, "default_repos", lambda home: ["R"] if home == config.STRATOS_HOME else [])
     cli.main(["dashboard"])
     assert made[0] == (["R"], 8765, True)
+
+
+def test_current_is_only_the_newest_start(tmp_path, monkeypatch):
+    """(task dashboard_current) A run killed in the middle of a call leaves a call_start with no call. Only the newest
+    start event (call_start or switch_start, whichever is later) can be current: it is current when no "call" with its
+    call_id (for call_start) or no "switch" (for switch_start) comes after it, and it is less than
+    dashboard.STALE_S = 1800 seconds old (time.time() - its ts); otherwise "current" is None. The events are read once
+    (no scan per start event)."""
+    repo, tel = make_project(tmp_path)
+    tel.record("call_start", call_id="dead", task="T001", role="coder", attempt=1, model="tiel")   # killed run
+    tel.record("call_start", call_id="c2", task="T002", role="coder", attempt=1, model="tiel")
+    tel.record("call", call_id="c2", task="T002", role="coder", attempt=1, model="tiel", seconds=1)
+    assert dashboard.project(repo)["current"] is None
+    tel.record("switch_start", model="swift", from_model="tiel")
+    tel.record("switch", model="swift", from_model="tiel", seconds=3)
+    tel.record("call_start", call_id="c3", task="T002", role="coder_hard", attempt=2, model="swift")
+    assert dashboard.project(repo)["current"]["task"] == "T002"
+    assert dashboard.STALE_S == 1800
+    now = __import__("time").time()
+    monkeypatch.setattr(dashboard.time, "time", lambda: now + 1801)
+    assert dashboard.project(repo)["current"] is None
