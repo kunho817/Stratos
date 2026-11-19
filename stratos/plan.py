@@ -128,12 +128,18 @@ def repo_summary(root, settings=None):
     return "\n".join(lines)
 
 
-def build_messages(goal, summary, conventions=None, system=None):
+_USES_HEADER = "WHO USES WHAT (when a task changes a name, every user listed here must be changed or checked too):\n"
+
+
+def build_messages(goal, summary, conventions=None, system=None, uses=None):
     sys_content = system if system is not None else SYSTEM
+    parts = [f"PROJECT FILES:\n{summary}"]
+    if uses:
+        parts.append("\n\n" + _USES_HEADER + uses)
     if conventions is not None:
-        user_content = f"PROJECT FILES:\n{summary}\n\nPROJECT CONVENTIONS:\n{conventions}\n\nFEATURE GOAL:\n{goal}"
-    else:
-        user_content = f"PROJECT FILES:\n{summary}\n\nFEATURE GOAL:\n{goal}"
+        parts.append("\n\nPROJECT CONVENTIONS:\n" + conventions)
+    parts.append("\n\nFEATURE GOAL:\n" + goal)
+    user_content = "".join(parts)
     return [
         {"role": "system", "content": sys_content},
         {"role": "user", "content": user_content},

@@ -18,6 +18,7 @@ import json
 import subprocess
 import sys
 
+from . import codemap
 from . import config
 from . import decide
 from . import gitops
@@ -141,9 +142,11 @@ def main(argv=None):
         answers_dir = config.STATE_DIR / "answers"
         answers_dir.mkdir(parents=True, exist_ok=True)
 
+        uses = codemap.uses_summary(codemap.build(config.REPO))
+
         system = plan_mod.TEXT_SYSTEM if as_text else None
         messages = plan_mod.build_messages(goal, plan_mod.repo_summary(config.REPO),
-                                           conventions=conventions, system=system)
+                                           conventions=conventions, system=system, uses=uses)
         last_reason = None
         for attempt in range(1, args.tries + 1):
             gw.ensure_model(planner["model"])
