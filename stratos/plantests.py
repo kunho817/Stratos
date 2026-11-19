@@ -170,7 +170,8 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
             memory = None
             if store is not None:
                 try:
-                    memory = recall.pack(store, task["title"] + "\n" + task["goal"], embedder, cmap, budget=8000)
+                    memory = recall.pack(store, task["title"] + "\n" + task["goal"], embedder, cmap, budget=8000,
+                                         always_tags={"tests"})
                 except Exception as e:
                     log(f"memory: {e}")
             messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory)
@@ -234,3 +235,4 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
             store.close()
 
     return results
+
