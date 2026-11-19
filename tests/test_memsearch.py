@@ -33,7 +33,8 @@ def make_store(tmp_path):
     s = memstore.Store(tmp_path / "memory.db")
     chunks = [
         ("code:src/towers.js:towerStats", "code", "towerStats returns range and damage by level"),
-        ("code:src/step.js:step", "code", "move enemies and let them shoot"   # (no "towers": with stemming it would match "tower")),
+        # (no "towers" here: with stemming it would match "tower")
+        ("code:src/step.js:step", "code", "move enemies and let them shoot"),
         ("code:src/waves.js:waveDef", "code", "wave count hp speed gold, boss every fifth wave"),
         ("doc:CONVENTIONS.md:1", "doc", "Tower: type x y cooldownLeft level"),
     ]
