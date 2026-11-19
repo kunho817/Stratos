@@ -1,12 +1,14 @@
 from stratos import memsearch
 
+CUT = {"code": 1000, "test": 800}
+
 SECTIONS = [
-    ("code", "RELEVANT CODE", 6),
-    ("test", "RELEVANT TESTS", 4),
-    ("doc", "PROJECT CONVENTIONS", 3),
-    ("episode", "PAST TASKS", 3),
     ("guide", "GENERAL LESSONS (from earlier projects)", 4),
     ("lesson", "LESSONS FROM PEOPLE'S CORRECTIONS", 5),
+    ("episode", "PAST TASKS", 3),
+    ("doc", "PROJECT CONVENTIONS", 3),
+    ("code", "RELEVANT CODE", 6),
+    ("test", "RELEVANT TESTS", 4),
 ]
 
 
@@ -26,8 +28,9 @@ def pack(store, query, embedder=None, cmap=None, budget=12000, sections=None):
         for h in hits:
             chunk = store.get(h["id"])
             text = chunk["text"]
-            if len(text) > 1500:
-                text = text[:1500] + "\n..."
+            limit = CUT.get(kind, 1500)
+            if len(text) > limit:
+                text = text[:limit] + "\n..."
             entry = f"--- {h['title']} ({h['why']})\n{text}"
 
             if current_section_text is None:
