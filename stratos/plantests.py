@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import config, context, decide, plan, patch
+from . import codemap, config, context, decide, embed, memstore, plan, patch, recall
 
 
 def system_prompt(language, test_runner):
@@ -46,7 +46,7 @@ def _strip_lone_fence(answer):
     return "".join(lines[fences[0] + 1:fences[1]])
 
 
-def build_messages(task, root, example=None, earlier=()):
+def build_messages(task, root, example=None, earlier=(), memory=None):
     if example is None:
         example = config.PROJECT["example_test"]
     parts = [f"TASK {task['key']}: {task['title']}", task["goal"]]
@@ -64,6 +64,8 @@ def build_messages(task, root, example=None, earlier=()):
     conventions = Path(root, "CONVENTIONS.md")
     if conventions.exists():
         parts.append("PROJECT CONVENTIONS:\n" + conventions.read_text(encoding="utf-8"))
+    if memory:
+        parts.append("MEMORY (found for this task in the project's code, tests, past tasks and people's corrections):\n" + memory)
     for p in task["files"]:
         parts.append(context.show_file(root, p, "FILE THE TASK WILL WRITE"))
     for p in task["protected"]:
@@ -151,62 +153,84 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
     answers_dir.mkdir(parents=True, exist_ok=True)
     results = []
     written_so_far = []
-    for i, task in enumerate(p["tasks"]):
-        key = task["key"]
-        messages = build_messages(task, root, earlier=p["tasks"][:i])
-        kw = {"task": f"{plan_id}-{key}", "role": "test_writer", "attempt": 1,
-              "model": model_cfg["model"], "effort": model_cfg["effort"],
-              "max_tokens": model_cfg["max_tokens"]}
-        if model_cfg.get("reasoning_budget") is not None:
-            kw["reasoning_budget"] = model_cfg["reasoning_budget"]
-        call_id, answer = gw.chat(messages, **kw)
-        answer_path = answers_dir / f"{plan_id}-{key}-tests.md"
-        answer_path.write_text(answer, encoding="utf-8")
-        files = patch.parse_files(answer, allowed=task["tests"])
-        # A header-less answer belongs to the only test file still to write (existing ones are never overwritten;
-        # tower defense P002, 2026-11-19: a new file listed with two existing ones was dropped)
-        new_tests = [t for t in task["tests"] if not Path(root, t).exists()]
-        if len(new_tests) == 1 and not files and not _has_file_marker(answer):
-            inner = _strip_lone_fence(answer)
-            if inner is not None:
-                files = [(new_tests[0], inner)]
-            else:
-                first_line = answer.splitlines()[0] if answer else ""
-                if not first_line.lstrip().startswith("```"):
-                    files = [(new_tests[0], answer)]
-        written = {}
-        for fpath, fcontent in files:
-            written[fpath] = fcontent
-        for tpath in task["tests"]:
-            if tpath not in written:
-                status = "missing"
-            elif Path(root, tpath).exists():
-                status = "exists"
-                log(f"{tpath} already exists, not overwritten")
-            else:
-                dest = Path(root, tpath)
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                dest.write_text(written[tpath], encoding="utf-8")
-                status = check_draft(root, tpath)[0]
-                if tpath.endswith(".py") and status == "collected":
-                    labels = risky_patterns(written[tpath])
-                    if labels:
-                        status = "risky"
-                        log(f"{tpath}: risky: {', '.join(labels)}")
-                if tpath.endswith(".py") and status == "collected":
-                    ids = suite_leaks(root, tpath, ignore=list(written_so_far))
-                    if ids:
-                        status = "leaks"
-                        log(f"{tpath}: leaks into: {', '.join(ids[:5])}")
-                written_so_far.append(tpath)
-            if status == "risky":
-                gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
-                                    status=status, risks=labels)
-            elif status == "leaks":
-                gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
-                                    status=status, leaks=ids[:10])
-            else:
-                gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
-                                    status=status)
-            results.append({"key": key, "file": tpath, "status": status})
+
+    store = None
+    if config.MEMORY and (Path(state_dir) / "memory.db").exists():
+        try:
+            store = memstore.Store(Path(state_dir) / "memory.db")
+            embedder = embed.Embedder()
+            cmap = codemap.build(root)
+        except Exception as e:
+            log(f"memory: {e}")
+            store = None
+
+    try:
+        for i, task in enumerate(p["tasks"]):
+            key = task["key"]
+            memory = None
+            if store is not None:
+                try:
+                    memory = recall.pack(store, task["title"] + "\n" + task["goal"], embedder, cmap, budget=8000)
+                except Exception as e:
+                    log(f"memory: {e}")
+            messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory)
+            kw = {"task": f"{plan_id}-{key}", "role": "test_writer", "attempt": 1,
+                  "model": model_cfg["model"], "effort": model_cfg["effort"],
+                  "max_tokens": model_cfg["max_tokens"]}
+            if model_cfg.get("reasoning_budget") is not None:
+                kw["reasoning_budget"] = model_cfg["reasoning_budget"]
+            call_id, answer = gw.chat(messages, **kw)
+            answer_path = answers_dir / f"{plan_id}-{key}-tests.md"
+            answer_path.write_text(answer, encoding="utf-8")
+            files = patch.parse_files(answer, allowed=task["tests"])
+            # A header-less answer belongs to the only test file still to write (existing ones are never overwritten;
+            # tower defense P002, 2026-11-19: a new file listed with two existing ones was dropped)
+            new_tests = [t for t in task["tests"] if not Path(root, t).exists()]
+            if len(new_tests) == 1 and not files and not _has_file_marker(answer):
+                inner = _strip_lone_fence(answer)
+                if inner is not None:
+                    files = [(new_tests[0], inner)]
+                else:
+                    first_line = answer.splitlines()[0] if answer else ""
+                    if not first_line.lstrip().startswith("```"):
+                        files = [(new_tests[0], answer)]
+            written = {}
+            for fpath, fcontent in files:
+                written[fpath] = fcontent
+            for tpath in task["tests"]:
+                if tpath not in written:
+                    status = "missing"
+                elif Path(root, tpath).exists():
+                    status = "exists"
+                    log(f"{tpath} already exists, not overwritten")
+                else:
+                    dest = Path(root, tpath)
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_text(written[tpath], encoding="utf-8")
+                    status = check_draft(root, tpath)[0]
+                    if tpath.endswith(".py") and status == "collected":
+                        labels = risky_patterns(written[tpath])
+                        if labels:
+                            status = "risky"
+                            log(f"{tpath}: risky: {', '.join(labels)}")
+                    if tpath.endswith(".py") and status == "collected":
+                        ids = suite_leaks(root, tpath, ignore=list(written_so_far))
+                        if ids:
+                            status = "leaks"
+                            log(f"{tpath}: leaks into: {', '.join(ids[:5])}")
+                    written_so_far.append(tpath)
+                if status == "risky":
+                    gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
+                                        status=status, risks=labels)
+                elif status == "leaks":
+                    gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
+                                        status=status, leaks=ids[:10])
+                else:
+                    gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
+                                        status=status)
+                results.append({"key": key, "file": tpath, "status": status})
+    finally:
+        if store is not None:
+            store.close()
+
     return results
