@@ -37,7 +37,8 @@ def task_memory(task):
         store = memstore.Store(mem_path)
         try:
             return recall.pack(store, task["title"] + "\n" + task["goal"], embed.Embedder(),
-                              codemap.build(config.REPO), budget=6000, sections=CODER_SECTIONS)
+                              codemap.build(config.REPO), budget=6000, sections=CODER_SECTIONS,
+                              always_tags={"code"})
         finally:
             store.close()
     except Exception:
@@ -269,4 +270,5 @@ def run_task(store, gw, task_id, log=print):
             return "done"
     store.update(task_id, status="needs_human")
     return "needs_human"
+
 
