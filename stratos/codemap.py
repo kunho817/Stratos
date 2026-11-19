@@ -1,4 +1,6 @@
-"""Stratos code map: scan a Python source file into a list of symbol dicts."""
+"""Stratos code map (memory layer M1) for Python and JavaScript files.
+
+Scan a source file into a list of symbol dicts."""
 
 import ast
 import re
@@ -33,12 +35,14 @@ def scan_python(text):
         return []
 
     symbols = []
+    top_level = []
 
-    for node in tree.body:
+    for idx, node in enumerate(tree.body):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             sig = f"def {node.name}({ast.unparse(node.args)})"
             uses = _collect_uses(node, node.name)
-            symbols.append({"name": node.name, "kind": "function", "line": node.lineno, "signature": sig, "uses": uses})
+            symbols.append({"name": node.name, "kind": "function", "line": node.lineno,
+                            "signature": sig, "uses": uses})
 
         elif isinstance(node, ast.ClassDef):
             # uses = names in its bases
@@ -58,6 +62,9 @@ def scan_python(text):
                     symbols.append({"name": f"{node.name}.{item.name}", "kind": "method",
                                     "line": item.lineno, "signature": sig, "uses": uses})
 
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+
         elif isinstance(node, ast.Assign):
             if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
                 target = node.targets[0]
@@ -65,6 +72,27 @@ def scan_python(text):
                     uses = _collect_uses(node.value, target.id)
                     symbols.append({"name": target.id, "kind": "constant", "line": node.lineno,
                                     "signature": target.id, "uses": uses})
+                    continue
+            top_level.append(node)
+
+        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) \
+                and isinstance(node.value.value, str) and idx == 0:
+            continue
+
+        else:
+            top_level.append(node)
+
+    if top_level:
+        uses = set()
+        for stmt in top_level:
+            for n in ast.walk(stmt):
+                if isinstance(n, ast.Name):
+                    uses.add(n.id)
+                elif isinstance(n, ast.Attribute):
+                    uses.add(n.attr)
+        uses = sorted(uses)
+        symbols.append({"name": "(top level)", "kind": "script", "line": top_level[0].lineno,
+                        "signature": "(top level)", "uses": uses})
 
     return symbols
 
@@ -91,18 +119,28 @@ def scan_js(text):
     Returns [] when there are no top-level declarations.
     """
     lines = text.splitlines()
-    symbols = []
-    i = 0
     n = len(lines)
-    while i < n:
-        line = lines[i]
-        m = _DECL_RE.match(line)
-        if not m:
-            i += 1
-            continue
 
+    # Locate every top-level declaration line.
+    decls = []
+    for i, line in enumerate(lines):
+        m = _DECL_RE.match(line)
+        if m:
+            decls.append((i, m))
+
+    # Locate import lines.
+    import_lines = set()
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith("import "):
+            import_lines.add(i)
+
+    boundaries = sorted(set([i for i, _ in decls]) | import_lines)
+
+    symbols = []
+    covered = set()
+
+    for i, m in decls:
         name = m.group("name")
-        decl_line = i
         if m.group("kind") == "function":
             kind = "function"
         elif m.group("kind") == "class":
@@ -114,21 +152,63 @@ def scan_js(text):
             else:
                 kind = "constant"
 
-        j = i + 1
-        while j < n:
-            nxt = lines[j]
-            if _DECL_RE.match(nxt) or nxt.lstrip().startswith("import"):
+        # The latest boundary is the next declaration or import line.
+        next_idx = n
+        for b in boundaries:
+            if b > i:
+                next_idx = b
                 break
-            j += 1
 
-        code = "\n".join(lines[i:j])
-        signature = _signature(line)
+        # Walk lines; depth ends the declaration at its closing brace or semicolon.
+        depth = 0
+        brace_seen = False
+        end = i
+        for j in range(i, min(n, next_idx)):
+            stripped = _strip_js_line(lines[j])
+            opens = stripped.count("{")
+            closes = stripped.count("}")
+            if opens:
+                brace_seen = True
+            depth += opens - closes
+            if depth == 0 and (brace_seen or stripped.strip().endswith(";")):
+                end = j
+                break
+
+        code = "\n".join(lines[i:end + 1])
+        for j in range(i, end + 1):
+            covered.add(j)
+
+        signature = _signature(lines[i])
         uses = _uses(code, name)
-        symbols.append({"name": name, "kind": kind, "line": decl_line + 1,
+        symbols.append({"name": name, "kind": kind, "line": i + 1,
                         "signature": signature, "uses": uses})
-        i = j
+
+    # Top-level code: lines in no declaration and not import lines.
+    top_lines = []
+    first_line = None
+    for i in range(n):
+        if i in covered or i in import_lines:
+            continue
+        top_lines.append(lines[i])
+        if first_line is None and lines[i].strip():
+            first_line = i
+
+    if first_line is not None:
+        uses = _uses("\n".join(top_lines), "(top level)")
+        if uses:
+            symbols.append({"name": "(top level)", "kind": "script", "line": first_line + 1,
+                            "signature": "(top level)", "uses": uses})
 
     return symbols
+
+
+def _strip_js_line(line):
+    """Remove // comments and the contents of '...', "..." and `...` strings."""
+    out = re.sub(r"//.*", "", line)
+    out = re.sub(r"'[^']*'", "", out)
+    out = re.sub(r'"[^"]*"', "", out)
+    out = re.sub(r"`[^`]*`", "", out)
+    return out
 
 
 def _signature(line):
@@ -147,6 +227,7 @@ def _uses(code, own_name):
     code = re.sub(r"//[^\n]*", " ", code)
     code = re.sub(r"'[^']*'", " ", code)
     code = re.sub(r'"[^"]*"', " ", code)
+    code = re.sub(r"`[^`]*`", " ", code)
     ids = set(re.findall(r"[A-Za-z_$][A-Za-z0-9_$]*", code))
     ids.discard(own_name)
     ids -= JS_KEYWORDS
