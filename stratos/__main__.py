@@ -12,6 +12,8 @@
   python -m stratos clean
   python -m stratos reset T001 --reason R
   python -m stratos replay T001 T002 --role coder --model M --effort E --max-tokens N --tries K
+  python -m stratos memory index [--no-vectors]
+  python -m stratos memory search QUERY [-k N] [--no-vectors]
 """
 import argparse
 import json
@@ -21,8 +23,12 @@ import sys
 from . import codemap
 from . import config
 from . import decide
+from . import embed
 from . import gitops
 from . import jev
+from . import memindex
+from . import memsearch
+from . import memstore
 from . import plan as plan_mod
 from . import plantests
 from . import replay
@@ -113,6 +119,16 @@ def main(argv=None):
     replay_p.add_argument("--max-tokens", type=int, default=None, help="override the role's max_tokens")
     replay_p.add_argument("--tries", type=int, default=2, help="attempts per task")
     replay_p.add_argument("--reasoning-budget", type=int, default=None, help="override the role's reasoning budget")
+
+    memory_p = sub.add_parser("memory", help="index and search the code memory")
+    memory_sub = memory_p.add_subparsers(dest="memory_cmd", required=True)
+    memory_index_p = memory_sub.add_parser("index", help="index the project into the memory store")
+    memory_index_p.add_argument("--no-vectors", action="store_true", help="skip embedding")
+    memory_search_p = memory_sub.add_parser("search", help="search the memory store")
+    memory_search_p.add_argument("query")
+    memory_search_p.add_argument("-k", "--k", type=int, default=10, help="number of results")
+    memory_search_p.add_argument("--no-vectors", action="store_true", help="skip vector search")
+
     args = ap.parse_args(argv)
 
     store = Store(config.STATE_DIR)
@@ -448,6 +464,24 @@ def main(argv=None):
             print(f"{res['task']}: {res['result']} ({res['attempts']} attempts, {res['seconds']:.0f} s)")
         print(f"replay {model}: {passed}/{len(results)} passed, {total_seconds:.0f} s")
         return 0
+    elif args.cmd == "memory":
+        store = memstore.Store(config.STATE_DIR / "memory.db")
+        try:
+            embedder = None if args.no_vectors else embed.Embedder()
+            if args.memory_cmd == "index":
+                counts = memindex.index_project(config.REPO, store, embedder)
+                print(f"memory: {counts['chunks']} chunks, {counts['changed']} changed, {counts['removed']} removed, {counts['embedded']} embedded")
+                return 0
+            elif args.memory_cmd == "search":
+                hits = memsearch.search(store, args.query, embedder, codemap.build(config.REPO), args.k)
+                if not hits:
+                    print("no results")
+                else:
+                    for h in hits:
+                        print(f"{h['score']:.4f}  {h['title']}  ({h['why']})")
+                return 0
+        finally:
+            store.close()
     else:
         for t in store.tasks():
             extra = f" commit {t['commit']}" if t.get("commit") else ""
@@ -462,3 +496,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+
