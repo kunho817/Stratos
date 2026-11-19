@@ -2,6 +2,9 @@
 
 import ast
 import re
+from pathlib import Path
+
+import stratos.config as config
 
 
 JS_KEYWORDS = frozenset({
@@ -148,3 +151,81 @@ def _uses(code, own_name):
     ids.discard(own_name)
     ids -= JS_KEYWORDS
     return sorted(ids)
+
+
+def build(root, settings=None):
+    """Build the code map of a project: scan every source and test file into symbols."""
+    if settings is None:
+        settings = config.PROJECT
+
+    root = Path(root)
+    files = {}
+
+    dirs = list(settings["source_dirs"])
+    if settings["test_dir"]:
+        dirs.append(settings["test_dir"])
+
+    for rel in dirs:
+        base = Path(root) / rel
+        if not base.is_dir():
+            continue
+        for path in base.rglob("*"):
+            if not path.is_file():
+                continue
+            suffix = path.suffix.lower()
+            if suffix == ".py":
+                symbols = scan_python(path.read_text(encoding="utf-8"))
+            elif suffix in (".js", ".mjs"):
+                symbols = scan_js(path.read_text(encoding="utf-8"))
+            else:
+                continue
+            relpath = path.relative_to(root).as_posix()
+            files[relpath] = symbols
+
+    return {"test_dir": settings["test_dir"], "files": dict(sorted(files.items()))}
+
+
+def users(cmap, name):
+    """Return the sorted list of f"{path}:{symbol name}" for every symbol whose uses contain name."""
+    return sorted(
+        f"{path}:{sym['name']}"
+        for path, syms in cmap["files"].items()
+        for sym in syms
+        if name in sym["uses"]
+    )
+
+
+def uses_summary(cmap, max_chars=6000):
+    """Return a summary of who uses each code symbol, truncated to max_chars."""
+    test_dir = cmap["test_dir"]
+    lines = []
+    for path, syms in cmap["files"].items():
+        if path.startswith(test_dir + "/"):
+            continue
+        for sym in syms:
+            if sym["kind"] not in ("function", "class", "constant"):
+                continue
+            us = users(cmap, sym["name"])
+            if not us:
+                continue
+            code = [u for u in us if not u.startswith(test_dir + "/")]
+            tests = sorted({u.split(":")[0] for u in us if u.startswith(test_dir + "/")})
+            lines.append(
+                f"{sym['name']} ({path}): used by {', '.join(code) or 'nothing'}; "
+                f"tests: {', '.join(tests) or 'none'}"
+            )
+
+    if not lines:
+        return ""
+
+    joined = "\n".join(lines)
+    if len(joined) <= max_chars:
+        return joined
+
+    kept = []
+    for line in lines:
+        candidate = "\n".join(kept + [line])
+        if len(candidate) > max_chars:
+            break
+        kept.append(line)
+    return "\n".join(kept + ["... (cut)"])
