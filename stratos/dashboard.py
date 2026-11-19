@@ -14,6 +14,7 @@ KEEP = ("ts", "kind", "task", "role", "attempt", "model", "from_model",
         "result", "seconds", "verdict", "reason", "detail", "finish",
         "completion_tokens")
 PAGE = Path(__file__).parent / "dashboard.html"
+STALE_S = 1800
 
 
 def default_repos(home):
@@ -62,66 +63,44 @@ def project(repo):
 
     updated = float(all_events[-1]["ts"]) if all_events else 0.0
 
-    # Find current
-    call_starts = []
-    for i, ev in enumerate(all_events):
-        if ev["kind"] == "call_start":
+    # Find current: single backward pass over all_events to find the newest start
+    newest_start_idx = None
+    for i in range(len(all_events) - 1, -1, -1):
+        if all_events[i]["kind"] in ("call_start", "switch_start"):
+            newest_start_idx = i
+            break
+
+    current = None
+    if newest_start_idx is not None:
+        ev = all_events[newest_start_idx]
+        kind = ev["kind"]
+        # Check if this start is finished by a later event
+        finished = False
+        if kind == "call_start":
             cid = ev.get("call_id")
-            # Check if there's a later "call" event with same call_id
-            finished = False
-            for j in range(i + 1, len(all_events)):
+            for j in range(newest_start_idx + 1, len(all_events)):
                 if all_events[j]["kind"] == "call" and all_events[j].get("call_id") == cid:
                     finished = True
                     break
-            if not finished:
-                call_starts.append((i, ev))
-
-    switch_starts = []
-    for i, ev in enumerate(all_events):
-        if ev["kind"] == "switch_start":
-            # Check if there's a later "switch" event
-            finished = False
-            for j in range(i + 1, len(all_events)):
+        elif kind == "switch_start":
+            for j in range(newest_start_idx + 1, len(all_events)):
                 if all_events[j]["kind"] == "switch":
                     finished = True
                     break
-            if not finished:
-                switch_starts.append((i, ev))
 
-    current = None
-    # Only the newest unfinished one counts
-    if call_starts:
-        last_idx, last_ev = call_starts[-1]
-        # Check no switch_start is newer
-        if switch_starts:
-            last_switch_idx = switch_starts[-1][0]
-            if last_switch_idx > last_idx:
-                # switch is newer
-                sw = switch_starts[-1][1]
-                current = {"kind": "switch", "model": sw.get("model"),
-                           "from_model": sw.get("from_model"),
-                           "since": float(sw["ts"])}
-            else:
-                cs = last_ev
-                current = {"kind": "call", "task": cs.get("task"),
-                           "role": cs.get("role"),
-                           "attempt": cs.get("attempt"),
-                           "model": cs.get("model"),
-                           "since": float(cs["ts"])}
-        else:
-            cs = last_ev
-            current = {"kind": "call", "task": cs.get("task"),
-                       "role": cs.get("role"),
-                       "attempt": cs.get("attempt"),
-                       "model": cs.get("model"),
-                       "since": float(cs["ts"])}
-    elif switch_starts:
-        sw = switch_starts[-1][1]
-        current = {"kind": "switch", "model": sw.get("model"),
-                   "from_model": sw.get("from_model"),
-                   "since": float(sw["ts"])}
-    else:
-        current = None
+        if not finished:
+            ts = float(ev["ts"])
+            if time.time() - ts < STALE_S:
+                if kind == "call_start":
+                    current = {"kind": "call", "task": ev.get("task"),
+                               "role": ev.get("role"),
+                               "attempt": ev.get("attempt"),
+                               "model": ev.get("model"),
+                               "since": ts}
+                else:
+                    current = {"kind": "switch", "model": ev.get("model"),
+                               "from_model": ev.get("from_model"),
+                               "since": ts}
 
     # Stats
     calls_count = 0
