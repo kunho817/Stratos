@@ -100,6 +100,18 @@
   .stat { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
   .stat .v { font-size: 22px; font-weight: 700; }
   .stat .l { color: var(--dim); font-size: 12px; }
+
+  /* efficiency */
+  .eff { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .stack { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: #0d1320; border: 1px solid var(--line); }
+  .stack i { display: block; height: 100%; transition: width .6s; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0 14px; font-size: 12px; color: var(--dim); }
+  .legend b { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .top { font-size: 13px; }
+  .top div { display: grid; grid-template-columns: 70px 1fr 90px 70px; gap: 8px; padding: 3px 0; border-bottom: 1px dashed #1f2940; }
+  .top div span:first-child { color: var(--info); }
+  .effgrid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; }
+  .sub2 { color: var(--dim); font-size: 12px; margin: 0 0 6px; }
   @media (max-width: 1100px) { main { grid-template-columns: 1fr; } .span2 { grid-column: auto; }
     .board { grid-template-columns: repeat(2, 1fr); } }
 </style>
@@ -121,6 +133,15 @@
   <section class="panel span2"><h2>작업 <span class="right"><span class="tabs" id="tabs"></span></span></h2>
     <div class="progress" id="progress"></div>
     <div class="board" id="board"></div>
+  </section>
+  <section class="panel span2"><h2>효율 <span class="right sub" id="effName"></span></h2>
+    <div class="eff" id="effStats"></div>
+    <div class="effgrid"><div>
+      <div class="sub2">생성한 토큰이 어디에 쓰였나</div><div class="stack" id="causeBar"></div><div class="legend" id="causeLegend"></div>
+      <div class="sub2">시간이 어디에 쓰였나 (활동 중인 시간 기준)</div><div class="stack" id="timeBar"></div><div class="legend" id="timeLegend"></div>
+    </div><div>
+      <div class="sub2">가장 비싼 작업</div><div class="top mono" id="topTasks"></div>
+    </div></div>
   </section>
   <section class="panel"><h2>최근 이벤트</h2><div id="feed"></div></section>
   <section class="panel"><h2>누적</h2><div class="stats" id="stats"></div></section>
@@ -248,7 +269,7 @@ function renderBoard() {
     const n = p.tasks.length, d = p.counts.done || 0;
     return `<button class="${p.path === selected ? "on" : ""}" data-path="${esc(p.path)}">${esc(p.name)} <span class="mono">${d}/${n}</span></button>`;
   }).join("");
-  for (const b of $("tabs").querySelectorAll("button")) b.onclick = () => { selected = b.dataset.path; renderBoard(); };
+  for (const b of $("tabs").querySelectorAll("button")) b.onclick = () => { selected = b.dataset.path; renderBoard(); renderEfficiency(); };
   const p = projects.find((x) => x.path === selected);
   if (!p) { $("board").innerHTML = ""; return; }
   const n = p.tasks.length || 1;
@@ -311,10 +332,41 @@ function renderStats() {
   $("stats").innerHTML = items.map(([v, l]) => `<div class="stat"><div class="v mono">${v}</div><div class="l">${l}</div></div>`).join("");
 }
 
+
+const CAUSES = [["useful", "통과한 코드", "#3fd18b"], ["review", "리뷰", "#b18cff"], ["support", "계획·테스트·분류 등", "#59b8ff"],
+  ["tests_failed", "테스트 실패", "#ff5d6c"], ["cut_off", "길이 제한에 잘림", "#ff8a4c"], ["no_files", "파일 없음", "#ffb547"],
+  ["dropped_defs", "정의 삭제", "#e06cff"], ["discarded", "사람이 되돌림", "#c0506a"], ["other_failure", "기타 실패", "#8a5060"]];
+function renderEfficiency() {
+  const p = state.projects.find((x) => x.path === selected) || state.projects[0];
+  const e = p?.efficiency;
+  if (!e) { setHTML($("effStats"), `<div class="idle" style="grid-column:1/5">효율 자료 없음</div>`); return; }
+  $("effName").textContent = p.name;
+  const ft = e.first_try || {}, w = e.waste || {}, tm = e.time || {}, co = e.cut_off || {};
+  const total = Object.values(e.by_cause || {}).reduce((a, c) => a + c.completion_tokens, 0);
+  const roles = Object.entries(ft.by_role || {}).map(([r, [a, n]]) => `${ROLE_KO[r] || r} ${a}/${n}`).join(" · ");
+  setHTML($("effStats"), [
+    [`${((w.share || 0) * 100).toFixed(1)}%`, `낭비된 생성 토큰 (${(w.completion_tokens || 0).toLocaleString()} / ${total.toLocaleString()})`],
+    [ft.tasks ? `${Math.round(100 * ft.passed / ft.tasks)}%` : "–", `첫 시도 통과 ${ft.passed || 0}/${ft.tasks || 0}${roles ? " · " + roles : ""}`],
+    [e.attempts ? e.attempts.toFixed(2) : "–", "통과한 작업당 평균 시도"],
+    [`${co.calls || 0}`, `길이 제한에 잘린 호출 (${(co.completion_tokens || 0).toLocaleString()} tok)`],
+  ].map(([v, l]) => `<div class="stat"><div class="v mono">${v}</div><div class="l">${esc(l)}</div></div>`).join(""));
+  const by = e.by_cause || {};
+  setHTML($("causeBar"), CAUSES.filter(([k]) => by[k]).map(([k, l, c]) =>
+    `<i style="width:${100 * by[k].completion_tokens / (total || 1)}%;background:${c}" title="${l} ${by[k].completion_tokens} tok"></i>`).join(""));
+  setHTML($("causeLegend"), CAUSES.filter(([k]) => by[k]).map(([k, l, c]) =>
+    `<span><b style="background:${c}"></b>${l} ${(100 * by[k].completion_tokens / (total || 1)).toFixed(0)}% · ${by[k].calls}회 · ${fmtT(by[k].seconds)}</span>`).join(""));
+  const act = tm.active_seconds || 1, parts = [["model_seconds", "모델 생성", "#59b8ff"], ["switch_seconds", "모델 교체", "#ffb547"], ["other_seconds", "테스트·git·기타", "#4a5672"]];
+  setHTML($("timeBar"), parts.map(([k, l, c]) => `<i style="width:${100 * (tm[k] || 0) / act}%;background:${c}" title="${l}"></i>`).join(""));
+  setHTML($("timeLegend"), parts.map(([k, l, c]) => `<span><b style="background:${c}"></b>${l} ${fmtT(tm[k] || 0)} (${(100 * (tm[k] || 0) / act).toFixed(0)}%)</span>`).join("") +
+    `<span>활동 시간 ${fmtT(tm.active_seconds || 0)}</span>`);
+  setHTML($("topTasks"), (e.top_tasks || []).map((x) => `<div><span>${esc(x.task || "-")}</span><span class="sub">${esc(taskTitle(p, x.task))}</span>
+    <span>${x.completion_tokens.toLocaleString()} tok</span><span>${fmtT(x.seconds)}</span></div>`).join(""));
+}
+
 function render() {
   if (!state) return;
   $("project").textContent = state.projects[0] ? `· ${state.projects[0].name}` : "";
-  renderLive(); renderHardware(state.engine); renderBoard(); renderFeed(); renderStats();
+  renderLive(); renderHardware(state.engine); renderBoard(); renderEfficiency(); renderFeed(); renderStats();
 }
 
 async function poll() {
