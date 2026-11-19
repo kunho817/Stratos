@@ -91,8 +91,8 @@ def check_draft(root, path):
     return ("error", output[-2000:])
 
 
-def suite_leaks(root, path):
-    """Run the full suite with the draft in it and return the failing ids outside the draft path."""
+def suite_leaks(root, path, ignore=()):
+    """Run the full suite with the draft in it and return the failing ids outside the draft path and ignore."""
     if not path.endswith(".py"):
         return []
     try:
@@ -104,7 +104,7 @@ def suite_leaks(root, path):
     except subprocess.TimeoutExpired:
         return []
     ids = decide._extract_ids(result.stdout + result.stderr)
-    return sorted([i for i in ids if i.split("::")[0] != path])
+    return sorted([i for i in ids if i.split("::")[0] not in (path, *ignore)])
 
 
 RISKY_LABELS = [
@@ -136,6 +136,7 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
     answers_dir = Path(state_dir) / "answers"
     answers_dir.mkdir(parents=True, exist_ok=True)
     results = []
+    written_so_far = []
     for task in p["tasks"]:
         key = task["key"]
         messages = build_messages(task, root)
@@ -176,10 +177,11 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                         status = "risky"
                         log(f"{tpath}: risky: {', '.join(labels)}")
                 if tpath.endswith(".py") and status == "collected":
-                    ids = suite_leaks(root, tpath)
+                    ids = suite_leaks(root, tpath, ignore=list(written_so_far))
                     if ids:
                         status = "leaks"
                         log(f"{tpath}: leaks into: {', '.join(ids[:5])}")
+                written_so_far.append(tpath)
             if status == "risky":
                 gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
                                     status=status, risks=labels)
