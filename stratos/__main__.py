@@ -95,6 +95,10 @@ def add_one(store, title, goal, files, protected, tests, role, after):
 
 
 def main(argv=None):
+    # A redirected stdout uses the Windows code page (cp949); characters it lacks must not break a run (Orbit T009)
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     ap = argparse.ArgumentParser(prog="stratos")
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("add", help="add a task")
