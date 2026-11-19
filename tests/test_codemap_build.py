@@ -54,7 +54,7 @@ def test_missing_folders(tmp_path):
 def test_users(tmp_path):
     cmap = codemap.build(project(tmp_path), SETTINGS)
     assert codemap.users(cmap, "TOWER_TYPES") == ["src/step.js:step", "src/towers.js:towerStats"]
-    assert codemap.users(cmap, "gold") == ["src/step.js:step", "src/ui/render.js:draw", "tests/step.test.js:(top level)"]
+    assert codemap.users(cmap, "gold") == ["src/step.js:step", "src/ui/render.js:draw", "tests/step.test.js:test: s"]
     assert codemap.users(cmap, "nobody") == []
 
 

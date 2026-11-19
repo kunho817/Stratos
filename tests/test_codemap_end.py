@@ -56,8 +56,9 @@ test("x", () => {
 def test_js_end():
     syms = codemap.scan_js(JS)
     assert [(s["name"], s["line"], s["end"]) for s in syms] == [
-        ("g", 3, 5), ("K", 7, 7), ("(top level)", 8, 12)]
+        ("g", 3, 5), ("K", 7, 7), ("test: x", 10, 12), ("(top level)", 8, 8)]   # (codemap_tests)
     by = {s["name"]: s for s in syms}
     assert codemap.symbol_text(JS, by["g"]) == "export function g(s) {\n  return a(s);\n}"
-    assert by["(top level)"]["lines"] == [8, 9, 10, 11, 12]
-    assert codemap.symbol_text(JS, by["(top level)"]) == 'run(K);\n\ntest("x", () => {\n  g(1);\n});'
+    assert by["(top level)"]["lines"] == [8]
+    assert codemap.symbol_text(JS, by["(top level)"]) == "run(K);"
+    assert codemap.symbol_text(JS, by["test: x"]) == 'test("x", () => {\n  g(1);\n});'

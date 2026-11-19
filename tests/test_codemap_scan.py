@@ -154,7 +154,8 @@ def test_js_tests_are_top_level_code():
     text = 'import { test } from "node:test";\nimport { step } from "../src/step.js";\n\n' \
            'test("moves", () => {\n  assert.equal(step(1).x, 2);\n});\n'
     (sym,) = codemap.scan_js(text)
-    assert (sym["name"], sym["line"]) == ("(top level)", 4)
+    # (task codemap_tests: a test(...) call is now its own "test" symbol)
+    assert (sym["name"], sym["kind"], sym["line"]) == ("test: moves", "test", 4)
     assert sym["uses"] == ["assert", "equal", "step", "test", "x"]
 
 
