@@ -129,13 +129,16 @@ def repo_summary(root, settings=None):
 
 
 _USES_HEADER = "WHO USES WHAT (when a task changes a name, every user listed here must be changed or checked too):\n"
+_MEMORY_HEADER = "MEMORY (found for this goal in the project's code, tests, past tasks and people's corrections):\n"
 
 
-def build_messages(goal, summary, conventions=None, system=None, uses=None):
+def build_messages(goal, summary, conventions=None, system=None, uses=None, memory=None):
     sys_content = system if system is not None else SYSTEM
     parts = [f"PROJECT FILES:\n{summary}"]
     if uses:
         parts.append("\n\n" + _USES_HEADER + uses)
+    if memory:
+        parts.append("\n\n" + _MEMORY_HEADER + memory)
     if conventions is not None:
         parts.append("\n\nPROJECT CONVENTIONS:\n" + conventions)
     parts.append("\n\nFEATURE GOAL:\n" + goal)

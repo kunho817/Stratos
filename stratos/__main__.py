@@ -31,6 +31,7 @@ from . import memsearch
 from . import memstore
 from . import plan as plan_mod
 from . import plantests
+from . import recall
 from . import replay
 from .gateway import Gateway
 from .loop import run_all, run_task
@@ -158,11 +159,24 @@ def main(argv=None):
         answers_dir = config.STATE_DIR / "answers"
         answers_dir.mkdir(parents=True, exist_ok=True)
 
-        uses = codemap.uses_summary(codemap.build(config.REPO))
+        cmap = codemap.build(config.REPO)
+        uses = codemap.uses_summary(cmap)
+
+        memory = None
+        if config.MEMORY and (config.STATE_DIR / "memory.db").exists():
+            try:
+                store2 = memstore.Store(config.STATE_DIR / "memory.db")
+                try:
+                    memory = recall.pack(store2, goal, embed.Embedder(), cmap)
+                finally:
+                    store2.close()
+            except Exception as e:
+                print(f"memory: {e}", file=sys.stderr)
+                memory = None
 
         system = plan_mod.TEXT_SYSTEM if as_text else None
         messages = plan_mod.build_messages(goal, plan_mod.repo_summary(config.REPO),
-                                           conventions=conventions, system=system, uses=uses)
+                                           conventions=conventions, system=system, uses=uses, memory=memory)
         last_reason = None
         for attempt in range(1, args.tries + 1):
             gw.ensure_model(planner["model"])

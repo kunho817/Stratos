@@ -60,6 +60,9 @@ PLAN_CONVERTER = {"model": "qwen3.6-35b-a3b-ud-q4_k_m", "effort": "none", "max_t
 TRIAGE = os.environ.get("STRATOS_TRIAGE", "1") != "0"
 TRIAGER = {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 8000, "reasoning_budget": 3000}
 
+# feed the memory's context packs to the models
+MEMORY = True
+
 # CPU embedding model for the memory; jina's code model found 7/8 expected chunks in a top 5, bge-small 5/8
 EMBED = {"model": "jinaai/jina-embeddings-v2-base-code", "cache_dir": r"C:\PolyStrata-data\embeddings", "max_chars": 2000}
 
