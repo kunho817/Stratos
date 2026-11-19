@@ -244,6 +244,7 @@ def parse_text_plan(text):
     result_tasks = []
     for fields in tasks:
         task = {}
+        all_notes = []
         for name, val in fields.items():
             val = val.strip()
             if name == "Key":
@@ -253,6 +254,21 @@ def parse_text_plan(text):
             elif name == "Goal":
                 task["goal"] = val
             elif name in _LIST_FIELDS:
+                # Walk parenthesised notes in order
+                for m in re.finditer(r"\s*\(([^)]*)\)", val):
+                    note = m.group(1).strip()
+                    if note.lower() in ("new", "new file"):
+                        continue
+                    before = val[:m.start()]
+                    last_comma = before.rfind(",")
+                    if last_comma != -1:
+                        item = before[last_comma + 1:].strip()
+                    else:
+                        item = before.strip()
+                    item = item.strip("`")
+                    all_notes.append((item, note))
+                val = re.sub(r"\s*\([^)]*\)", "", val)
+
                 items = [v.strip() for v in val.split(",")]
                 items = [v.strip("`") for v in items]
                 items = [v for v in items if v and v.lower() not in _NONE_WORDS]
@@ -264,6 +280,17 @@ def parse_text_plan(text):
                     task["role"] = r
                 else:
                     task["role"] = None
+
+        # Append recorded notes to goal
+        if all_notes and "goal" in task:
+            task["goal"] += "\n\nNotes from the plan:\n" + "\n".join(
+                f"- {item}: {note}" for item, note in all_notes
+            )
+
+        # Remove test files from files
+        if "files" in task:
+            task["files"] = [f for f in task["files"] if f not in task.get("tests", [])]
+
         result_tasks.append(task)
 
     earlier_keys = set()
