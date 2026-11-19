@@ -8,6 +8,7 @@ from pathlib import Path
 
 from stratos.state import Store
 from stratos.telemetry import Telemetry
+from stratos import report
 import urllib.request
 
 KEEP = ("ts", "kind", "task", "role", "attempt", "model", "from_model",
@@ -128,6 +129,7 @@ def project(repo):
         "updated": updated,
         "current": current,
         "stats": stats,
+        "efficiency": report.efficiency(all_events),
     }
 
 
