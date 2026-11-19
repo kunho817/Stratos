@@ -123,6 +123,18 @@ keys. The new check made every task start with a new test file (first try). Foun
        only its own stale chunks (KeyError on history chunks; fixed by Claude with a test).
        Also seen in M3a: Swift's whole-file answers for __main__.py (499 lines) hit the length limit (T117 no_files
        twice) - big files need edit-style answers or smaller modules.
+       **M3b done (T122-T127, 2026-11-19).** LESSONS.md in the Stratos folder (shared by every project, git-tracked)
+       holds `- [tags] lesson (source)` lines; memindex indexes them as "guide" chunks; recall puts general lessons and
+       people's corrections first and cuts code entries at 1000 characters (A/B 2: code filled the budget and only 2
+       lessons fit). `stratos memory learn` asks the reviewer model for one lesson per reset reason not yet learned
+       (state learned.json) and appends it. First live run: 32 proposed (26 Stratos, 6 tower defense), Claude kept 8:
+       about 6 restated "old tests pin old behaviour", one was the opposite of the real cause (use named regex
+       groups), many were vague. Next for the learner: at most 25 words and one concrete action in the prompt,
+       duplicates by embedding similarity, and learn from edited plans and rewritten drafts too (keep the planner's
+       original tasks in the plan file).
+       A/B 2 (5 runs per variant, with the lessons): mean of parsed plans base 2.4, uses 2.0, memory 3.67, but
+       memory had 2 parse failures - both a docs-only CONVENTIONS task without tests, caused by the wording of one
+       lesson (reworded). Variance between runs is large (base 1-4): compare means over 5+ runs.
    M4. **LLM wiki**: a page per module written by Tiel from the code map and the code (purpose, data shapes, who uses
        it, invariants, traps), rebuilt when the module's hash changes; a project overview page; hand edits kept.
    M5. **Retrieval agent + context packs**: hybrid search + code-map expansion (users of the symbols a goal names),
