@@ -21,8 +21,8 @@ def system_prompt(language, test_runner):
         '("FILE: tests/test_x.py" then a fenced block). Include a top comment '
         f"({top_comment}) that describes the behaviour, then test functions. Use fakes (monkeypatch) "
         "instead of the network, the GPU and real models. Work out every expected value step by step "
-        "in a comment above its assertion. The tests should fail "
-        "until the task is done."
+        "in a comment above its assertion. At most 15 tests per file, one per behaviour; keep each file "
+        "under 300 lines. The tests should fail until the task is done."
     )
 
 
@@ -44,6 +44,27 @@ def _strip_lone_fence(answer):
     if len(fences) != 2 or lines[fences[1]].strip() != "```":
         return None
     return "".join(lines[fences[0] + 1:fences[1]])
+
+
+def _fenced_blocks(answer):
+    """Return the inner texts of the fenced blocks of answer. A line starting with ``` opens a block, the
+    next line whose stripped text is exactly ``` closes it; an unclosed block is not counted."""
+    blocks = []
+    lines = answer.splitlines(keepends=True)
+    i = 0
+    while i < len(lines):
+        if lines[i].lstrip().startswith("```"):
+            j = i + 1
+            while j < len(lines) and lines[j].strip() != "```":
+                j += 1
+            if j < len(lines):
+                blocks.append("".join(lines[i + 1:j]))
+                i = j + 1
+            else:
+                break
+        else:
+            i += 1
+    return blocks
 
 
 def build_messages(task, root, example=None, earlier=(), memory=None):
@@ -192,9 +213,13 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                 if inner is not None:
                     files = [(new_tests[0], inner)]
                 else:
-                    first_line = answer.splitlines()[0] if answer else ""
-                    if not first_line.lstrip().startswith("```"):
-                        files = [(new_tests[0], answer)]
+                    blocks = _fenced_blocks(answer)
+                    if len(blocks) >= 2:
+                        files = [(new_tests[0], max(blocks, key=len))]
+                    else:
+                        first_line = answer.splitlines()[0] if answer else ""
+                        if not first_line.lstrip().startswith("```"):
+                            files = [(new_tests[0], answer)]
             written = {}
             for fpath, fcontent in files:
                 written[fpath] = fcontent
@@ -235,4 +260,3 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
             store.close()
 
     return results
-
