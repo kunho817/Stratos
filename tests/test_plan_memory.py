@@ -51,6 +51,10 @@ def env(tmp_path, monkeypatch):
             return "c1", ANSWER
     monkeypatch.setattr(cli, "Gateway", FakeGateway)
     monkeypatch.setattr(embed, "Embedder", lambda: "EMB")
+    # (task memory_refresh: `plan` refreshes the memory first; these tests are about the pack, so no refresh)
+    from stratos import memindex
+    monkeypatch.setattr(memindex, "refresh", lambda *a: {"chunks": 0, "changed": 0, "removed": 0, "embedded": 0},
+                        raising=False)
     goal = tmp_path / "goal.txt"
     goal.write_text("Make it fly.", encoding="utf-8")
     return seen, builds, goal
