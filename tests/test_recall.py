@@ -1,7 +1,8 @@
 """Tests for task recall: a context pack from memory for one role's prompt (memory M5).
 
 recall.SECTIONS = [("code", "RELEVANT CODE", 6), ("test", "RELEVANT TESTS", 4), ("doc", "PROJECT CONVENTIONS",
-3), ("episode", "PAST TASKS", 3), ("lesson", "LESSONS FROM PEOPLE'S CORRECTIONS", 5)] (kind, heading, how many).
+3), ("episode", "PAST TASKS", 3), ("guide", "GENERAL LESSONS (from earlier projects)", 4), ("lesson", "LESSONS FROM
+PEOPLE'S CORRECTIONS", 5)] (kind, heading, how many).
 
 recall.pack(store, query, embedder=None, cmap=None, budget=12000, sections=None) -> str. sections None ->
 recall.SECTIONS. For each (kind, heading, n) in order: hits = memsearch.search(store, query, embedder, cmap, k=n,
@@ -46,7 +47,9 @@ def test_sections(store, monkeypatch):
                                  "lesson": ["lesson:reset:T1:1"]})
     monkeypatch.setattr(memsearch, "search", search)
     text = recall.pack(store, "make f faster")
-    assert [c[1:] for c in calls] == [(6, {"code"}), (4, {"test"}), (3, {"doc"}), (3, {"episode"}), (5, {"lesson"})]
+    # (task lessons_index added the "guide" section before the lessons)
+    assert [c[1:] for c in calls] == [(6, {"code"}), (4, {"test"}), (3, {"doc"}), (3, {"episode"}), (4, {"guide"}),
+                                      (5, {"lesson"})]
     assert text == "\n\n".join([
         "RELEVANT CODE:\n--- a.js:f (keyword)\nfunction f() {}\n\n--- b.js:g (keyword)\n" + "x" * 1500 + "\n...",
         "RELEVANT TESTS:\n--- t.js:test: f (keyword)\ntest f",
