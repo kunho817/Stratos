@@ -50,7 +50,7 @@ def test_python_symbols():
     syms = codemap.scan_python(PY)
     assert [(s["name"], s["kind"], s["line"]) for s in syms] == [
         ("LIMIT", "constant", 5), ("step", "function", 9), ("Store", "class", 15),
-        ("Store.get", "method", 16), ("Store.put", "method", 19)]
+        ("Store.get", "method", 16), ("Store.put", "method", 19), ("(top level)", "script", 6)]  # lower = 1
     by = {s["name"]: s for s in syms}
     assert by["LIMIT"]["signature"] == "LIMIT" and by["LIMIT"]["uses"] == ["environ", "get", "os"]
     assert by["step"]["signature"] == "def step(state, dt=0.1)"
