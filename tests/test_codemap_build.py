@@ -54,13 +54,15 @@ def test_missing_folders(tmp_path):
 def test_users(tmp_path):
     cmap = codemap.build(project(tmp_path), SETTINGS)
     assert codemap.users(cmap, "TOWER_TYPES") == ["src/step.js:step", "src/towers.js:towerStats"]
-    assert codemap.users(cmap, "gold") == ["src/step.js:step", "src/ui/render.js:draw"]
+    assert codemap.users(cmap, "gold") == ["src/step.js:step", "src/ui/render.js:draw", "tests/step.test.js:(top level)"]
     assert codemap.users(cmap, "nobody") == []
 
 
 def test_uses_summary(tmp_path):
     cmap = codemap.build(project(tmp_path), SETTINGS)
+    # (codemap_top_level: the test's top-level test(...) call now counts as a use of step)
     assert codemap.uses_summary(cmap) == "\n".join([
+        "step (src/step.js): used by nothing; tests: tests/step.test.js",
         "TOWER_TYPES (src/towers.js): used by src/step.js:step, src/towers.js:towerStats; tests: none",
         "towerStats (src/towers.js): used by nothing; tests: tests/helper.py",
     ])
@@ -76,6 +78,6 @@ def test_step_is_used_by_a_test_only(tmp_path):
 
 def test_cut(tmp_path):
     cmap = codemap.build(project(tmp_path), SETTINGS)
-    first = "TOWER_TYPES (src/towers.js): used by src/step.js:step, src/towers.js:towerStats; tests: none"
+    first = "step (src/step.js): used by nothing; tests: tests/step.test.js"
     assert codemap.uses_summary(cmap, max_chars=len(first) + 5) == first + "\n... (cut)"
     assert codemap.uses_summary({"test_dir": "tests", "files": {}}) == ""

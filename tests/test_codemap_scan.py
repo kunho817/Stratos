@@ -113,3 +113,58 @@ def test_js_keywords():
 
 def test_js_empty():
     assert codemap.scan_js("// nothing here\n") == []
+
+
+# --- task codemap_top_level (2026-11-19): declarations end at their closing brace; the rest is "(top level)" ---
+# On the tower defense trial, main.js's DOM loop (after the last declaration) was counted as part of handleSelect,
+# and node tests (all top-level test(...) calls) used nothing. Now:
+# - scan_js: a declaration ends at the first line (from its own line on) where the count of "{" minus "}" so far,
+#   counted after removing comments and the contents of '...', "..." and `...` strings, is 0 and either a "{" has been
+#   seen or the stripped line ends with ";" - or, at the latest, before the next declaration or import line.
+# - The code that is in no declaration and is not an import line (scan_js) / every top-level statement that is not a
+#   def, class, constant, import or the module docstring (scan_python) makes one more symbol, last in the list:
+#   {"name": "(top level)", "kind": "script", "line": <its first such line>, "signature": "(top level)", "uses": ...},
+#   only when its uses are not empty.
+
+JS_MAIN = '''import { step } from "./step.js";
+
+export function handle(s) {
+  return s.x;
+}
+
+if (typeof document !== "undefined") {
+  let state = start();
+  function loop() {
+    state = step(state, 0.1);
+  }
+}
+'''
+
+
+def test_js_declaration_ends_at_its_brace():
+    syms = codemap.scan_js(JS_MAIN)
+    assert [(s["name"], s["kind"], s["line"]) for s in syms] == [("handle", "function", 3),
+                                                                  ("(top level)", "script", 7)]
+    assert syms[0]["uses"] == ["s", "x"]
+    assert syms[1]["signature"] == "(top level)"
+    assert syms[1]["uses"] == ["document", "loop", "start", "state", "step"]
+
+
+def test_js_tests_are_top_level_code():
+    text = 'import { test } from "node:test";\nimport { step } from "../src/step.js";\n\n' \
+           'test("moves", () => {\n  assert.equal(step(1).x, 2);\n});\n'
+    (sym,) = codemap.scan_js(text)
+    assert (sym["name"], sym["line"]) == ("(top level)", 4)
+    assert sym["uses"] == ["assert", "equal", "step", "test", "x"]
+
+
+def test_js_one_line_declarations_end_at_their_semicolon():
+    syms = codemap.scan_js("const A = 1;\nrun(A);\nconst B = {\n  a: A,\n};\n")
+    assert [(s["name"], s["uses"]) for s in syms] == [("A", []), ("B", ["A", "a"]), ("(top level)", ["A", "run"])]
+
+
+def test_python_top_level_code():
+    text = '"""Doc."""\nimport sys\n\n\ndef main():\n    return 1\n\n\nif __name__ == "__main__":\n    sys.exit(main())\n'
+    syms = codemap.scan_python(text)
+    assert [(s["name"], s["kind"], s["line"]) for s in syms] == [("main", "function", 5), ("(top level)", "script", 9)]
+    assert syms[1]["uses"] == ["__name__", "exit", "main", "sys"]
