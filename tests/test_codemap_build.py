@@ -34,7 +34,9 @@ def project(tmp_path):
     (tmp_path / "tests" / "step.test.js").write_text(
         'import { step } from "../src/step.js";\n\n'
         'test("s", () => {\n  step({ gold: 1 });\n});\n', encoding="utf-8")
-    (tmp_path / "tests" / "helper.py").write_text("def use():\n    return towerStats(1)\n", encoding="utf-8")
+    # (task codemap_imports: a user counts only when its file imports the defining module)
+    (tmp_path / "tests" / "helper.py").write_text("from towers import towerStats\n\n\ndef use():\n    return towerStats(1)\n",
+                                                  encoding="utf-8")
     return tmp_path
 
 
@@ -48,7 +50,7 @@ def test_build(tmp_path):
 
 
 def test_missing_folders(tmp_path):
-    assert codemap.build(tmp_path, SETTINGS) == {"test_dir": "tests", "files": {}}
+    assert codemap.build(tmp_path, SETTINGS) == {"test_dir": "tests", "files": {}, "imports": {}}
 
 
 def test_users(tmp_path):

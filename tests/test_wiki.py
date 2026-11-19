@@ -77,7 +77,7 @@ def test_used_by():
 
 
 def test_used_by_ignores_the_file_itself(monkeypatch):
-    monkeypatch.setattr(codemap, "users", lambda cmap, name: ["src/a.py:other", "src/c.py:x"] if name == "load" else [])
+    monkeypatch.setattr(codemap, "users", lambda cmap, name, path=None: ["src/a.py:other", "src/c.py:x"] if name == "load" else [])
     assert wiki.used_by(CMAP, "src/a.py") == "- load: src/c.py:x"
 
 
@@ -144,7 +144,8 @@ def test_build_writes_pages(repo):
     assert page == "# src/a.py\n\n" + PAGE + "\n"
     assert not (state / "wiki" / "tests__test_a.py.md").exists()
     index = json.loads((state / "wiki" / "index.json").read_text(encoding="utf-8"))
-    assert index["src/a.py"] == {"source": sha("def load(p):\n    pass\nLIMIT = 3\n"), "page": sha(page)}
+    # (task wiki_users: "source" is the hash of the whole user message, so new users rewrite the page too)
+    assert index["src/a.py"] == {"source": sha(messages[1]["content"]), "page": sha(page)}
     assert lines == ["wiki: src/a.py: written", "wiki: src/b.py: written"]
 
 
