@@ -89,6 +89,15 @@ keys. The new check made every task start with a new test file (first try). Foun
    Layers (each one usable alone, built in this order):
    M1. **Code map** (exact, no model): per function/class/constant its signature and the names it uses (Python ast,
        JS by top-level declarations); `users(name)`, "who uses what" for the planner, and which tests touch a name.
+       **M1 done (T101-T106, 2026-11-19).** stratos/codemap.py: scan_python/scan_js (declarations end at their
+       brace, top-level code such as node's test(...) calls is a "(top level)" symbol), build, users, uses_summary;
+       `stratos plan` shows "WHO USES WHAT". A/B on trial 2's goal at the pre-round-2 commit: the planner now routes
+       step.js through towerStats (missed before), plans no empty tasks (2 before), records totalSpent for the refund;
+       still changed the hp formula unasked without seeing waves.test.js pins it, and selling does not recompute the
+       path - about 2 goal fixes instead of 5 (one sample). Embeddings check (scratchpad embed_eval.py, tower
+       defense, 8 expected hits in top 5): jina-v2-base-code 7/8, bge-small 5/8, nomic-Q 3/8; no model found
+       step.js:step for "upgraded towers deal more damage" - the code map's users() does, so search must expand
+       hits through it.
    M2. **Store + hybrid search**: one SQLite file per project (.stratos/memory.db, stdlib sqlite3) of chunks (code per
        function, tests per test, wiki pages, episodes, lessons, CONVENTIONS sections) with BM25 (own code) and
        embedding vectors (CPU ONNX model via fastembed, cosine in numpy, re-embedded only when a chunk's hash
