@@ -82,6 +82,18 @@ keys. The new check made every task start with a new test file (first try). Foun
       the text. Found by Claude reading the diff. A headless smoke check that every fillText lands inside the
       canvas would catch this class.
 
+**Trial 3: Ledger (D:\Strata\Trials\Ledger, Python CLI, 2026-11-19) - the first run with memory on.** Only a layout in
+CONVENTIONS.md this time, no data model. So far:
+   a. **The planner defined the shared data contract itself** (Decimal in memory, strings in ledger.json, the three
+      storage keys, one function per module): trial 1 needed Claude to write it. 3 goal fixes: who converts
+      Decimal <-> str (storage), load's empty shape ({} -> the three empty keys), the missing ledger/__main__.py.
+   b. **Test drafts: 6 of 6 usable**, 2 changed: categorize was called with the description string although the plan
+      says categorize(transaction, rules) (a draft disagreeing with its own plan - check drafts' calls against the
+      plan's signatures in code), and duplicates inside one import were dropped (a judgement call; the goal only
+      forbids duplicates of what the ledger holds). Expected values were right everywhere (trial 1: 8 wrong).
+   c. The risky/leaks checks skip drafts whose status is import_error - which is every draft of a new module. Run
+      risky_patterns on every written .py draft.
+
 0. **Memory system - the central goal (user, 2026-11-19).** Local models are weaker than frontier models; close the
    gap with memory and retrieval, comprehensively (vector DB, RAG, an LLM-written wiki, lessons). Both trials failed
    for missing context, not missing skill: the planner did not know who reads a field (trial 2 a), a test draft did
