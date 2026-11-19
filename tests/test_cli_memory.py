@@ -2,7 +2,10 @@
 
 Both open memstore.Store(config.STATE_DIR / "memory.db") and close it at the end. The embedder is embed.Embedder()
 (called through the embed module so tests can replace it) unless --no-vectors is given, then None.
-- `memory index`: counts = memindex.index_project(config.REPO, store, embedder); prints
+- `memory index`: first h = memindex.index_history(store, Store(config.STATE_DIR).tasks(),
+  Telemetry(config.STATE_DIR / "telemetry.jsonl").load()) and prints
+  f"history: {chunks} chunks, {changed} changed, {removed} removed"; then
+  counts = memindex.index_project(config.REPO, store, embedder); prints
   f"memory: {chunks} chunks, {changed} changed, {removed} removed, {embedded} embedded"; returns 0.
 - `memory search QUERY [-k N] [--no-vectors]` (k defaults to 10): hits = memsearch.search(store, QUERY, embedder,
   codemap.build(config.REPO), k); one line per hit f"{score:.4f}  {title}  ({why})"; "no results" when there are
@@ -29,20 +32,29 @@ def env(tmp_path, monkeypatch):
 
 
 def test_index(env, monkeypatch, capsys):
+    # (task memindex_history: `memory index` first indexes the task history, then the project)
     seen = []
+    order = []
+    monkeypatch.setattr(memindex, "index_history", lambda store, tasks, events: order.append(("history", tasks)) or
+                        {"chunks": 3, "changed": 1, "removed": 0})
 
     def index(root, store, embedder):
+        order.append(("project", None))
         seen.append((root, type(store).__name__, embedder))
         return {"chunks": 5, "changed": 2, "removed": 1, "embedded": 2}
     monkeypatch.setattr(memindex, "index_project", index)
     assert cli.main(["memory", "index"]) == 0
-    assert capsys.readouterr().out.strip() == "memory: 5 chunks, 2 changed, 1 removed, 2 embedded"
+    assert capsys.readouterr().out.splitlines() == ["history: 3 chunks, 1 changed, 0 removed",
+                                                     "memory: 5 chunks, 2 changed, 1 removed, 2 embedded"]
+    assert order == [("history", []), ("project", None)]     # an empty state dir has no tasks
     assert seen == [(config.REPO, "Store", env[0])]
     assert (config.STATE_DIR / "memory.db").exists()
 
 
 def test_index_without_vectors(env, monkeypatch, capsys):
     seen = []
+    monkeypatch.setattr(memindex, "index_history", lambda store, tasks, events:
+                        {"chunks": 0, "changed": 0, "removed": 0})
     monkeypatch.setattr(memindex, "index_project",
                         lambda root, store, embedder: seen.append(embedder) or
                         {"chunks": 0, "changed": 0, "removed": 0, "embedded": 0})
