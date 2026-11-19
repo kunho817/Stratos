@@ -137,6 +137,26 @@ verified headless (a brute-force launch search wins every level). Found:
    f. Code quality: game.js copies the whole state by hand 6 times (no spread/helper); render.js sets no colours.
    g. Harness: `stratos reset` failed (Permission denied) while Claude's shell stood in the worktree (known; hit again).
 
+**Trial 4 round 2 (Orbit P002 + a trail fix, T007-T012, 193 tests, 2026-11-19).** End screen and R restart, colours,
+launch-direction preview, harder levels and a fourth. The planner saw that the game breaks after the last level and
+split the work well; Claude changed 4 of 5 goals (levels must really get harder; restartLevel needs no level; a
+preview signature change would have broken old tests, so it became main-only). With T144 all 5 drafts were kept
+(13-15 tests, 164-486 lines). Found:
+   a. **Old tests pinning old behaviour, 5 times** (trial 1 h again): "exactly 3 levels", LEVELS[2] as the last
+      level, one polyline per trail, two fake documents without addEventListener, a launch point pinned at (40,300).
+      Triage named 3 of 5 right. The drafts never change existing tests (by design), and coders cannot touch
+      tests, so every one needed Claude. Idea: let the test writer propose edits to existing tests that call the
+      changed names (code map users), shown for review like a draft.
+   b. **The test writer invented data instead of reading it:** "all levels share launch (40,300) and target
+      (760,300)" - levels.js said otherwise. Data files (levels) should be in the test writer's pack whole.
+   c. **Tuning by numbers is out of reach for a one-shot coder:** T007 (make winning launches strictly decrease)
+      failed 4 times; Claude tuned the levels by simulation in ~3 tries (75/52/42/23). A "tune" task kind could let
+      the harness run the measuring test after each small change the model proposes (an experiment loop).
+   d. **A bug no test or review caught:** drawTrail stroked one growing path after every lineTo (n^2 per frame, old
+      segments never faded); found by reading the diff, fixed by T012 with a new test.
+   e. The first round's DOM-test lesson held: main_restart was rewritten as pure onKey/currentLevel tests and
+      passed on the first try after that (T009 attempt 7 overall, 1 after the rewrite).
+
 **Watching and measuring (user, 2026-11-19): dashboard, efficiency, push per P (T145-T153).**
 `stratos dashboard` (127.0.0.1:8765): the gateway now writes call_start/switch_start, so the page shows who is
 writing which task right now, PolyStrata's live /metrics (phase, generated/max tokens, tok/s), GPU/VRAM/temperature
