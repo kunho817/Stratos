@@ -69,7 +69,33 @@ def _fenced_blocks(answer):
     return blocks
 
 
-def build_messages(task, root, example=None, earlier=(), memory=None):
+def old_tests(cmap, task):
+    files = cmap.get("files")
+    imports = cmap.get("imports")
+    if files is None or imports is None:
+        return []
+    test_dir = cmap.get("test_dir", "tests")
+    prefix = test_dir + "/"
+    task_tests = set(task["tests"])
+    module_names = [codemap.module_name(f) for f in task["files"]]
+    result = []
+    for p in files:
+        if not p.startswith(prefix):
+            continue
+        if p in task_tests:
+            continue
+        file_imports = imports.get(p, [])
+        if any(mn in file_imports for mn in module_names):
+            result.append(p)
+    return sorted(result)
+
+
+def outdated(text):
+    return [{"test": m.group(1), "reason": m.group(2).strip()}
+            for m in re.finditer(r"OUTDATED:\s*(\S+?::.+?)\s+-\s+(.+)$", text, re.M)]
+
+
+def build_messages(task, root, example=None, earlier=(), memory=None, old=()):
     if example is None:
         example = config.PROJECT["example_test"]
     parts = [f"TASK {task['key']}: {task['title']}", task["goal"]]
@@ -101,7 +127,15 @@ def build_messages(task, root, example=None, earlier=(), memory=None):
     for p in task["tests"]:
         if Path(root, p).exists():
             parts.append(context.show_file(root, p, "EXISTING TEST, DO NOT REWRITE"))
-    parts.append("WRITE THESE TEST FILES: " + ", ".join(new or task["tests"]))
+    for p in old:
+        if Path(root, p).exists():
+            parts.append(context.show_file(root, p,
+                "EXISTING TEST THAT USES THESE FILES (it must keep passing unless the goal changes what it checks)"))
+    final = "WRITE THESE TEST FILES: " + ", ".join(new or task["tests"])
+    if old:
+        final += ("\nIf the goal makes a test in those existing files wrong, name it at the top of your new file "
+                  "in a comment line: OUTDATED: <path>::<test name> - <reason>")
+    parts.append(final)
     return [{"role": "system", "content": TEST_SYSTEM},
             {"role": "user", "content": "\n\n".join(parts)}]
 
@@ -177,12 +211,13 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
     results = []
     written_so_far = []
 
+    cmap = codemap.build(root)
+
     store = None
     if config.MEMORY and (Path(state_dir) / "memory.db").exists():
         try:
             store = memstore.Store(Path(state_dir) / "memory.db")
             embedder = embed.Embedder()
-            cmap = codemap.build(root)
         except Exception as e:
             log(f"memory: {e}")
             store = None
@@ -197,7 +232,8 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                                          always_tags={"tests"})
                 except Exception as e:
                     log(f"memory: {e}")
-            messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory)
+            old = old_tests(cmap, task)
+            messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old)
             kw = {"task": f"{plan_id}-{key}", "role": "test_writer", "attempt": 1,
                   "model": model_cfg["model"], "effort": model_cfg["effort"],
                   "max_tokens": model_cfg["max_tokens"]}
@@ -257,6 +293,14 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                     gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
                                         status=status)
                 entry = {"key": key, "file": tpath, "status": status}
+                if status not in ("missing", "exists"):
+                    found = outdated(written[tpath])
+                    if found:
+                        for o in found:
+                            log(f"{tpath}: outdated {o['test']}: {o['reason']}")
+                        gw.telemetry.record("test_outdated", plan=plan_id, key=key, file=tpath,
+                                            tests=[o["test"] for o in found])
+                        entry["outdated"] = found
                 if config.DRAFT_CHECK and status not in ("missing", "exists"):
                     try:
                         flags = draftcheck.check(gw, plan_id, p, task, root, tpath)

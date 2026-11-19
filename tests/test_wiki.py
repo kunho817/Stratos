@@ -191,5 +191,9 @@ def test_chunks(repo):
     assert wiki.chunks(state, CMAP) == []
     wiki.build(FakeGateway([PAGE]), root, state, CMAP, only=["src/a.py"], log=lambda s: None)
     text = (state / "wiki" / "src__a.py.md").read_text(encoding="utf-8")
-    assert wiki.chunks(state, CMAP) == [{"id": "wiki:src/a.py", "kind": "wiki", "source": "src/a.py",
-                                         "title": "notes: src/a.py", "text": text}]
+    # since task wiki_overview, build also writes overview.md, which chunks returns last (Claude updated this test:
+    # it pinned "module chunks only"; triage of T167 named it)
+    chunks = wiki.chunks(state, CMAP)
+    assert chunks[0] == {"id": "wiki:src/a.py", "kind": "wiki", "source": "src/a.py",
+                         "title": "notes: src/a.py", "text": text}
+    assert [c["id"] for c in chunks[1:]] == ["wiki:overview"]

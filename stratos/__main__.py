@@ -3,6 +3,7 @@
   python -m stratos add --title T --goal G --files a.py,b.py --protected tests/test_x.py --tests tests/test_x.py
   python -m stratos add --title T --goal-file PATH --files a.py,b.py --protected tests/test_x.py --tests tests/test_x.py
   python -m stratos plan --goal-file PATH [--tries N]
+  python -m stratos plan-critique PLAN_ID
   python -m stratos plan-add PLAN_ID
   python -m stratos plan-tests PLAN_ID
   python -m stratos run T001
@@ -39,6 +40,7 @@ from . import memindex
 from . import memsearch
 from . import memstore
 from . import plan as plan_mod
+from . import plancritic
 from . import plantests
 from . import push
 from . import recall
@@ -102,6 +104,18 @@ def add_one(store, title, goal, files, protected, tests, role, after):
     return t
 
 
+def show_critique(gw, pid, goal, tasks):
+    try:
+        problems = plancritic.critique(gw, goal, config.REPO, tasks)
+        plan_mod.save_critique(config.STATE_DIR, pid, problems)
+        gw.telemetry.record("plan_critique", plan=pid, problems=len(problems))
+        print(f"critique ({config.PLAN_CRITIC['model']}, advisory): {len(problems)} problems")
+        for p in problems:
+            print(f"  - {p['task']}: {p['problem']}")
+    except Exception as e:
+        print(f"critique failed: {e}")
+
+
 def main(argv=None):
     # A redirected stdout uses the Windows code page (cp949); characters it lacks must not break a run (Orbit T009)
     for stream in (sys.stdout, sys.stderr):
@@ -122,6 +136,8 @@ def main(argv=None):
     plan_p = sub.add_parser("plan", help="split a feature goal into tasks")
     plan_p.add_argument("--goal-file", required=True, help="path to a file containing the feature goal")
     plan_p.add_argument("--tries", type=int, default=2, help="attempts to get a valid plan")
+    plan_critique_p = sub.add_parser("plan-critique", help="ask the plan critic about a saved plan")
+    plan_critique_p.add_argument("plan_id")
     plan_add_p = sub.add_parser("plan-add", help="add a saved plan as tasks")
     plan_add_p.add_argument("plan_id")
     plan_tests_p = sub.add_parser("plan-tests", help="draft the test files of every task in a plan")
@@ -292,6 +308,8 @@ def main(argv=None):
                 for t in tasks:
                     print(f"  {t['key']}. {t['title']}")
                     print(f"    files: {', '.join(t['files'])}  tests: {', '.join(t['tests'])}")
+                if config.PLAN_CRITIQUE:
+                    show_critique(gw, pid, goal, tasks)
                 return 0
 
             last_reason = str(parse_error)
@@ -305,6 +323,15 @@ def main(argv=None):
             continue
         print(f"plan invalid: {last_reason}", file=sys.stderr)
         return 1
+    elif args.cmd == "plan-critique":
+        try:
+            p = plan_mod.load_plan(config.STATE_DIR, args.plan_id)
+        except KeyError:
+            print(f"no such plan: {args.plan_id}", file=sys.stderr)
+            return 1
+        gw = Gateway(Telemetry(config.STATE_DIR / "telemetry.jsonl"))
+        show_critique(gw, args.plan_id, p["goal"], p["tasks"])
+        return 0
     elif args.cmd == "plan-add":
         try:
             p = plan_mod.load_plan(config.STATE_DIR, args.plan_id)

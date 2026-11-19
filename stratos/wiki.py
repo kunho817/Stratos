@@ -22,6 +22,23 @@ def page_name(path):
     return path.replace("/", "__") + ".md"
 
 
+def purpose_of(page_text):
+    """Return the first bullet under '## Purpose' with the leading '- ' cut off, or None."""
+    lines = page_text.splitlines()
+    in_purpose = False
+    for line in lines:
+        if line.startswith("## "):
+            in_purpose = line.startswith("## Purpose")
+            continue
+        if in_purpose:
+            if line.startswith("- "):
+                return line[2:].strip()
+            if line.strip() == "":
+                continue
+            return None
+    return None
+
+
 def used_by(cmap, path):
     """One line per symbol of cmap['files'][path] that has users in other files."""
     lines = []
@@ -85,6 +102,27 @@ def _save_index(wiki_dir, index):
 def _sha(text):
     """Return sha1 hex of text encoded as UTF-8."""
     return hashlib.sha1(text.encode("utf-8")).hexdigest()
+
+
+def overview(cmap, state_dir):
+    """Return the project overview text: one line per code path with its purpose and imports."""
+    state_dir = Path(state_dir)
+    wiki_dir = state_dir / "wiki"
+    lines = ["# Project overview", ""]
+    for path in _code_paths(cmap):
+        page_path = wiki_dir / page_name(path)
+        if page_path.exists():
+            purpose = purpose_of(page_path.read_text(encoding="utf-8"))
+        else:
+            purpose = None
+        if purpose is None:
+            purpose = "(no page yet)"
+        line = f"- {path}: {purpose}"
+        imports = cmap.get("imports", {}).get(path)
+        if imports:
+            line += f" (imports: {', '.join(imports)})"
+        lines.append(line)
+    return "\n".join(lines) + "\n"
 
 
 def build(gw, root, state_dir, cmap, only=None, log=print):
@@ -156,6 +194,8 @@ def build(gw, root, state_dir, cmap, only=None, log=print):
         counts["written"] += 1
         log(f"wiki: {path}: written")
 
+    (wiki_dir / "overview.md").write_text(overview(cmap, state_dir), encoding="utf-8")
+
     return counts
 
 
@@ -174,6 +214,16 @@ def chunks(state_dir, cmap):
             "kind": "wiki",
             "source": path,
             "title": f"notes: {path}",
+            "text": text,
+        })
+    overview_path = wiki_dir / "overview.md"
+    if overview_path.exists():
+        text = overview_path.read_text(encoding="utf-8")
+        result.append({
+            "id": "wiki:overview",
+            "kind": "wiki",
+            "source": "overview",
+            "title": "project overview",
             "text": text,
         })
     return result
