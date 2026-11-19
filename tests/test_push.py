@@ -1,4 +1,4 @@
-"""Tests for tasks push and push_cli: `stratos push` sends a finished chunk (a "P") to the remote, only when it is
+r"""Tests for tasks push and push_cli: `stratos push` sends a finished chunk (a "P") to the remote, only when it is
 safe (user, 2026-11-19: push once per P).
 
 push.SECRET_PATTERNS: regular expressions for secrets in added lines: r"sk-[A-Za-z0-9_-]{20,}",
@@ -51,20 +51,20 @@ def test_secret_hits():
     diff = "\n".join([
         "+++ b/app/.env",
         "+++ b/src/ok.py",
-        "+KEY = 'sk-abcdefghijklmnopqrstuvwxyz'",
-        "+api_key = \"abcdef1234567890\"",
+        "+KEY = 'sk-abcdefghijklmnopqrstuvwxyz'",  # pragma: allowlist secret
+        "+api_key = \"abcdef1234567890\"",  # pragma: allowlist secret
         "+print('hello')",
-        "-token = 'sk-abcdefghijklmnopqrstuvwxyz'",
+        "-token = 'sk-abcdefghijklmnopqrstuvwxyz'",  # pragma: allowlist secret
         "+++ b/certs/server.pem",
-        "+-----BEGIN RSA PRIVATE KEY-----",
+        "+-----BEGIN RSA PRIVATE KEY-----",  # pragma: allowlist secret
         "+password = 'short'",
     ])
     assert push.secret_hits(diff) == [
         "file: app/.env",
-        "line: KEY = 'sk-abcdefghijklmnopqrstuvwxyz'",
-        "line: api_key = \"abcdef1234567890\"",
+        "line: KEY = 'sk-abcdefghijklmnopqrstuvwxyz'",  # pragma: allowlist secret
+        "line: api_key = \"abcdef1234567890\"",  # pragma: allowlist secret
         "file: certs/server.pem",
-        "line: -----BEGIN RSA PRIVATE KEY-----",
+        "line: -----BEGIN RSA PRIVATE KEY-----",  # pragma: allowlist secret
     ]
     assert push.secret_hits("+x = 1\n") == []
 
@@ -131,13 +131,13 @@ def test_refusals(repos, tmp_path):
     origin, work = repos
     git(work, "remote", "add", "origin", str(origin))
     git(work, "push", "-q", "origin", "main")
-    (work / "b.txt").write_text("token = 'abcdefghijklmnop'\n", encoding="utf-8")
+    (work / "b.txt").write_text("token = 'abcdefghijklmnop'\n", encoding="utf-8")  # pragma: allowlist secret
     git(work, "add", "-A")
     git(work, "commit", "-qm", "two")
     (work / "a.txt").write_text("changed\n", encoding="utf-8")
     ok, msgs, info = push.check(work, lambda: (False, "1 failed"))
     assert not ok and info == {"branch": "main", "ahead": 1, "skip": False}
-    assert msgs == ["uncommitted changes", "secret? line: token = 'abcdefghijklmnop'", "tests failed"]
+    assert msgs == ["uncommitted changes", "secret? line: token = 'abcdefghijklmnop'", "tests failed"]  # pragma: allowlist secret
     lines = []
     assert push.push(work, Telemetry(tmp_path / "t.jsonl"), lambda: (False, ""), log=lines.append) == 1
     assert lines[-1] == "push: refused" and "push: uncommitted changes" in lines
@@ -157,3 +157,10 @@ def test_cli(tmp_path, monkeypatch):
     monkeypatch.setattr(push, "push", fake_push)
     assert cli.main(["push", "--dry-run"]) == 7
     assert seen == [("tests", ["tests/test_a.py"]), (config.REPO, "Telemetry", True, (True, ""))]
+
+
+def test_allowlisted_lines_are_skipped():
+    """(task push_allowlist) An added line that contains "pragma: allowlist secret" is not a hit (the fake keys in
+    these tests would otherwise stop every push of Stratos itself)."""
+    line = "+KEY = 'sk-abcdefghijklmnopqrstuvwxyz'  # pragma: allowlist secret"
+    assert push.secret_hits(line) == []

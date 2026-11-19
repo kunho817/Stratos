@@ -106,3 +106,13 @@ def test_cli(tmp_path, monkeypatch, capsys):
     printed = capsys.readouterr().out.splitlines()
     assert printed == report.format_efficiency(report.efficiency(tel.load()))
     assert printed[0] == "efficiency:"
+
+
+def test_a_pass_after_the_reset_is_useful():
+    """(task efficiency_discard_order) Only a pass that comes before a person's reset of its task is "discarded"; the
+    pass after the reset is the task's real result ("useful")."""
+    events = [call("x1", "T9", "coder", 100, 10, 1), out("x1", "T9", "passed", 2),
+              {"kind": "verdict", "task": "T9", "result": "reset_by_human", "reason": "r", "ts": 3},
+              call("x2", "T9", "coder", 200, 20, 4), out("x2", "T9", "passed", 5)]
+    by = report.efficiency(events)["by_cause"]
+    assert by["discarded"]["completion_tokens"] == 100 and by["useful"]["completion_tokens"] == 200
