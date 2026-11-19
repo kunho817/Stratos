@@ -55,6 +55,11 @@ PLANNER = {"model": "swift-1.5-iq2_xs", "effort": "medium", "max_tokens": 24000,
 PLAN_AS_TEXT = True
 PLAN_CONVERTER = {"model": "qwen3.6-35b-a3b-ud-q4_k_m", "effort": "none", "max_tokens": 8000}
 
+# checks drafted tests before any code is written; the drafts come from the same model, so no switch
+DRAFT_CHECKER = {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 12000}
+# STRATOS_DRAFT_CHECK=0 turns the draft checker off; on by default
+DRAFT_CHECK = os.environ.get("STRATOS_DRAFT_CHECK", "1") != "0"
+
 # TRIAGE (2026-11-18): after a task fails its tests, a quick model decides whether the failing assertion is the test's
 # fault (test_wrong) or the code's (code_wrong), so the retry targets the right file. STRATOS_TRIAGE=0 turns it off.
 TRIAGE = os.environ.get("STRATOS_TRIAGE", "1") != "0"

@@ -13,6 +13,7 @@
   python -m stratos clean
   python -m stratos reset T001 --reason R
   python -m stratos drop T001 --reason R
+  python -m stratos accept T001 --reason R
   python -m stratos replay T001 T002 --role coder --model M --effort E --max-tokens N --tries K
   python -m stratos memory index [--no-vectors]
   python -m stratos memory search QUERY [-k N] [--no-vectors]
@@ -142,6 +143,9 @@ def main(argv=None):
     drop = sub.add_parser("drop", help="give a task up for good")
     drop.add_argument("task_id")
     drop.add_argument("--reason", required=True, help="why the task is being dropped")
+    accept = sub.add_parser("accept", help="mark a task done with a person's work in its worktree")
+    accept.add_argument("task_id")
+    accept.add_argument("--reason", required=True, help="why the work is being accepted")
     replay_p = sub.add_parser("replay", help="try a model on past tasks; nothing is committed")
     replay_p.add_argument("task_ids", nargs="+")
     replay_p.add_argument("--role", choices=sorted(config.ROLES), default="coder",
@@ -335,7 +339,13 @@ def main(argv=None):
             print(f"no such plan: {args.plan_id}", file=sys.stderr)
             return 1
         for r in results:
-            print(f"{r['key']} {r['file']}: {r['status']}")
+            flags = r.get("flags")
+            if flags:
+                print(f"{r['key']} {r['file']}: {r['status']}, {len(flags)} flagged")
+                for f in flags:
+                    print(f'  - "{f["test"]}": {f["reason"]}')
+            else:
+                print(f"{r['key']} {r['file']}: {r['status']}")
         return 0
     elif args.cmd == "run":
         tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
@@ -514,6 +524,31 @@ def main(argv=None):
                                                                result="dropped_by_human", reason=args.reason)
         print(f"dropped {args.task_id}")
         return 0
+    elif args.cmd == "accept":
+        try:
+            task = store.get(args.task_id)
+        except KeyError:
+            print(f"no such task {args.task_id}", file=sys.stderr)
+            return 1
+        if task["status"] == "done":
+            print(f"{args.task_id} is already done", file=sys.stderr)
+            return 1
+        wt = task.get("worktree")
+        if not wt or not Path(wt).is_dir():
+            print(f"{args.task_id} has no worktree", file=sys.stderr)
+            return 1
+        if gitops.git(wt, "status", "--porcelain").strip():
+            gitops.commit_all(wt, f"{args.task_id}: {task['title']} (by a person)\n\n{args.reason}")
+        if gitops.git(config.REPO, "rev-list", "--count", f"HEAD..stratos/{args.task_id}").strip() == "0":
+            print(f"nothing to accept: {args.task_id}", file=sys.stderr)
+            return 1
+        sha = gitops.git(wt, "rev-parse", "--short", "HEAD").strip()
+        store.update(args.task_id, status="done", commit=sha, model="person", accepted_reason=args.reason)
+        store.decide(task=args.task_id, result="done_by_human", reason=args.reason)
+        Telemetry(config.STATE_DIR / "telemetry.jsonl").record("verdict", task=args.task_id,
+                                                               result="done_by_human", reason=args.reason)
+        print(f"accepted {args.task_id} (commit {sha})")
+        return 0
     elif args.cmd == "replay":
         tasks = []
         for tid in args.task_ids:
@@ -605,4 +640,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
-

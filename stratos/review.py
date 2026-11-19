@@ -17,10 +17,12 @@ REVIEW_SYSTEM = (
     "Check every changed line against the goal. "
     "high = wrong behaviour, a bug or a security problem; "
     "medium = misleading or redundant logic (for example a condition that is always true), "
-    "needless repeated work, a missing edge case, "
+    "work that grows with the input inside a loop (for example redrawing everything once per item), "
+    "a missing edge case, "
     "or code that is never used (an unused variable, import or function); "
     "a change the goal did not ask for (a renamed name, reworded text or a prompt, any edit outside what the goal "
     "describes) is ALWAYS medium, even when it looks small or harmless, never low; "
+    "a repeated call that costs a fixed small amount is low unless the goal is about speed; "
     "low = style only, in lines the goal asked to change. "
     "Use approve when there are no high or medium issues."
 )
