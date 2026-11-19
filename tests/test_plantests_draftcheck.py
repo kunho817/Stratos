@@ -111,8 +111,7 @@ def test_no_check_for_a_missing_draft(env):
     state, root, calls = env
     # an unclosed fence is the one answer the header-less fallbacks do not turn into a file (a plain text answer
     # becomes the draft itself; Claude's first version of this test used one and was wrong)
-    results = plantests.draft_tests(FakeGateway("```python
-unclosed"), "P001", root, state, log=lambda s: None)
+    results = plantests.draft_tests(FakeGateway("```python\nunclosed"), "P001", root, state, log=lambda s: None)
     assert results[0]["status"] == "missing" and calls == [] and "flags" not in results[0]
 
 
