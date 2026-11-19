@@ -163,6 +163,8 @@ _FIELD_RE = re.compile(
 
 _LIST_FIELDS = {"Files", "Tests", "Protected", "After"}
 
+_NONE_WORDS = {"none", "(none)", "-", "n/a", "nothing", "[]"}
+
 
 def parse_text_plan(text):
     lines = text.split("\n")
@@ -212,7 +214,7 @@ def parse_text_plan(text):
             elif name in _LIST_FIELDS:
                 items = [v.strip() for v in val.split(",")]
                 items = [v.strip("`") for v in items]
-                items = [v for v in items if v]
+                items = [v for v in items if v and v.lower() not in _NONE_WORDS]
                 key_name = name.lower()
                 task[key_name] = items
             elif name == "Role":
