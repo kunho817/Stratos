@@ -95,7 +95,7 @@ def test_a_failing_recall_is_reported(env, monkeypatch, capsys):
     monkeypatch.setattr(config, "MEMORY", True)
     memstore.Store(config.STATE_DIR / "memory.db").close()
 
-    def boom(*a):
+    def boom(*a, **k):
         raise RuntimeError("no model")
     monkeypatch.setattr(recall, "pack", boom)
     assert cli.main(["plan", "--goal-file", str(goal)]) == 0
