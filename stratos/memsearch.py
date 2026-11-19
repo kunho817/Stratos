@@ -3,8 +3,10 @@ import math
 from stratos import memstore, codemap
 
 
-def search(store, query, embedder=None, cmap=None, k=10):
+def search(store, query, embedder=None, cmap=None, k=10, kinds=None):
     chunks = store.all()
+    if kinds is not None:
+        chunks = [c for c in chunks if c["kind"] in kinds]
     if not chunks:
         return []
 
@@ -26,6 +28,8 @@ def search(store, query, embedder=None, cmap=None, k=10):
         vecs = store.vectors(embedder.name)
         vec_list = []
         for cid, v in vecs.items():
+            if cid not in {c["id"] for c in chunks}:
+                continue
             v_norm = math.sqrt(sum(x * x for x in v))
             if v_norm == 0.0:
                 sim = 0.0
@@ -79,6 +83,8 @@ def search(store, query, embedder=None, cmap=None, k=10):
                         if store.get(candidate) is None:
                             candidate = f"test:{u}"
                         if store.get(candidate) is None:
+                            continue
+                        if kinds is not None and store.get(candidate)["kind"] not in kinds:
                             continue
                         if candidate.startswith("code:"):
                             code_users.append(candidate)
