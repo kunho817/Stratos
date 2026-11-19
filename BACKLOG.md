@@ -77,8 +77,12 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
   existing tests and the critic knows the test-file rule (trial 7). Both tasks first failed on old tests Claude had
   not updated (loop tests that assumed 3 Tiel tries, plantests_earlier pinning "no OUTDATED sentence"), and triage
   named both correctly. The loop tests now pin their attempt plan in conftest.
-  Measured, not decided (the user's call): Jev's shadow escalation decisions 118/201 right vs the rules' 98/202,
-  role decisions Jev 60/97 vs rules 24/29.
+  **Jev decided (user + Claude, 2026-11-20): not adopted, stays in shadow.** Raw: escalation Jev 118/201 vs rules
+  98/202, roles Jev 60/97 vs rules 24/29. Paired on the same decisions: escalation 115 agree, and where they
+  disagree (181) Jev was right 97 times, the rules 84 (54%, a coin flip); roles: 32 pairs, the 5 disagreements all
+  went to the rules. The escalation "truth" (did a different role pass later) is shaped by the rules' own
+  choices, so it cannot show Jev is better; a real test needs replays of both branches - not worth it now that
+  coder tasks escalate after 2 tries anyway.
   Still open in P4: the reviewer (Qwen3.6) - the weakest checker in experiment (a) and 4 wrong blocking reviews in
   trials 5-7 (a nit as medium, a task key read as a module, a short-circuit read as NameError, a present import
   called missing) while it caught one real bug (the servings padding) - and its load costs 2 switches per round:
