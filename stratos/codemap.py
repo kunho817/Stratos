@@ -22,6 +22,8 @@ _DECL_RE = re.compile(
     r"\s+(?P<name>[A-Za-z_$][\w$]*)\s*(?P<tail>.*)$"
 )
 
+_TEST_RE = re.compile(r"""^(test|it|describe)\(\s*(['"`])(.*?)\2""")
+
 
 def scan_python(text):
     """Scan Python source text into a list of symbol dicts in file order.
@@ -130,31 +132,50 @@ def scan_js(text):
         if m:
             decls.append((i, m))
 
+    # Locate test call lines.
+    tests = []
+    for i, line in enumerate(lines):
+        m = _TEST_RE.match(line)
+        if m:
+            tests.append((i, m))
+
     # Locate import lines.
     import_lines = set()
     for i, line in enumerate(lines):
         if line.lstrip().startswith("import "):
             import_lines.add(i)
 
-    boundaries = sorted(set([i for i, _ in decls]) | import_lines)
+    # Boundaries include declaration lines, test lines, and import lines.
+    boundaries = sorted(set([i for i, _ in decls]) | set([i for i, _ in tests]) | import_lines)
+
+    # Build all symbols in line order (declarations and tests mixed together).
+    all_lines = [(i, m, 'decl') for i, m in decls] + [(i, m, 'test') for i, m in tests]
+    all_lines.sort(key=lambda x: x[0])
 
     symbols = []
     covered = set()
 
-    for i, m in decls:
-        name = m.group("name")
-        if m.group("kind") == "function":
-            kind = "function"
-        elif m.group("kind") == "class":
-            kind = "class"
-        else:
-            rest = m.group("tail")
-            if "=>" in rest or "function" in rest:
+    for i, m, typ in all_lines:
+        if typ == 'decl':
+            name = m.group("name")
+            if m.group("kind") == "function":
                 kind = "function"
+            elif m.group("kind") == "class":
+                kind = "class"
             else:
-                kind = "constant"
+                rest = m.group("tail")
+                if "=>" in rest or "function" in rest:
+                    kind = "function"
+                else:
+                    kind = "constant"
+            own_name = name
+        else:
+            title = m.group(3)
+            name = f"test: {title}"
+            kind = "test"
+            own_name = name
 
-        # The latest boundary is the next declaration or import line.
+        # The latest boundary is the next declaration, test, or import line.
         next_idx = n
         for b in boundaries:
             if b > i:
@@ -181,11 +202,11 @@ def scan_js(text):
             covered.add(j)
 
         signature = _signature(lines[i])
-        uses = _uses(code, name)
+        uses = _uses(code, own_name)
         symbols.append({"name": name, "kind": kind, "line": i + 1,
                         "signature": signature, "uses": uses, "end": end + 1})
 
-    # Top-level code: lines in no declaration and not import lines.
+    # Top-level code: lines in no declaration, test, or import.
     top_lines = []
     first_line = None
     last_line = None
