@@ -235,6 +235,26 @@ three on the first try. 54 tests, private repo stratos-trial-lumen.
 3.82, 27.8%; tower defense 8/16, 2.94, 21.6%). Preflight refused nothing here (no broken test file or missing After)
 and put the base failures in every first prompt. Not a clean A/B: Claude also rewrote 3 of 5 drafts before the run.
 
+**Trial 6: Pantry, a recipe-scaling CLI (D:\Strata\Trials\Pantry, Python, 2026-11-20) - the trial after P2.**
+Plan: 6 tasks, right split and order; Claude changed 4 goals and 3 Afters: `convert(amount, from, to, gw)` (a Stratos
+name leaked from the memory pack into a trial's API), no pantry/__main__.py (Ledger's lesson missed again, although
+LESSONS.md has it), shopping "prints" in a pure module and no return shape, no pantry.json shape; recipe and
+scale lacked After units, shopping lacked After scale. Drafts: 2 of 6 kept, 4 changed by Claude: servings 0 accepted
+(recipe, scale: would divide by zero), cli called main(["pantry", ...]) with the program name and took scale's
+servings as --servings although the goal says `scale <file> <servings>`; no `python -m` exit-code test (added). No
+invented data this time (the new "do not assume its contents" rule, or simply a small table - not separable).
+**The draft checker (P2) flagged 1 test** (a message-format detail) and none of the 5 real problems: on fresh drafts
+it finds arithmetic slips, not interface mismatches with the goal. Keep it advisory; P3 should give it the goal's
+command syntax and the signatures the plan names (a check of calls against the plan, Ledger trial b).
+Run: first try 3/8, 2.88 attempts per passed task, waste 17.4% (Lumen 5/7, 2.0, 10.6%; Ledger 11/11). Failures were
+the code's this time (fraction amounts, the shopping rules, argparse), plus: **the reviewer asked T006 to import from
+"pantry_mgmt" - a task key the planner had written into the goal - and the change broke the import** (goals should
+name files, not task keys; the reviewer cannot tell them apart); Claude's test list for T007 held T008's new test
+(rule 3 broken by Claude again; triage named it exactly: "a separate task"). Running the CLI found 2 bugs the tests
+missed: `list` crashed sorting None against a unit, `--servings 4 2` was refused (T007/T008 fixed both). Not merged:
+"2 eggs" + "3 eggs" stay two lines - Claude's own goal said lines without a unit are not added up. 88 tests, private
+repo stratos-trial-pantry.
+
 **Watching and measuring (user, 2026-11-19): dashboard, efficiency, push per P (T145-T153).**
 `stratos dashboard` (127.0.0.1:8765): the gateway now writes call_start/switch_start, so the page shows who is
 writing which task right now, PolyStrata's live /metrics (phase, generated/max tokens, tok/s), GPU/VRAM/temperature
