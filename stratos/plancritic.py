@@ -16,6 +16,8 @@ SYSTEM = (
     "a module the conventions say is pure that prints or reads files; "
     "a rule of the feature goal no task covers; "
     "an input the feature allows that would crash (zero, empty, missing). "
+    "Each task's first test file is a new file of its own and later test files are existing ones it must "
+    "keep passing (a rule of this harness): never report test file names or the split of tests into files. "
     "Do not suggest style changes or extra features.\n"
     "Answer with one line per problem, exactly:\n"
     "PROBLEM: <task key> | <one sentence>\n"

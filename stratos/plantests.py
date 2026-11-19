@@ -132,7 +132,7 @@ def build_messages(task, root, example=None, earlier=(), memory=None, old=()):
             parts.append(context.show_file(root, p,
                 "EXISTING TEST THAT USES THESE FILES (it must keep passing unless the goal changes what it checks)"))
     final = "WRITE THESE TEST FILES: " + ", ".join(new or task["tests"])
-    if old:
+    if old or any(Path(root, p).exists() for p in task["tests"]):
         final += ("\nIf the goal makes a test in those existing files wrong, name it at the top of your new file "
                   "in a comment line: OUTDATED: <path>::<test name> - <reason>")
     parts.append(final)
