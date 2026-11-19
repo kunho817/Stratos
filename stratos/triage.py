@@ -17,6 +17,9 @@ SYSTEM = (
     '{"verdict": "test_wrong"|"code_wrong"|"unclear", "test": "<the test file path, or empty>", "reason": "<why>"}'
 )
 
+# Ask the model to answer again when its first answer had no usable verdict or an empty reason.
+RETRY = 'Answer with one JSON object only: {"verdict": "test_wrong"|"code_wrong"|"unclear", "test": "<the test file path, or empty>", "reason": "<one sentence>"}. The reason must not be empty.'
+
 _VERDICTS = {"test_wrong", "code_wrong", "unclear"}
 _UNCLEAR = {"verdict": "unclear", "test": "", "reason": ""}
 
@@ -70,8 +73,14 @@ def parse(text):
     return {"verdict": verdict, "test": data.get("test", ""), "reason": data.get("reason", "")}
 
 
+def _usable(text):
+    """True when parse found a JSON object with a valid verdict and a non-empty reason."""
+    answer = parse(text)
+    return answer["reason"].strip() != ""
+
+
 def triage(gw, task, root, code_files, test_output):
-    """Ask the triage model whether the failing assertion is the test's or the code's fault; return parse(answer)."""
+    """Ask the triage model whether the failing assertion is the test's or the code's fault; retry once if unusable."""
     triager = config.TRIAGER
     gw.ensure_model(triager["model"])
     messages = build_messages(task, root, code_files, test_output)
@@ -86,4 +95,14 @@ def triage(gw, task, root, code_files, test_output):
     if triager.get("reasoning_budget") is not None:
         kwargs["reasoning_budget"] = triager["reasoning_budget"]
     _, answer = gw.chat(messages, **kwargs)
+    (config.STATE_DIR / "answers").mkdir(parents=True, exist_ok=True)
+    (config.STATE_DIR / "answers" / f"{task['id']}-triage-1.md").write_text(answer, encoding="utf-8")
+    if not _usable(answer):
+        kwargs["attempt"] = 2
+        messages = messages + [
+            {"role": "assistant", "content": answer},
+            {"role": "user", "content": RETRY},
+        ]
+        _, answer = gw.chat(messages, **kwargs)
+        (config.STATE_DIR / "answers" / f"{task['id']}-triage-2.md").write_text(answer, encoding="utf-8")
     return parse(answer)
