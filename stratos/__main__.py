@@ -200,6 +200,13 @@ def main(argv=None):
                     parse_via = "json"
                     parse_error = e
 
+            if parse_ok:
+                try:
+                    plan_mod.check_new_tests(tasks, config.REPO)
+                except plan_mod.PlanError as e:
+                    parse_ok = False
+                    parse_error = e
+
             kw2 = dict(attempt=attempt, via=parse_via, ok=parse_ok)
             if parse_error is not None:
                 kw2["error"] = str(parse_error)
@@ -237,7 +244,11 @@ def main(argv=None):
         key_to_id = {}
         for t in tasks:
             after_ids = [key_to_id[a] for a in t.get("after", [])]
-            task = add_one(store, t["title"], t["goal"], t["files"], t.get("protected", []),
+            prot = list(t.get("protected", []))
+            for test in t["tests"]:
+                if test not in prot:
+                    prot.append(test)
+            task = add_one(store, t["title"], t["goal"], t["files"], prot,
                            t["tests"], t.get("role"), after_ids)
             key_to_id[t["key"]] = task["id"]
         plan_mod.mark_added(config.STATE_DIR, args.plan_id, key_to_id)
