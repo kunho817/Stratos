@@ -289,6 +289,15 @@ def main(argv=None):
         if blocked:
             print("blocked: " + " ".join(blocked))
         statuses = run_all(store, gw, order)
+        last = order
+        while True:
+            again = [tid for tid in order if store.get(tid)["status"] == "todo"
+                     and all(store.get(x)["status"] == "done" for x in store.get(tid).get("after", []))]
+            if not again or again == last:
+                break
+            print("next pass: " + " ".join(again))
+            statuses.update(run_all(store, gw, again))
+            last = again
         done = True
         for tid in order:
             task = store.get(tid)
