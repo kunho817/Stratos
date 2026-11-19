@@ -235,6 +235,7 @@ def parse_text_plan(text):
         else:
             if current_field_name is not None:
                 current_fields[current_field_name] += "\n" + line
+                # blank line: current_field_name stays the same (blank lines end nothing)
 
     if not seen_key:
         raise PlanFormatError("No 'Key:' line found in the text.")
@@ -290,9 +291,12 @@ def parse_text_plan(text):
         # Remove test files from files
         if "files" in task:
             task["files"] = [f for f in task["files"] if f not in task.get("tests", [])]
+        if "protected" in task and "files" in task:
+            task["protected"] = [p for p in task["protected"] if p not in task["files"]]
 
         result_tasks.append(task)
 
+    # Filter After items: drop ^T\d+$ that are not keys of earlier tasks
     earlier_keys = set()
     for task in result_tasks:
         new_after = []
@@ -368,9 +372,11 @@ def parse_plan(text):
             raise PlanError(f"Task {key}: key '{key}' is duplicated.")
         seen_keys.append(key)
 
+        # A task whose files are all under tests/ is invalid.
         if all(f.startswith(test_dir + "/") for f in files):
             raise PlanError(f"Task {key}: files are all under '{test_dir}/', which is not allowed.")
 
+        # A task cannot write to its own test files.
         test_set = set(tests)
         for f in files:
             if f in test_set:

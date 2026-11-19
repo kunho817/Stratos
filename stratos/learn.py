@@ -160,6 +160,7 @@ def learn(gw, tasks, events, lessons_path, state_dir, project, embedder=None):
     duplicates = 0
     skipped = 0
 
+    # read existing lesson lines from the file
     if lessons_path.exists():
         file_text = lessons_path.read_text(encoding="utf-8")
     else:
@@ -187,16 +188,11 @@ def learn(gw, tasks, events, lessons_path, state_dir, project, embedder=None):
         v = None
         if embedder is not None:
             v = embedder.embed([text])[0]
-            for ev in vectors:
-                if _cosine(v, ev) >= SIMILAR:
-                    duplicates += 1
-                    learned.append(c["id"])
-                    v = None
-                    break
-            if v is not None:
-                pass
-        if v is None and embedder is not None:
-            continue
+            if any(_cosine(v, ev) >= SIMILAR for ev in vectors):
+                duplicates += 1
+                learned.append(c["id"])
+                continue
+        # append the line
         new_line = f"- [{', '.join(tags)}] {text} ({project}: {c['id']})"
         if file_text and not file_text.endswith("\n"):
             file_text += "\n"
