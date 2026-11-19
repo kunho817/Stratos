@@ -79,3 +79,18 @@ def test_recall_section():
     kinds = [s[0] for s in recall.SECTIONS]
     assert kinds.index("guide") == kinds.index("lesson") - 1
     assert ("guide", "GENERAL LESSONS (from earlier projects)", 4) in recall.SECTIONS
+
+
+def test_stratos_home_does_not_follow_stratos_repo(tmp_path):
+    """Review of T122: STRATOS_HOME was set to REPO, so with STRATOS_REPO pointing at another project the shared
+    lessons were looked for in that project. Checked in a fresh interpreter, since config reads STRATOS_REPO at import."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+    env = dict(os.environ, STRATOS_REPO=str(tmp_path))
+    out = subprocess.run([sys.executable, "-c", "from stratos import config; print(config.STRATOS_HOME); print(config.LESSONS)"],
+                         cwd=str(Path(config.__file__).resolve().parent.parent), env=env, capture_output=True,
+                         text=True, check=True).stdout.splitlines()
+    home = Path(config.__file__).resolve().parent.parent
+    assert [Path(p) for p in out] == [home, home / "LESSONS.md"]
