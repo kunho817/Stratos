@@ -134,6 +134,12 @@ keys. The new check made every task start with a new test file (first try). Foun
        unasked hp change, preview consistent, but it invented a towerId and still missed "wave 0" and the path
        recompute. Next: the test writer, the coder and the reviewer get packs too; a fast model picks from a larger
        candidate set (M5b); memsearch rebuilds an id set per vector in the kinds filter (quadratic, fine at ~1000).
+       **First measured A/B (scratchpad mem_eval.py, 2026-11-19):** trial 2's goal at 89feb4f, 3 plans per variant,
+       6 checks from Claude's hand fixes. Mean (a parse failure = 0): base 0.67, +code map 2.0, +code map+memory
+       2.67; parsed plans scored base 2, uses 3/3, memory 4/4. Only memory planned "selling recomputes the path"
+       (2/2); nobody caught "wave 0 / the old wave test" or "room on the canvas" - those are lessons from earlier
+       trials, which the eval checkout's memory does not hold: cross-project lessons are the next step (M3b).
+       4 of 9 plans failed on "After: none" -> T121 drops none-words in list fields.
    M6. **Measure**: plan_eval A/B with and without memory on fixed goals (trial 2's goal has a known answer: the
        5 goal fixes Claude made), then trial 3 on a new project.
 1. **Planner quality.** Record: P001-P004 all needed hand edits (rules, invented APIs, data shapes). Then
