@@ -1,0 +1,72 @@
+"""Tests for task recall: a context pack from memory for one role's prompt (memory M5).
+
+recall.SECTIONS = [("code", "RELEVANT CODE", 6), ("test", "RELEVANT TESTS", 4), ("doc", "PROJECT CONVENTIONS",
+3), ("episode", "PAST TASKS", 3), ("lesson", "LESSONS FROM PEOPLE'S CORRECTIONS", 5)] (kind, heading, how many).
+
+recall.pack(store, query, embedder=None, cmap=None, budget=12000, sections=None) -> str. sections None ->
+recall.SECTIONS. For each (kind, heading, n) in order: hits = memsearch.search(store, query, embedder, cmap, k=n,
+kinds={kind}) (called through the memsearch module); no hits -> the section is left out. A section is
+f"{heading}:\n" + "\n\n".join(one entry per hit), an entry being f"--- {title} ({why})\n{text}" with text the
+chunk's text (store.get) cut to 1500 characters (+ "\n..." when cut). Sections are joined with "\n\n". The pack
+never grows past budget characters: entries are added in order while the whole text stays within budget; an entry
+that does not fit is skipped (later, smaller ones may still fit); a section none of whose entries fit is left out.
+No sections -> ""."""
+import pytest
+
+from stratos import memsearch, memstore, recall
+
+
+@pytest.fixture
+def store(tmp_path):
+    s = memstore.Store(tmp_path / "memory.db")
+    for cid, kind, title, text in [
+        ("code:a.js:f", "code", "a.js:f", "function f() {}"),
+        ("code:b.js:g", "code", "b.js:g", "x" * 2000),
+        ("test:t.js:test: f", "test", "t.js:test: f", "test f"),
+        ("lesson:reset:T1:1", "lesson", "T1: a", "T1 a: the old test pinned wave 5"),
+    ]:
+        s.upsert({"id": cid, "kind": kind, "source": "s", "title": title, "text": text})
+    yield s
+    s.close()
+
+
+def fake_search(results):
+    calls = []
+
+    def search(store, query, embedder=None, cmap=None, k=10, kinds=None):
+        calls.append((query, k, kinds))
+        (kind,) = kinds
+        return [{"id": i, "title": store.get(i)["title"], "score": 0.1, "why": "keyword"}
+                for i in results.get(kind, [])]
+    return search, calls
+
+
+def test_sections(store, monkeypatch):
+    search, calls = fake_search({"code": ["code:a.js:f", "code:b.js:g"], "test": ["test:t.js:test: f"],
+                                 "lesson": ["lesson:reset:T1:1"]})
+    monkeypatch.setattr(memsearch, "search", search)
+    text = recall.pack(store, "make f faster")
+    assert [c[1:] for c in calls] == [(6, {"code"}), (4, {"test"}), (3, {"doc"}), (3, {"episode"}), (5, {"lesson"})]
+    assert text == "\n\n".join([
+        "RELEVANT CODE:\n--- a.js:f (keyword)\nfunction f() {}\n\n--- b.js:g (keyword)\n" + "x" * 1500 + "\n...",
+        "RELEVANT TESTS:\n--- t.js:test: f (keyword)\ntest f",
+        "LESSONS FROM PEOPLE'S CORRECTIONS:\n--- T1: a (keyword)\nT1 a: the old test pinned wave 5",
+    ])
+
+
+def test_budget(store, monkeypatch):
+    search, _ = fake_search({"code": ["code:b.js:g", "code:a.js:f"], "lesson": ["lesson:reset:T1:1"]})
+    monkeypatch.setattr(memsearch, "search", search)
+    text = recall.pack(store, "q", budget=200)
+    # the long entry does not fit; the short code entry and the lesson do
+    assert text == ("RELEVANT CODE:\n--- a.js:f (keyword)\nfunction f() {}\n\n"
+                    "LESSONS FROM PEOPLE'S CORRECTIONS:\n--- T1: a (keyword)\nT1 a: the old test pinned wave 5")
+    assert len(text) <= 200
+    assert recall.pack(store, "q", budget=10) == ""
+
+
+def test_custom_sections_and_nothing_found(store, monkeypatch):
+    search, calls = fake_search({})
+    monkeypatch.setattr(memsearch, "search", search)
+    assert recall.pack(store, "q", sections=[("code", "CODE", 2)]) == ""
+    assert calls == [("q", 2, {"code"})]

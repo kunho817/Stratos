@@ -114,3 +114,26 @@ def test_expansion_is_capped(tmp_path):
     assert [h["id"] for h in hits] == ["code:src/a.js:core", "code:src/u0.js:u0", "code:src/u1.js:u1",
                                        "code:src/u2.js:u2", "test:tests/t.js:test: t0", "test:tests/t.js:test: t1"]
     s.close()
+
+
+# --- task memsearch_kinds (2026-11-19): code and tests crowd out past tasks and lessons in a mixed search ---
+# search(..., kinds=None): with a set of kinds, only chunks of those kinds take part (keyword and vector lists alike)
+# and the expansion appends only chunks of those kinds. kinds None -> every kind, as before.
+
+def test_kinds(tmp_path):
+    s = make_store(tmp_path)
+    s.upsert({"id": "episode:T001", "kind": "episode", "source": "tasks.json", "title": "T001: boss waves",
+              "text": "boss wave hp failed x2"})
+    s.set_vector("episode:T001", "fake", s.get("episode:T001")["hash"], [0.0, 1.0])
+    s.set_vector("code:src/waves.js:waveDef", "fake", s.get("code:src/waves.js:waveDef")["hash"], [0.0, 1.0])
+    hits = memsearch.search(s, "boss wave hp", embedder=FakeEmbedder([0.0, 1.0]), kinds={"episode"})
+    assert [h["id"] for h in hits] == ["episode:T001"] and hits[0]["why"] == "keyword+vector"
+    both = memsearch.search(s, "boss wave hp", kinds={"episode", "code"})
+    assert {h["id"] for h in both} == {"episode:T001", "code:src/waves.js:waveDef"}
+    cmap = {"test_dir": "tests", "files": {
+        "src/waves.js": [{"name": "waveDef", "kind": "function", "uses": []}],
+        "src/step.js": [{"name": "step", "kind": "function", "uses": ["waveDef"]}]}}
+    only_code = memsearch.search(s, "boss wave hp", cmap=cmap, kinds={"code"}, k=1)
+    assert [h["id"] for h in only_code] == ["code:src/waves.js:waveDef", "code:src/step.js:step"]
+    assert memsearch.search(s, "boss wave hp", cmap=cmap, kinds={"episode"}, k=1)[1:] == []
+    s.close()
