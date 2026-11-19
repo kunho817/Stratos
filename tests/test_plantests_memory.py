@@ -72,14 +72,15 @@ def test_draft_tests_with_memory(root, env, monkeypatch):
     memstore.Store(state / "memory.db").close()
     packs = []
 
-    def pack(store, query, embedder, cmap, budget):
-        packs.append((query, embedder, cmap, budget))
+    def pack(store, query, embedder, cmap, budget, always_tags=None):
+        packs.append((query, embedder, cmap, budget, always_tags))
         return f"PACK {len(packs)}"
     monkeypatch.setattr(recall, "pack", pack)
     gw = FakeGateway()
     plantests.draft_tests(gw, pid, root, state, log=lambda s: None)
-    assert packs == [("Tower levels\nAdd levels.", "EMB", {"root": str(root)}, 8000),
-                     ("Panel\nShow levels.", "EMB", {"root": str(root)}, 8000)]
+    # (task recall_tags: the test writer gets every "tests" lesson)
+    assert packs == [("Tower levels\nAdd levels.", "EMB", {"root": str(root)}, 8000, {"tests"}),
+                     ("Panel\nShow levels.", "EMB", {"root": str(root)}, 8000, {"tests"})]
     assert HEAD + "PACK 1" in gw.messages[0][1]["content"] and HEAD + "PACK 2" in gw.messages[1][1]["content"]
 
 

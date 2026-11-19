@@ -37,8 +37,8 @@ def test_task_memory(tmp_path, monkeypatch):
     monkeypatch.setattr(codemap, "build", lambda r: {"root": str(r)})
     seen = []
 
-    def pack(store, query, embedder, cmap, budget, sections):
-        seen.append((type(store).__name__, query, embedder, cmap, budget, sections))
+    def pack(store, query, embedder, cmap, budget, sections, always_tags=None):
+        seen.append((type(store).__name__, query, embedder, cmap, budget, sections, always_tags))
         return "PACK"
     monkeypatch.setattr(recall, "pack", pack)
     task = {"title": "Tower levels", "goal": "Add levels."}
@@ -47,8 +47,9 @@ def test_task_memory(tmp_path, monkeypatch):
     (tmp_path / "state").mkdir()
     memstore.Store(tmp_path / "state" / "memory.db").close()
     assert loop.task_memory(task) == "PACK"
+    # (task recall_tags: the coder gets every "code" lesson)
     assert seen == [("Store", "Tower levels\nAdd levels.", "EMB", {"root": str(tmp_path / "repo")}, 6000,
-                     loop.CODER_SECTIONS)]
+                     loop.CODER_SECTIONS, {"code"})]
     monkeypatch.setattr(config, "MEMORY", False)
     assert loop.task_memory(task) is None
 

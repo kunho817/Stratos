@@ -65,10 +65,11 @@ def test_the_plan_gets_the_pack(env, monkeypatch):
     monkeypatch.setattr(config, "MEMORY", True)
     memstore.Store(config.STATE_DIR / "memory.db").close()
     packs = []
-    monkeypatch.setattr(recall, "pack", lambda store, query, embedder, cmap: packs.append((query, embedder, cmap))
-                        or "PACK")
+    monkeypatch.setattr(recall, "pack", lambda store, query, embedder, cmap, always_tags=None: packs.append(
+        (query, embedder, cmap, always_tags)) or "PACK")
     assert cli.main(["plan", "--goal-file", str(goal)]) == 0
-    assert packs == [("Make it fly.", "EMB", {"test_dir": "tests", "files": {}})]
+    # (task recall_tags: the planner gets every "plan" lesson)
+    assert packs == [("Make it fly.", "EMB", {"test_dir": "tests", "files": {}}, {"plan"})]
     assert len(builds) == 1
     assert seen[0] == plan.build_messages("Make it fly.", "SUMMARY", memory="PACK")
 
