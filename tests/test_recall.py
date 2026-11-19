@@ -1,14 +1,16 @@
 """Tests for task recall: a context pack from memory for one role's prompt (memory M5).
 
-recall.SECTIONS = [("code", "RELEVANT CODE", 6), ("test", "RELEVANT TESTS", 4), ("doc", "PROJECT CONVENTIONS",
-3), ("episode", "PAST TASKS", 3), ("guide", "GENERAL LESSONS (from earlier projects)", 4), ("lesson", "LESSONS FROM
-PEOPLE'S CORRECTIONS", 5)] (kind, heading, how many).
+recall.SECTIONS = [("guide", "GENERAL LESSONS (from earlier projects)", 4), ("lesson", "LESSONS FROM PEOPLE'S
+CORRECTIONS", 5), ("episode", "PAST TASKS", 3), ("doc", "PROJECT CONVENTIONS", 3), ("code", "RELEVANT CODE", 6),
+("test", "RELEVANT TESTS", 4)] (kind, heading, how many). (Memory A/B 2, 2026-11-19: code entries filled the budget
+first and only 2 general lessons fit, so the short, general sections come first, task recall_order.)
 
 recall.pack(store, query, embedder=None, cmap=None, budget=12000, sections=None) -> str. sections None ->
 recall.SECTIONS. For each (kind, heading, n) in order: hits = memsearch.search(store, query, embedder, cmap, k=n,
 kinds={kind}) (called through the memsearch module); no hits -> the section is left out. A section is
 f"{heading}:\n" + "\n\n".join(one entry per hit), an entry being f"--- {title} ({why})\n{text}" with text the
-chunk's text (store.get) cut to 1500 characters (+ "\n..." when cut). Sections are joined with "\n\n". The pack
+chunk's text (store.get) cut to recall.CUT.get(kind, 1500) characters (+ "\n..." when cut), with recall.CUT =
+{"code": 1000, "test": 800}. Sections are joined with "\n\n". The pack
 never grows past budget characters: entries are added in order while the whole text stays within budget; an entry
 that does not fit is skipped (later, smaller ones may still fit); a section none of whose entries fit is left out.
 No sections -> ""."""
@@ -47,13 +49,13 @@ def test_sections(store, monkeypatch):
                                  "lesson": ["lesson:reset:T1:1"]})
     monkeypatch.setattr(memsearch, "search", search)
     text = recall.pack(store, "make f faster")
-    # (task lessons_index added the "guide" section before the lessons)
-    assert [c[1:] for c in calls] == [(6, {"code"}), (4, {"test"}), (3, {"doc"}), (3, {"episode"}), (4, {"guide"}),
-                                      (5, {"lesson"})]
+    # (task recall_order: the short, general sections come first; code entries are cut at 1000)
+    assert [c[1:] for c in calls] == [(4, {"guide"}), (5, {"lesson"}), (3, {"episode"}), (3, {"doc"}), (6, {"code"}),
+                                      (4, {"test"})]
     assert text == "\n\n".join([
-        "RELEVANT CODE:\n--- a.js:f (keyword)\nfunction f() {}\n\n--- b.js:g (keyword)\n" + "x" * 1500 + "\n...",
-        "RELEVANT TESTS:\n--- t.js:test: f (keyword)\ntest f",
         "LESSONS FROM PEOPLE'S CORRECTIONS:\n--- T1: a (keyword)\nT1 a: the old test pinned wave 5",
+        "RELEVANT CODE:\n--- a.js:f (keyword)\nfunction f() {}\n\n--- b.js:g (keyword)\n" + "x" * 1000 + "\n...",
+        "RELEVANT TESTS:\n--- t.js:test: f (keyword)\ntest f",
     ])
 
 
@@ -62,8 +64,8 @@ def test_budget(store, monkeypatch):
     monkeypatch.setattr(memsearch, "search", search)
     text = recall.pack(store, "q", budget=200)
     # the long entry does not fit; the short code entry and the lesson do
-    assert text == ("RELEVANT CODE:\n--- a.js:f (keyword)\nfunction f() {}\n\n"
-                    "LESSONS FROM PEOPLE'S CORRECTIONS:\n--- T1: a (keyword)\nT1 a: the old test pinned wave 5")
+    assert text == ("LESSONS FROM PEOPLE'S CORRECTIONS:\n--- T1: a (keyword)\nT1 a: the old test pinned wave 5\n\n"
+                    "RELEVANT CODE:\n--- a.js:f (keyword)\nfunction f() {}")
     assert len(text) <= 200
     assert recall.pack(store, "q", budget=10) == ""
 
