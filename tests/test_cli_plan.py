@@ -111,11 +111,11 @@ def test_plan_add(env, capsys):
     store = Store(config.STATE_DIR)
     t1, t2 = store.get("T001"), store.get("T002")
     assert (t1["title"], t1["goal"], t1["files"], t1["tests"], t1["protected"], t1["after"]) == \
-        ("Add f", "Add f to x.", ["stratos/x.py"], ["tests/test_x.py"], [], [])
+        ("Add f", "Add f to x.", ["stratos/x.py"], ["tests/test_x.py"], ["tests/test_x.py"], [])  # P010: tests protected
     assert t1["role"] == "coder"                      # the rules' choice for a one-file task without flow words
     assert t1.get("role_decision", {}).get("choice") == "coder"
     assert (t2["role"], t2["after"], t2["protected"], t2["files"]) == \
-        ("coder", ["T001"], ["stratos/x.py"], ["stratos/y.py", "stratos/z.py"])
+        ("coder", ["T001"], ["stratos/x.py", "tests/test_y.py"], ["stratos/y.py", "stratos/z.py"])
     p = plan.load_plan(config.STATE_DIR, pid)
     assert p["status"] == "added" and p["task_ids"] == {"a": "T001", "b": "T002"}
     events = Telemetry(config.STATE_DIR / "telemetry.jsonl").load()
