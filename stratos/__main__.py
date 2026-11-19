@@ -16,14 +16,17 @@
   python -m stratos memory search QUERY [-k N] [--no-vectors]
   python -m stratos memory learn
   python -m stratos memory wiki [--only PATH ...]
+  python -m stratos dashboard [--port N] [--repo PATH ...]
 """
 import argparse
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from . import codemap
 from . import config
+from . import dashboard
 from . import decide
 from . import embed
 from . import gitops
@@ -150,6 +153,10 @@ def main(argv=None):
     memory_sub.add_parser("learn", help="learn lessons from people's corrections")
     memory_wiki_p = memory_sub.add_parser("wiki", help="write module notes with a local model")
     memory_wiki_p.add_argument("--only", nargs="+", default=None)
+
+    dashboard_p = sub.add_parser("dashboard", help="serve a live status page on 127.0.0.1")
+    dashboard_p.add_argument("--port", type=int, default=8765)
+    dashboard_p.add_argument("--repo", nargs="+", default=None)
 
     args = ap.parse_args(argv)
 
@@ -538,6 +545,12 @@ def main(argv=None):
                 return 0
         finally:
             store.close()
+    elif args.cmd == "dashboard":
+        repos = [Path(r) for r in args.repo] if args.repo else dashboard.default_repos(config.STRATOS_HOME)
+        server = dashboard.make_server(repos, args.port, metrics=lambda: dashboard.metrics(config.BASE_URL))
+        print(f"dashboard: http://127.0.0.1:{args.port}/")
+        server.serve_forever()
+        return 0
     else:
         for t in store.tasks():
             extra = f" commit {t['commit']}" if t.get("commit") else ""
