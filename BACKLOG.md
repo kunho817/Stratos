@@ -193,6 +193,36 @@ preview signature change would have broken old tests, so it became main-only). W
    e. The first round's DOM-test lesson held: main_restart was rewritten as pure onKey/currentLevel tests and
       passed on the first try after that (T009 attempt 7 overall, 1 after the rewrite).
 
+**Trial 5: Lumen, a light-and-mirror grid puzzle (D:\Strata\Trials\Lumen, JS, 2026-11-20) - the trial after P1.**
+Only a layout in CONVENTIONS.md (no data model). Plan: 5 tasks in the right order (simulate, levels, game, render,
+main). Claude changed 4 of 5 goals: the shapes (simulate(level, mirrors), "x,y" keys, lit as an array), each level
+carries a `solution` the tests can check, game.js as pure functions over a state (the planner wrote a mutable game
+object - Orbit's shared-state lesson), render's drawing contract (CELL, texts below the board), main.js must load
+without a document. Drafts: simulate right except 2 invented rules (target on a wall / on the emitter) and a loop
+test that needs a mirror on the emitter; **levels designed its own levels in the test comments and pinned them, and
+game and render tested against that invented data** (the same root as Orbit's "invented level data": the data file
+does not exist when the drafts are written, so the drafts make it up); levels used await in non-async tests; render
+pinned a cell size from ctx.width and colour names. 3 of 5 rewritten by Claude, main kept.
+The draft checker (experiment-a prompt, Swift) blind on these drafts: right that levels invents data, but with made-up
+reasons; flagged all 15 render tests with one meaningless reason; missed simulate's invented rules; one false alarm
+in main because it saw only main's goal. -> for P2: the checker needs the whole plan (every goal) and a "data the
+tests may assume" section; a test of a module that reads a data file must take its cases from the data (find cells),
+or the data task must run (and its file be shown) before the dependent drafts are written.
+Run: T001 simulate passed on attempt 3 (its first failure showed "expected: / actual:" with no values: TAP's
+multi-line values are still cut - open since trial 1, now with a cost); **T002 levels failed 4 times** (off-board
+emitter, a mirror on a target, levels not harder; triage "code_wrong" with the exact reasons) - the second time after
+Orbit T007 that a one-shot coder cannot design data that must satisfy numbers; Claude designed the levels with a
+solution search (scratchpad lumen_levels.mjs, 0.2 s) and marked T002 done by hand (no `stratos accept` command; and
+`drop` would have left T003-T005 waiting forever on a dropped After). T003, T005 first try (Swift); T004 passed on
+the first try but the reviewer rejected it as "medium" for calling simulate twice (a nit on a 40-cell board), after
+which Tiel broke the tests 3 times and Swift fixed it: 4 attempts and 2 switches for a nit - review severity needs
+calibration. Bugs no test caught, found by reading: no grid lines, "Solved!" below the canvas (trial 1 f again: a
+won-state layout test was missing), lit listed a target twice, game.js copies inBounds. T006/T007 fixed the first
+three on the first try. 54 tests, private repo stratos-trial-lumen.
+**P1 measured (report --efficiency):** Lumen first try 5/7, 2.0 attempts per passed task, waste 10.6% (Orbit 4/12,
+3.82, 27.8%; tower defense 8/16, 2.94, 21.6%). Preflight refused nothing here (no broken test file or missing After)
+and put the base failures in every first prompt. Not a clean A/B: Claude also rewrote 3 of 5 drafts before the run.
+
 **Watching and measuring (user, 2026-11-19): dashboard, efficiency, push per P (T145-T153).**
 `stratos dashboard` (127.0.0.1:8765): the gateway now writes call_start/switch_start, so the page shows who is
 writing which task right now, PolyStrata's live /metrics (phase, generated/max tokens, tok/s), GPU/VRAM/temperature
@@ -341,6 +371,15 @@ repo: the user decides).
 12. **Old fakes break when a signature grows** (T136 test_memory_refresh, T140 test_cli_memory): Claude's test lists
    for a task miss other tests that fake the changed function. Before `add`, grep tests/ for fakes of the changed
    names (monkeypatch.setattr(<module>, "<name>", ...)) and put those files into --tests.
+13. **TAP multi-line expected/actual are cut** (Lumen T001 and the simulate_unique test: "expected: / actual:" with
+   nothing after): keep the indented lines after those keys in verify.summarize_output. Cheap; first in P2.
+14. **Review severity:** "medium" for a repeated pure call on a tiny board sent Lumen T004 back (4 attempts, 2
+   switches). Tell the reviewer that performance notes are "low" unless the goal is about speed.
+15. **Done by a person:** no `stratos accept TID` (Claude edited tasks.json for Lumen T002); `drop` does not release
+   tasks whose After names the dropped task.
+16. **Design-by-numbers tasks** (Orbit T007, Lumen T002): a one-shot coder cannot design data that must satisfy a
+   measurable rule. A "search" task kind: the model writes a small generator/solver, the harness runs it and keeps
+   its output as the data file.
 
 ## Done
 
