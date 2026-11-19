@@ -46,10 +46,14 @@ TAP names, triage.py asks Swift "test or code?" before needs_human (store field 
 get a language-style top comment and "work out every expected value step by step", header-less single-file drafts
 are kept. Still open from trial 1: multi-line expected/actual values in TAP are cut (keep the indented lines after
 "actual:"); triage has not met a real wrong test yet (it was not merged when T086's draft was wrong).
-Next, from P009's own drafts (4 of 6 had to be fixed or rewritten, all for global state): reject a draft that uses
-importlib.reload, sys.modules, os.environ[...] = or `config.X = ` outside monkeypatch, and run a draft together with
-the existing tests before showing it, to catch leaks; make parse_plan require each task's first test file to be new
-(P008 and P009 both listed only existing files, despite the CONVENTIONS lesson).
+**P010 (T093-T097, 508 tests, 2026-11-19):** a .py draft that collects but uses importlib.reload, sys.modules
+writes, os.environ writes, `config.X = ` or its own MonkeyPatch() gets status "risky"; one that collects cleanly is run
+with the whole suite and gets "leaks" when tests outside the drafts of this run fail; `stratos plan` sends back a plan
+whose task starts with an existing (or shared) test file; plan-add puts each task's tests into its protected list.
+First real triage (T097): "test_wrong", correct - my old fakes lacked the new ignore parameter; it named both files.
+Still open: dependents of a task that finishes in the last round stay todo (T094 needed a second run-all again);
+a risky draft gets no second try with the reason (a person fixes it); the suite check costs one full test run per
+draft (~40 s here).
 
 0. **Memory -> retrieval -> planner (user's idea, 2026-11-18).** Keep a memory of the project (code split by
    function, tests, past tasks with goal/diff/failures/review issues, and lessons: what a person changed in a plan or a

@@ -21,7 +21,8 @@ draft gets one of these wrong.
   - "verdict": task, ... (a person's reset of a task)
   - "plan": plan (the plan id), tasks (count), edited (bool) - written by plan-add
   - "test_draft": plan (the plan id), key, file, status ("collected", "import_error", "syntax_error", "error",
-    "exists", "missing") - written by plan-tests
+    "exists", "missing", "risky", "leaks"), and risks (labels) for "risky" or leaks (failing ids, up to 10) for
+    "leaks" - written by plan-tests
 
 ## Talking to models
 - stratos/gateway.py, class Gateway(telemetry): gw.ensure_model(model) loads a model; gw.chat(messages, *, task,
