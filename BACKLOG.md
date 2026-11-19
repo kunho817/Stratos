@@ -56,6 +56,21 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
   edit-style answers or smaller modules).
 - P3 plan critique (experiment (b) on Ledger's goal), a second model checks wiki pages, a wiki overview page, packs
   for test writer / reviewer / triage, M6 A/B.
+  **Experiment (b) done (scratchpad critique_eval.py, 2026-11-20):** the planner's original plans of Lumen and Pantry
+  against the 12 problems Claude fixed, 2 runs: Flint 17/24, Tiel 12, Swift 9, Qwen3.6 8 (~2 min per plan for
+  Flint). Flint's extra lines were mostly real (argparse exits 2, not 1, on "abc"; pixel-to-cell mapping undefined);
+  one was wrong (parse_amount "not written by any task" - it already existed).
+  **P3 built (T166-T170, 766 tests, 2026-11-20):** the reviewer sees the project's files (Pantry T006), a wiki
+  overview page (no model: each module's purpose line and imports; also a memory chunk), the test writer sees the
+  existing tests that import the task's files and can mark them "OUTDATED: path::test - reason" (logged, recorded,
+  in the results; known limit: a task on a widely imported file such as config.py pulls in most tests - cap it),
+  plancritic.py (Flint) runs after `stratos plan` and on `stratos plan-critique PID`, advisory, saved in the plan file.
+  LESSONS.md: plan-tagged lessons for __main__.py and "name files, not task keys" (the __main__ lesson was tagged
+  [code, tests, cli], so the planner never got it). Run: first try 4 of 5 (T166, T168, T169, T170 on attempt 1;
+  T170 then had one review rejection). T167 failed 3 times on an old test Claude did not list as changing
+  (test_wiki::test_chunks pinned "module chunks only"); triage named it exactly - the very case T168 is for.
+  Not built from the P3 list: a second model checking wiki pages, packs for the reviewer/triage beyond the file list,
+  the M6 A/B.
 - P4 time: fewer model switches, Tiel 2 tries (item 4), worktrees get main (item 8), decide diagnosis A/B and Jev.
 
 Process (user, 2026-11-18): after each feature chunk (one "push"), build a larger throwaway project with Stratos
