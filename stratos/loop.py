@@ -10,6 +10,7 @@ from . import codemap, config, context, decide, diagnose, embed, gitops, jev, me
 CODER_SECTIONS = [
     ("guide", "GENERAL LESSONS (from earlier projects)", 3),
     ("lesson", "LESSONS FROM PEOPLE'S CORRECTIONS", 3),
+    ("wiki", "MODULE NOTES (written by a model from the code; check the code)", 2),
     ("code", "RELEVANT CODE", 5),
 ]
 
@@ -270,5 +271,4 @@ def run_task(store, gw, task_id, log=print):
             return "done"
     store.update(task_id, status="needs_human")
     return "needs_human"
-
 

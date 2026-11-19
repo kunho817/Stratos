@@ -1,10 +1,11 @@
 from stratos import memsearch
 
-CUT = {"code": 1000, "test": 800}
+CUT = {"code": 1000, "test": 800, "wiki": 2000}
 
 SECTIONS = [
     ("guide", "GENERAL LESSONS (from earlier projects)", 4),
     ("lesson", "LESSONS FROM PEOPLE'S CORRECTIONS", 5),
+    ("wiki", "MODULE NOTES (written by a model from the code; check the code)", 3),
     ("episode", "PAST TASKS", 3),
     ("doc", "PROJECT CONVENTIONS", 3),
     ("code", "RELEVANT CODE", 6),
@@ -72,3 +73,4 @@ def pack(store, query, embedder=None, cmap=None, budget=12000, sections=None, al
             finished_sections.append(current_section_text)
 
     return "\n\n".join(finished_sections)
+
