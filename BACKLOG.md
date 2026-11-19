@@ -71,6 +71,19 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
   (test_wiki::test_chunks pinned "module chunks only"); triage named it exactly - the very case T168 is for.
   Not built from the P3 list: a second model checking wiki pages, packs for the reviewer/triage beyond the file list,
   the M6 A/B.
+  **P4 started (T171-T172, 773 tests, 2026-11-20):** the diagnosis A/B is over and every eligible retry gets a
+  diagnosis (with 9/36 retries passed, without 2/32); coder tasks get 2 Tiel tries, then 2 Swift tries (Tiel passed
+  10 of 56 third attempts; 83 of 174 tasks pass on its first, 17 on its second); OUTDATED also for a task's own
+  existing tests and the critic knows the test-file rule (trial 7). Both tasks first failed on old tests Claude had
+  not updated (loop tests that assumed 3 Tiel tries, plantests_earlier pinning "no OUTDATED sentence"), and triage
+  named both correctly. The loop tests now pin their attempt plan in conftest.
+  Measured, not decided (the user's call): Jev's shadow escalation decisions 118/201 right vs the rules' 98/202,
+  role decisions Jev 60/97 vs rules 24/29.
+  Still open in P4: the reviewer (Qwen3.6) - the weakest checker in experiment (a) and 4 wrong blocking reviews in
+  trials 5-7 (a nit as medium, a task key read as a module, a short-circuit read as NameError, a present import
+  called missing) while it caught one real bug (the servings padding) - and its load costs 2 switches per round:
+  replay the reviewer cases of trials 5-7 with Swift/Tiel/Flint as reviewer (experiment c); worktrees get main
+  (item 8).
 - P4 time: fewer model switches, Tiel 2 tries (item 4), worktrees get main (item 8), decide diagnosis A/B and Jev.
 
 Process (user, 2026-11-18): after each feature chunk (one "push"), build a larger throwaway project with Stratos
