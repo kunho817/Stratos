@@ -82,14 +82,28 @@ keys. The new check made every task start with a new test file (first try). Foun
       the text. Found by Claude reading the diff. A headless smoke check that every fillText lands inside the
       canvas would catch this class.
 
-0. **Memory -> retrieval -> planner (user's idea, 2026-11-18).** Keep a memory of the project (code split by
-   function, tests, past tasks with goal/diff/failures/review issues, and lessons: what a person changed in a plan or a
-   test draft and why) and let a fast model (Tiel or AgentWorld, one load, many short calls) pick what the planner
-   needs before it plans. Reading is cheap here (~4 s per 10K prompt tokens), writing is not (~80 tok/s), and only one
-   model fits at a time, so "many small models" means many calls of one fast model that answer with ids, not text.
-   Start without a vector DB (the corpus is small; keyword search + the model's choice); add embeddings only if
-   retrieval visibly misses. Measure with the three feature goals of the planner comparison (scratchpad plan_eval.py).
-   Lessons recorded from every human edit are the way to grow CONVENTIONS.md automatically.
+0. **Memory system - the central goal (user, 2026-11-19).** Local models are weaker than frontier models; close the
+   gap with memory and retrieval, comprehensively (vector DB, RAG, an LLM-written wiki, lessons). Both trials failed
+   for missing context, not missing skill: the planner did not know who reads a field (trial 2 a), a test draft did
+   not know an earlier task's numbers (trial 2 b), old tests pinned old behaviour (trial 1 h, trial 2 e).
+   Layers (each one usable alone, built in this order):
+   M1. **Code map** (exact, no model): per function/class/constant its signature and the names it uses (Python ast,
+       JS by top-level declarations); `users(name)`, "who uses what" for the planner, and which tests touch a name.
+   M2. **Store + hybrid search**: one SQLite file per project (.stratos/memory.db, stdlib sqlite3) of chunks (code per
+       function, tests per test, wiki pages, episodes, lessons, CONVENTIONS sections) with BM25 (own code) and
+       embedding vectors (CPU ONNX model via fastembed, cosine in numpy, re-embedded only when a chunk's hash
+       changes), fused by reciprocal rank. `stratos memory index|search`.
+   M3. **Episodes and lessons**: every finished task (goal, files, attempts, failure signatures, review issues,
+       triage, resets with their reason) becomes an episode; every human correction (an edited plan vs. the planner's
+       text, a rewritten draft vs. the model's answer, a reset reason) is distilled by a local model into a one-line
+       lesson with tags. Lessons replace hand-written CONVENTIONS "lessons".
+   M4. **LLM wiki**: a page per module written by Tiel from the code map and the code (purpose, data shapes, who uses
+       it, invariants, traps), rebuilt when the module's hash changes; a project overview page; hand edits kept.
+   M5. **Retrieval agent + context packs**: hybrid search + code-map expansion (users of the symbols a goal names),
+       then a fast local model picks the ids that matter in short calls (reading is cheap, writing is not); a
+       budgeted pack per role (planner, test writer, coder, reviewer, triage).
+   M6. **Measure**: plan_eval A/B with and without memory on fixed goals (trial 2's goal has a known answer: the
+       5 goal fixes Claude made), then trial 3 on a new project.
 1. **Planner quality.** Record: P001-P004 all needed hand edits (rules, invented APIs, data shapes). Then
    (T071-T076): CONVENTIONS.md in the prompt, the planner writes Key:/Title:/Goal:... text that code reads
    (plan.parse_text_plan; AgentWorld only as fallback - as the converter it broke JSON on quotes in goals),
