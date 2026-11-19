@@ -98,7 +98,7 @@ def test_learn_command(env, monkeypatch, capsys):
             self.telemetry = telemetry
     monkeypatch.setattr(cli, "Gateway", FakeGateway)
 
-    def fake_learn(gw, tasks, events, lessons_path, state_dir, project):
+    def fake_learn(gw, tasks, events, lessons_path, state_dir, project, embedder=None):
         seen.append((type(gw).__name__, tasks, events, lessons_path, state_dir, project))
         return {"corrections": 3, "added": 1, "duplicates": 1, "skipped": 1}
     monkeypatch.setattr(learn, "learn", fake_learn)
