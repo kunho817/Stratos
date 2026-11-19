@@ -12,6 +12,10 @@ def no_network(monkeypatch, tmp_path_factory):
     monkeypatch.setattr(config, "JEV_SHADOW", False)
     monkeypatch.setattr(config, "DIAGNOSE_AB", False)
     monkeypatch.setattr(config, "DIAGNOSE_ALWAYS", False, raising=False)
+    # the loop tests check the loop's mechanics with the attempt plan they were written for (3 Tiel tries, then 1
+    # Swift try); tests/test_p4_policy.py checks the real policy in config.py's source
+    monkeypatch.setattr(config, "ATTEMPT_PLANS", {"coder": [("coder", 3), ("coder_hard", 1)],
+                                                  "coder_hard": [("coder_hard", 2), ("coder", 1)]})
     monkeypatch.setattr(config, "PLAN_AS_TEXT", False)
     monkeypatch.setattr(config, "PLAN_CONVERTER", None)
     monkeypatch.setattr(config, "TRIAGE", False, raising=False)

@@ -63,15 +63,20 @@ def test_an_earlier_task_without_its_test_file(root):
 
 def test_only_new_test_files_are_to_write(root):
     user = user_of(T2, root)
-    assert user.endswith("\n\nWRITE THESE TEST FILES: tests/test_panel.py")
+    # since task trial7_fixes an existing test of the task also brings the OUTDATED sentence (updated by Claude)
+    assert user.endswith("\n\nWRITE THESE TEST FILES: tests/test_panel.py" + OUTDATED)
     existing = context.show_file(root, "tests/test_render.py", "EXISTING TEST, DO NOT REWRITE")
-    assert user.endswith(existing + "\n\nWRITE THESE TEST FILES: tests/test_panel.py")
+    assert user.endswith(existing + "\n\nWRITE THESE TEST FILES: tests/test_panel.py" + OUTDATED)
     assert "EARLIER TASKS" not in user
+
+
+OUTDATED = ("\nIf the goal makes a test in those existing files wrong, name it at the top of your new file in a "
+            "comment line: OUTDATED: <path>::<test name> - <reason>")
 
 
 def test_all_listed_files_exist(root):
     task = dict(T2, tests=["tests/test_render.py"])
-    assert user_of(task, root).endswith("WRITE THESE TEST FILES: tests/test_render.py")
+    assert user_of(task, root).endswith("WRITE THESE TEST FILES: tests/test_render.py" + OUTDATED)
 
 
 class FakeTelemetry:

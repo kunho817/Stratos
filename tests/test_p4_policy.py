@@ -12,9 +12,16 @@ import hashlib
 from stratos import config, diagnose
 
 
+def config_source():
+    import importlib.util
+    return open(importlib.util.find_spec("stratos.config").origin, encoding="utf-8").read()
+
+
 def test_default_policy():
-    assert config.ATTEMPT_PLANS["coder"] == [("coder", 2), ("coder_hard", 2)]
-    assert config.ATTEMPT_PLANS["coder_hard"] == [("coder_hard", 2), ("coder", 1)]
+    # conftest pins ATTEMPT_PLANS for the loop tests, so the policy is read from config.py's source
+    text = config_source()
+    assert '"coder": [("coder", 2), ("coder_hard", 2)]' in text
+    assert '"coder_hard": [("coder_hard", 2), ("coder", 1)]' in text
 
 
 def test_always_diagnose(monkeypatch):
@@ -30,7 +37,5 @@ def test_off_keeps_the_hash_parity(monkeypatch):
 
 
 def test_on_by_default_outside_the_tests():
-    import importlib.util
-    spec = importlib.util.find_spec("stratos.config")
-    text = open(spec.origin, encoding="utf-8").read()
+    text = config_source()
     assert 'DIAGNOSE_ALWAYS = os.environ.get("STRATOS_DIAGNOSE_ALWAYS", "1") != "0"' in text
