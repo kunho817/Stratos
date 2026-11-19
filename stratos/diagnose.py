@@ -10,6 +10,8 @@ SYSTEM = ("You are a code reviewer. Tell the coder what went wrong in the failed
 
 
 def use_hint(task_id, attempt):
+    if config.DIAGNOSE_ALWAYS:
+        return True
     return int(hashlib.sha256(f"{task_id}:{attempt}".encode("utf-8")).hexdigest(), 16) % 2 == 0
 
 

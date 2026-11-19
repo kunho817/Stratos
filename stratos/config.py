@@ -27,7 +27,7 @@ REVIEW_ROUNDS = 3   # write -> review rounds before a task the reviewer keeps re
 # attempts per task, by the task's role: the role's own model first, then one cross-check by a different model
 # (the design's rule: cross-check only hard tasks, i.e. the ones that keep failing)
 ATTEMPT_PLANS = {
-    "coder": [("coder", 3), ("coder_hard", 1)],
+    "coder": [("coder", 2), ("coder_hard", 2)],  # Tiel passed only 10 of 56 third attempts; two Swift attempts instead
     "coder_hard": [("coder_hard", 2), ("coder", 1)],
 }
 ATTEMPT_PLAN = ATTEMPT_PLANS["coder"]   # the plan before tasks had roles
@@ -44,6 +44,8 @@ JEV_SHADOW = os.environ.get("STRATOS_JEV", "1") != "0"
 # (diagnose.use_hint) also get a short diagnosis by AgentWorld; report compares the two halves. STRATOS_DIAGNOSE=0 off.
 # Offline on 17 tasks: retries with the diagnosis passed 7/19, without 5/19 (too few to be sure)
 DIAGNOSE_AB = os.environ.get("STRATOS_DIAGNOSE", "1") != "0"
+# the diagnosis A/B is over (with a diagnosis 9 of 36 retries passed, without 2 of 32), every eligible retry gets one
+DIAGNOSE_ALWAYS = os.environ.get("STRATOS_DIAGNOSE_ALWAYS", "1") != "0"
 DIAGNOSER = {"model": "qwen3.6-35b-a3b-ud-q4_k_m", "effort": "low", "max_tokens": 1500}
 
 # The planner (2026-11-18) splits a feature goal into Stratos tasks (stratos plan); a person checks the plan before
