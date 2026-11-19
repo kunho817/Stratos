@@ -30,19 +30,10 @@ def root(tmp_path):
 def test_build_messages(root):
     # (compared by position: an empty project summary leaves an extra newline after "PROJECT FILES:")
     content = plantests.build_messages(TASK, root, example="tests/none.py", memory="PACK")[1]["content"]
-    assert content.index("PROJECT FILES:") < content.index("
-
-" + HEAD + "PACK
-
-") < content.index("WRITE THESE")
+    assert content.index("PROJECT FILES:") < content.index("\n\n" + HEAD + "PACK\n\n") < content.index("WRITE THESE")
     (root / "CONVENTIONS.md").write_text("Rules.", encoding="utf-8")
     content = plantests.build_messages(TASK, root, example="tests/none.py", memory="PACK")[1]["content"]
-    assert "PROJECT CONVENTIONS:
-Rules.
-
-" + HEAD + "PACK
-
-" in content
+    assert "PROJECT CONVENTIONS:\nRules.\n\n" + HEAD + "PACK\n\n" in content
     assert plantests.build_messages(TASK, root, memory="") == plantests.build_messages(TASK, root)
 
 
