@@ -230,3 +230,24 @@ def test_uses_patch_header_regex():
     import inspect
     src = inspect.getsource(plantests)
     assert "_HEADER_RE = re.compile" not in src
+
+
+def test_one_new_file_among_existing_ones_takes_a_lone_block(tmp_path, monkeypatch):
+    """Harness fix (2026-11-19, tower defense P002): a task listed its new test file and two existing ones; the
+    answer was one fenced block without a FILE header and was dropped ("missing"). The header-less fallback now
+    counts only the test files that do not exist yet."""
+    state_dir = _setup(tmp_path, monkeypatch)
+    monkeypatch.setattr(plantests, "check_draft", lambda root, path: ("collected", ""))
+    monkeypatch.setattr(plantests, "suite_leaks", lambda root, path, ignore=(): [])
+    root = tmp_path / "repo"
+    (root / "tests").mkdir(parents=True)
+    (root / "tests" / "test_old.py").write_text("OLD\n", encoding="utf-8")
+    _write_plan(state_dir, "P001", [{"key": "a", "title": "T", "goal": "G", "files": ["stratos/x.py"],
+                                     "tests": ["tests/test_new.py", "tests/test_old.py"], "protected": [],
+                                     "after": [], "role": None}])
+    gw = FakeGateway()
+    gw.set_answer("```python\ndef test_a():\n    assert True\n```\n")
+    results = plantests.draft_tests(gw, "P001", root, state_dir, log=lambda s: None)
+    assert [r["status"] for r in results] == ["collected", "missing"]   # an existing file not in the answer
+    assert (root / "tests" / "test_new.py").read_text(encoding="utf-8") == "def test_a():\n    assert True\n"
+    assert (root / "tests" / "test_old.py").read_text(encoding="utf-8") == "OLD\n"

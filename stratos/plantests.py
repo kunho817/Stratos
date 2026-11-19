@@ -149,14 +149,17 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
         answer_path = answers_dir / f"{plan_id}-{key}-tests.md"
         answer_path.write_text(answer, encoding="utf-8")
         files = patch.parse_files(answer, allowed=task["tests"])
-        if len(task["tests"]) == 1 and not files and not _has_file_marker(answer):
+        # A header-less answer belongs to the only test file still to write (existing ones are never overwritten;
+        # tower defense P002, 2026-11-19: a new file listed with two existing ones was dropped)
+        new_tests = [t for t in task["tests"] if not Path(root, t).exists()]
+        if len(new_tests) == 1 and not files and not _has_file_marker(answer):
             inner = _strip_lone_fence(answer)
             if inner is not None:
-                files = [(task["tests"][0], inner)]
+                files = [(new_tests[0], inner)]
             else:
                 first_line = answer.splitlines()[0] if answer else ""
                 if not first_line.lstrip().startswith("```"):
-                    files = [(task["tests"][0], answer)]
+                    files = [(new_tests[0], answer)]
         written = {}
         for fpath, fcontent in files:
             written[fpath] = fcontent
