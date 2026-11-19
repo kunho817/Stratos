@@ -168,3 +168,11 @@ def test_python_top_level_code():
     syms = codemap.scan_python(text)
     assert [(s["name"], s["kind"], s["line"]) for s in syms] == [("main", "function", 5), ("(top level)", "script", 9)]
     assert syms[1]["uses"] == ["__name__", "exit", "main", "sys"]
+
+
+def test_js_a_declaration_that_never_closes_runs_to_the_next_one():
+    """Review of T105: with no ";" and no braces (code written without semicolons) the declaration kept only its
+    own line and the rest went to "(top level)"; it must run to the line before the next declaration."""
+    text = "const f = (a) =>\n  helper(a)\nexport function g() {\n  return 1;\n}\n"
+    syms = codemap.scan_js(text)
+    assert [(s["name"], s["uses"]) for s in syms] == [("f", ["a", "helper"]), ("g", [])]
