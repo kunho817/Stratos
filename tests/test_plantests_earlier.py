@@ -89,7 +89,9 @@ class FakeGateway:
 
     def chat(self, messages, **kw):
         self.messages.append(messages)
-        return "c", "no files"
+        return "c", "```python
+not closed
+"      # nothing is written, so the project stays as it was
 
 
 def test_draft_tests_passes_the_earlier_tasks(root, tmp_path, monkeypatch):
