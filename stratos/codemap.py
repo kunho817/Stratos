@@ -4,6 +4,20 @@ import ast
 import re
 
 
+JS_KEYWORDS = frozenset({
+    "break", "case", "catch", "class", "const", "continue", "debugger", "default",
+    "delete", "do", "else", "export", "extends", "finally", "for", "function", "if",
+    "import", "in", "instanceof", "let", "new", "return", "super", "switch", "this",
+    "throw", "try", "typeof", "var", "void", "while", "with", "yield", "async", "await",
+    "of", "from", "true", "false", "null", "undefined", "static", "get", "set",
+})
+
+_DECL_RE = re.compile(
+    r"^(?P<export>export\s+)?(?P<async>async\s+)?(?P<kind>function|class|const|let|var)"
+    r"\s+(?P<name>[A-Za-z_$][\w$]*)\s*(?P<tail>.*)$"
+)
+
+
 def scan_python(text):
     """Scan Python source text into a list of symbol dicts in file order.
 
@@ -64,4 +78,73 @@ def _collect_uses(node, own_name):
     ids.discard("self")
     ids.discard("cls")
     ids.discard(own_name)
+    return sorted(ids)
+
+
+def scan_js(text):
+    """Scan JavaScript source text into a list of top-level declaration symbols.
+
+    Each symbol is {"name", "kind", "line", "signature", "uses"}.
+    Returns [] when there are no top-level declarations.
+    """
+    lines = text.splitlines()
+    symbols = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        m = _DECL_RE.match(line)
+        if not m:
+            i += 1
+            continue
+
+        name = m.group("name")
+        decl_line = i
+        if m.group("kind") == "function":
+            kind = "function"
+        elif m.group("kind") == "class":
+            kind = "class"
+        else:
+            rest = m.group("tail")
+            if "=>" in rest or "function" in rest:
+                kind = "function"
+            else:
+                kind = "constant"
+
+        j = i + 1
+        while j < n:
+            nxt = lines[j]
+            if _DECL_RE.match(nxt) or nxt.lstrip().startswith("import"):
+                break
+            j += 1
+
+        code = "\n".join(lines[i:j])
+        signature = _signature(line)
+        uses = _uses(code, name)
+        symbols.append({"name": name, "kind": kind, "line": decl_line + 1,
+                        "signature": signature, "uses": uses})
+        i = j
+
+    return symbols
+
+
+def _signature(line):
+    sig = line.strip()
+    if sig.endswith("{"):
+        sig = sig[:-1].strip()
+    else:
+        idx = sig.find(" {")
+        if idx != -1:
+            sig = sig[:idx].strip()
+    return sig
+
+
+def _uses(code, own_name):
+    code = re.sub(r"/\*.*?\*/", " ", code, flags=re.S)
+    code = re.sub(r"//[^\n]*", " ", code)
+    code = re.sub(r"'[^']*'", " ", code)
+    code = re.sub(r'"[^"]*"', " ", code)
+    ids = set(re.findall(r"[A-Za-z_$][A-Za-z0-9_$]*", code))
+    ids.discard(own_name)
+    ids -= JS_KEYWORDS
     return sorted(ids)
