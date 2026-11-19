@@ -28,13 +28,21 @@ def root(tmp_path):
 
 
 def test_build_messages(root):
-    parts = plantests.build_messages(TASK, root, example="tests/none.py", memory="PACK")[1]["content"].split("\n\n")
-    i = next(n for n, p in enumerate(parts) if p.startswith("PROJECT FILES:"))
-    assert parts[i + 1] == HEAD + "PACK"
+    # (compared by position: an empty project summary leaves an extra newline after "PROJECT FILES:")
+    content = plantests.build_messages(TASK, root, example="tests/none.py", memory="PACK")[1]["content"]
+    assert content.index("PROJECT FILES:") < content.index("
+
+" + HEAD + "PACK
+
+") < content.index("WRITE THESE")
     (root / "CONVENTIONS.md").write_text("Rules.", encoding="utf-8")
-    parts = plantests.build_messages(TASK, root, example="tests/none.py", memory="PACK")[1]["content"].split("\n\n")
-    i = parts.index("PROJECT CONVENTIONS:\nRules.")
-    assert parts[i + 1] == HEAD + "PACK"
+    content = plantests.build_messages(TASK, root, example="tests/none.py", memory="PACK")[1]["content"]
+    assert "PROJECT CONVENTIONS:
+Rules.
+
+" + HEAD + "PACK
+
+" in content
     assert plantests.build_messages(TASK, root, memory="") == plantests.build_messages(TASK, root)
 
 
