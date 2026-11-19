@@ -33,3 +33,5 @@ lines; a person reads them before they are committed.
 - [tests, js] Inside a JS template literal or a new RegExp(...) string write \d for \d; a single backslash is dropped. (tower defense T016, from memory learn)
 - [plan, cli, errors] A command-line tool needs a task for bad input: a missing file, a malformed number or date gives one clear message and exit code 1, never a traceback. (Ledger trial 3: nobody asked, nobody planned it)
 - [code, tests, cli] A command-line entry point passes run()'s result to sys.exit(); test the real process exit code with a subprocess, not only run()'s return value. (Ledger trial 3: run returned 1, the process exited 0)
+- [plan, cli] A package run as `python -m <pkg>` needs <pkg>/__main__.py in the Files of some task (the cli task), calling sys.exit(main()). (Ledger and Pantry: the planner left it out twice)
+- [plan] In goals, name the files and modules a task uses (pantry/pantry.py), never another task's key: the coder and the reviewer read a key such as pantry_mgmt as a module name. (Pantry T006: the reviewer demanded an import from pantry_mgmt and broke the code)
