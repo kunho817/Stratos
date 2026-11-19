@@ -15,6 +15,7 @@
   python -m stratos memory index [--no-vectors]
   python -m stratos memory search QUERY [-k N] [--no-vectors]
   python -m stratos memory learn
+  python -m stratos memory wiki [--only PATH ...]
 """
 import argparse
 import json
@@ -35,6 +36,7 @@ from . import plan as plan_mod
 from . import plantests
 from . import recall
 from . import replay
+from . import wiki
 from .gateway import Gateway
 from .loop import run_all, run_task
 from .report import decision_accuracy, diagnosis_ab, escalation_accuracy, plans_summary, replay_summary, summarize
@@ -142,6 +144,8 @@ def main(argv=None):
     memory_search_p.add_argument("-k", "--k", type=int, default=10, help="number of results")
     memory_search_p.add_argument("--no-vectors", action="store_true", help="skip vector search")
     memory_sub.add_parser("learn", help="learn lessons from people's corrections")
+    memory_wiki_p = memory_sub.add_parser("wiki", help="write module notes with a local model")
+    memory_wiki_p.add_argument("--only", nargs="+", default=None)
 
     args = ap.parse_args(argv)
 
@@ -500,6 +504,15 @@ def main(argv=None):
                             config.LESSONS, config.STATE_DIR, config.REPO.name)
             print(f"learn: {r['corrections']} corrections, {r['added']} added, {r['duplicates']} duplicates, {r['skipped']} skipped")
             return 0
+        if args.memory_cmd == "wiki":
+            counts = wiki.build(Gateway(Telemetry(config.STATE_DIR / "telemetry.jsonl")),
+                                config.REPO, config.STATE_DIR, codemap.build(config.REPO),
+                                only=args.only)
+            print(f"wiki: {counts['written']} written, {counts['unchanged']} unchanged, "
+                  f"{counts['kept']} kept (edited by hand), {counts['failed']} failed")
+            if config.MEMORY:
+                refresh_memory()
+            return 0
         store = memstore.Store(config.STATE_DIR / "memory.db")
         try:
             embedder = None if args.no_vectors else embed.Embedder()
@@ -534,4 +547,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
-
