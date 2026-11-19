@@ -9,6 +9,7 @@
   python -m stratos run-all
   python -m stratos status
   python -m stratos report --plans
+  python -m stratos push [--dry-run]
   python -m stratos clean
   python -m stratos reset T001 --reason R
   python -m stratos replay T001 T002 --role coder --model M --effort E --max-tokens N --tries K
@@ -37,12 +38,14 @@ from . import memsearch
 from . import memstore
 from . import plan as plan_mod
 from . import plantests
+from . import push
 from . import recall
 from . import replay
+from . import verify
 from . import wiki
 from .gateway import Gateway
 from .loop import run_all, run_task
-from .report import decision_accuracy, diagnosis_ab, escalation_accuracy, plans_summary, replay_summary, summarize
+from .report import decision_accuracy, diagnosis_ab, efficiency, escalation_accuracy, format_efficiency, plans_summary, replay_summary, summarize
 from .scheduler import plan as scheduler_plan
 from .state import Store
 from .telemetry import Telemetry
@@ -128,6 +131,9 @@ def main(argv=None):
     report_p = sub.add_parser("report", help="summarize telemetry")
     report_p.add_argument("--replay", action="store_true", help="summarize the replay runs instead")
     report_p.add_argument("--plans", action="store_true", help="summarize plan files and their test drafts")
+    report_p.add_argument("--efficiency", action="store_true", help="where the tokens and the time go")
+    push_p = sub.add_parser("push", help="push the finished work to origin when it is safe")
+    push_p.add_argument("--dry-run", action="store_true")
     sub.add_parser("clean", help="remove worktree and branch of merged, done tasks")
     reset = sub.add_parser("reset", help="throw away a task's result so it runs again")
     reset.add_argument("task_id")
@@ -375,6 +381,11 @@ def main(argv=None):
                 done = False
         return 0 if done and not blocked else 1
     elif args.cmd == "report":
+        if args.efficiency:
+            events = Telemetry(config.STATE_DIR / "telemetry.jsonl").load()
+            for line in format_efficiency(efficiency(events)):
+                print(line)
+            return 0
         if args.plans:
             plans_dir = config.STATE_DIR / "plans"
             if not plans_dir.exists():
@@ -438,6 +449,10 @@ def main(argv=None):
             if ab["hinted"]["retries"] > 0 or ab["plain"]["retries"] > 0:
                 print(f"diagnosis A/B: with diagnosis {ab['hinted']['passed']}/{ab['hinted']['retries']} retries passed, without {ab['plain']['passed']}/{ab['plain']['retries']}")
         return 0
+    elif args.cmd == "push":
+        return push.push(config.REPO, Telemetry(config.STATE_DIR / "telemetry.jsonl"),
+                         lambda: verify.run_tests(config.REPO, push.all_tests(config.REPO, config.PROJECT)),
+                         dry_run=args.dry_run)
     elif args.cmd == "clean":
         merged = gitops.git(config.REPO, "branch", "--merged", "HEAD", "--list", "stratos/*")
         merged = {line.lstrip(" *+").strip() for line in merged.splitlines()}
