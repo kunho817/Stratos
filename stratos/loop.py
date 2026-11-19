@@ -5,7 +5,13 @@ A task that still fails is handed to a person (status needs_human). The loop is 
 attempts, committing a candidate when a review is on) and a review phase (judging the candidates)."""
 from pathlib import Path
 
-from . import config, context, decide, diagnose, gitops, jev, patch, review, triage, verify
+from . import codemap, config, context, decide, diagnose, embed, gitops, jev, memstore, patch, recall, review, triage, verify
+
+CODER_SECTIONS = [
+    ("guide", "GENERAL LESSONS (from earlier projects)", 3),
+    ("lesson", "LESSONS FROM PEOPLE'S CORRECTIONS", 3),
+    ("code", "RELEVANT CODE", 5),
+]
 
 
 def save_answer(task_id, attempt, text):
@@ -18,6 +24,24 @@ def save_answer(task_id, attempt, text):
 def attempt_plan(task):
     """The attempt schedule for this task, chosen by its role."""
     return config.ATTEMPT_PLANS[task.get("role", "coder")]
+
+
+def task_memory(task):
+    """Return a context pack from memory for this task, or None."""
+    if not config.MEMORY:
+        return None
+    mem_path = config.STATE_DIR / "memory.db"
+    if not mem_path.exists():
+        return None
+    try:
+        store = memstore.Store(mem_path)
+        try:
+            return recall.pack(store, task["title"] + "\n" + task["goal"], embed.Embedder(),
+                              codemap.build(config.REPO), budget=6000, sections=CODER_SECTIONS)
+        finally:
+            store.close()
+    except Exception:
+        return None
 
 
 def check_answer(task, wt, text, finish=None):
@@ -53,6 +77,7 @@ def check_answer(task, wt, text, finish=None):
 def write_task(store, gw, task_id, log=print):
     """Run the task's attempts until the tests pass, without a review; commit a candidate when a review is on."""
     task = store.get(task_id)
+    memory = task_memory(task)
     bases = gitops.dependency_bases(config.REPO, task.get("after", []))
     try:
         wt = gitops.ensure_worktree(config.REPO, config.WORKTREES, task_id, bases=bases)
@@ -77,11 +102,11 @@ def write_task(store, gw, task_id, log=print):
                 log(f"  model switch to {r['model']}: {switch:.1f} s")
             budget = r.get("reasoning_budget")
             if budget is not None:
-                call_id, text = gw.chat(context.build_messages(task, wt, failure), task=task_id, role=role,
+                call_id, text = gw.chat(context.build_messages(task, wt, failure, memory=memory), task=task_id, role=role,
                                         attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"],
                                         reasoning_budget=budget)
             else:
-                call_id, text = gw.chat(context.build_messages(task, wt, failure), task=task_id, role=role,
+                call_id, text = gw.chat(context.build_messages(task, wt, failure, memory=memory), task=task_id, role=role,
                                         attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"])
             save_answer(task_id, attempt, text)
             result, detail = check_answer(task, wt, text, getattr(gw, "last_finish", None))
