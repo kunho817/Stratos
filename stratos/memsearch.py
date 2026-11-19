@@ -72,12 +72,19 @@ def search(store, query, embedder=None, cmap=None, k=10):
                 parts = cid.split(":", 2)
                 if len(parts) == 3:
                     kind, path, name = parts
+                    code_users = []
+                    test_users = []
                     for u in codemap.users(cmap, name):
                         candidate = f"code:{u}"
                         if store.get(candidate) is None:
                             candidate = f"test:{u}"
                         if store.get(candidate) is None:
                             continue
+                        if candidate.startswith("code:"):
+                            code_users.append(candidate)
+                        else:
+                            test_users.append(candidate)
+                    for candidate in code_users[:3] + test_users[:2]:
                         if candidate in seen_ids:
                             continue
                         seen_ids.add(candidate)
