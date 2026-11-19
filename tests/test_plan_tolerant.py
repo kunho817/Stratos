@@ -50,3 +50,14 @@ def test_plain_plans_are_unchanged():
     text = "Key: a\nTitle: T\nGoal: G\nFiles: stratos/a.py\nTests: tests/test_a.py\n"
     (t,) = plan.parse_text_plan(text)
     assert t["goal"] == "G" and t["files"] == ["stratos/a.py"] and t["tests"] == ["tests/test_a.py"]
+
+
+def test_a_file_to_change_is_not_protected():
+    """(task plan_tolerant_protected) The planner protects part of a file it also changes ("Protected: src/towers.js
+    (TOWER_TYPES constant)", 3 of 10 plans in the wiki A/B once the notes were taken out): an item of "protected" that
+    is also in "files" is dropped from "protected" (order kept); its note stays in the goal."""
+    text = ("Key: a\nTitle: T\nGoal: G\nFiles: stratos/towers.py\n"
+            "Protected: stratos/towers.py (TOWER_TYPES constant), stratos/grid.py\nTests: tests/test_a.py\n")
+    (t,) = plan.parse_text_plan(text)
+    assert t["files"] == ["stratos/towers.py"] and t["protected"] == ["stratos/grid.py"]
+    assert t["goal"] == "G\n\nNotes from the plan:\n- stratos/towers.py: TOWER_TYPES constant"
