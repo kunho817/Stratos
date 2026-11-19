@@ -6,16 +6,26 @@ import sqlite3
 from pathlib import Path
 
 
+def stem(token):
+    if len(token) > 5 and token.endswith("ing"):
+        return token[:-3]
+    if len(token) > 4 and token.endswith("ed"):
+        return token[:-2]
+    if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+        return token[:-1]
+    return token
+
+
 def tokenize(text):
     tokens = []
     for word in re.findall(r"[A-Za-z0-9_$]+", text):
-        tokens.append(word.lower())
+        tokens.append(stem(word.lower()))
         parts = []
         for piece in re.split(r"[_$]", word):
             sub = re.findall(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+", piece)
             parts.extend(sub)
         if len(parts) > 1:
-            tokens.extend(p.lower() for p in parts)
+            tokens.extend(stem(p.lower()) for p in parts)
     return tokens
 
 
