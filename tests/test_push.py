@@ -149,14 +149,15 @@ def test_cli(tmp_path, monkeypatch):
     seen = []
     monkeypatch.setattr(config, "STATE_DIR", tmp_path / "state")
     monkeypatch.setattr(push, "all_tests", lambda root, settings: ["tests/test_a.py"])
-    monkeypatch.setattr(verify, "run_tests", lambda root, tests: seen.append(("tests", tests)) or (True, ""))
+    monkeypatch.setattr(verify, "run_tests", lambda root, tests, parallel=False: seen.append(("tests", tests, parallel)) or (True, ""))
 
     def fake_push(repo, telemetry, run_tests, dry_run=False, log=print):
         seen.append((repo, type(telemetry).__name__, dry_run, run_tests()))
         return 7
     monkeypatch.setattr(push, "push", fake_push)
     assert cli.main(["push", "--dry-run"]) == 7
-    assert seen == [("tests", ["tests/test_a.py"]), (config.REPO, "Telemetry", True, (True, ""))]
+    # (task tests_parallel: push runs the suite in parallel; Claude updated this fake and assert)
+    assert seen == [("tests", ["tests/test_a.py"], True), (config.REPO, "Telemetry", True, (True, ""))]
 
 
 def test_allowlisted_lines_are_skipped():
