@@ -25,6 +25,29 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
   indentation, so aligned string lines failed both models (consensus named it), and the goal's "change nothing
   else" left no room for the helper the limit needed. Lesson: a structural limit is measured on the structure
   (ast), and the goal must allow what the limit forces.
+  **Trial 11: Quill, a Markdown-to-HTML CLI (D:\Strata\Trials\Quill, Python, 2026-11-20) - the trial after P9; two
+  rounds, 10 tasks, 138 tests, pushed.** Best trial so far: first try 8/10, 1.5 attempts per passed task, waste
+  4.9% (all tasks so far: 105/200, 2.62, 40.8%); every output equals Claude's reference implementation on three
+  sample files with edge cases. What made the difference: Claude rewrote the plan before plan-tests (the planner
+  put all tasks in quill/__init__.py, split the block splitting between two tasks and left --toc no path; one module
+  per task, exact inline rules - no nesting, an unclosed marker stays) -> round 1's 86 drafts passed unchanged on
+  Claude's reference and all 6 tasks passed on the first try. Round 2 (changes to existing modules): Flint's
+  critique and Claude found 3 goal problems (a quote line "ends a fence", "continue from the !" = an endless
+  loop, headings() must skip "#" lines in fences - the TOC had that bug); drafts: 2 wrong of 51 (two lines = one
+  paragraph, slug "a--b") and a half-written duplicate test function that no check caught.
+  Refcheck (Swift): round 1 agreed on 5 tasks; toc's reference crashed (parameter toc hid `from quill import toc`
+  - Claude's goal invited it) and was reported as "interface". Round 2: flagged 4 tests - 1 right, 2 reference
+  bugs, 1 crash shown as "interface" (that was a wrong test).
+  Edit blocks: Swift answered blocks.py (174 lines) and inline.py (84) as whole files; only small edits came as
+  blocks. Fine while partial_file/dropped_defs guard it; edit blocks pay off on bigger files.
+  Claude's slips: removed two imports as unused after reading a grep cut by head (T010 failed 4 times; consensus
+  and triage named it) - run ruff on a test file before calling an import unused; a heredoc escape again (the
+  reference's cli.py).
+  New items: (a) refcheck: tell "the reference crashed" (every failure is the same exception raised in the
+  reference's own file) from "the goal leaves the interface open"; (b) plan-tests: run ruff F811 (a function
+  defined twice) and F401/F821 on the drafts; (c) plan-tests prints old test files of a task as "missing";
+  (d) memory (user, 2026-11-20): `memory learn` runs only by hand (last at Pantry round 2), Claude's draft fixes in
+  commits never become lessons, trial projects get no wiki -> automate in P11.
 - P10 time: model switches are 12,558 s of 72,421 s active (switches = 36% of model time). Order the rounds so one
   load serves more calls (item 5); measure before and after with report --efficiency.
 - P11 memory (the central goal, items 0/M5/M6 and P3 leftovers): context packs for the test writer, reviewer and
