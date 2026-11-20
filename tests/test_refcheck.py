@@ -122,4 +122,5 @@ def test_check_error_without_a_file(project):
 
 
 def test_default_writer():
-    assert config.REF_WRITER["model"] == "tiel-coder-35b-a3b-ud-q4_k_xl"
+    # (task refcheck_swift, 2026-11-20: Swift - Tiel's edit blocks came out malformed; Claude updated this test)
+    assert config.REF_WRITER["model"] == "swift-1.5-iq2_xs"
