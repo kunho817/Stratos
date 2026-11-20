@@ -26,7 +26,51 @@ from . import config
 HEADER_RE = re.compile(r"^\s*FILE:\s*`?([^\s`]+)`?\s*$")
 REMOVAL_WORDS = ("remove", "delete", "drop", "rename", "replace", "삭제", "제거")
 
-BLOCK_RE = re.compile(r"<<<<<<< SEARCH\n(.*?)\n?=======\n(.*?)\n?>>>>>>> REPLACE", re.S)
+START_RE = re.compile(r"^<{5,9}\s*SEARCH$")
+DIVIDER_RE = re.compile(r"^={5,9}$")
+END_RE = re.compile(r"^(>{5,9}|={5,9}|<{5,9})\s*REPLACE$")
+
+
+def _read_blocks(section):
+    """[(search, replace)] for the SEARCH/REPLACE blocks in a FILE section, read line by line.
+
+    A block starts at a line that, after strip(), is 5-9 "<" then optional spaces then "SEARCH"; the divider is a
+    line that, after strip(), is 5-9 "="; the block ends at a line that, after strip(), is 5-9 of ">", "=" or "<"
+    then optional spaces then "REPLACE". search = the lines between start and divider, replace = the lines between
+    divider and end, each joined without its last newline. A block with a second divider before its end, or with no
+    divider or no end, is not used."""
+    lines = section.splitlines()
+    out = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        if not START_RE.match(lines[i].strip()):
+            i += 1
+            continue
+        start = i
+        i += 1
+        divider = None
+        end = None
+        second_divider = False
+        while i < n:
+            s = lines[i].strip()
+            if DIVIDER_RE.match(s):
+                if divider is None:
+                    divider = i
+                else:
+                    second_divider = True
+            elif END_RE.match(s):
+                end = i
+            if divider is not None and end is not None:
+                break
+            i += 1
+        if divider is None or end is None or second_divider:
+            continue
+        search = "\n".join(lines[start + 1:divider])
+        replace = "\n".join(lines[divider + 1:end])
+        out.append((search, replace))
+        i = end + 1
+    return out
 
 
 class PatchRefused(Exception):
@@ -189,7 +233,7 @@ def parse_edits(text, allowed=None):
         section = "".join(lines[i + 1:end])
         if ok is not None and _norm(path) not in ok:
             continue
-        blocks = BLOCK_RE.findall(section)
+        blocks = _read_blocks(section)
         if not blocks:
             continue
         norm = _norm(path)
