@@ -2,6 +2,9 @@
 
 KEEP, PAGE = Path(__file__).parent / "dashboard.html", default_repos, project, metrics, snapshot, make_server."""
 import json
+import os
+import sys
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -10,6 +13,7 @@ from stratos.state import Store
 from stratos.telemetry import Telemetry
 from stratos import report
 import urllib.request
+import urllib.parse
 
 KEEP = ("ts", "kind", "task", "role", "attempt", "model", "from_model",
         "result", "seconds", "verdict", "reason", "detail", "finish",
@@ -27,6 +31,50 @@ def default_repos(home):
             if d.is_dir() and (d / ".stratos").is_dir():
                 result.append(d)
     return result
+
+
+def live(repo):
+    repo = Path(repo)
+    live_dir = repo / ".stratos" / "live"
+    current_json = live_dir / "current.json"
+    current_txt = live_dir / "current.txt"
+    run_log = repo / ".stratos" / "run.log"
+    try:
+        call = json.loads(current_json.read_text(encoding="utf-8"))
+    except Exception:
+        call = None
+    try:
+        text = current_txt.read_text(encoding="utf-8")[-8000:]
+    except Exception:
+        text = ""
+    try:
+        log = run_log.read_text(encoding="utf-8", errors="replace").splitlines()[-200:]
+    except Exception:
+        log = []
+    return {"call": call, "text": text, "log": "\n".join(log)}
+
+
+def code_stamp(folder):
+    folder = Path(folder)
+    stamp = 0.0
+    for pattern in ("*.py", "*.html"):
+        for f in folder.glob(pattern):
+            if f.is_file():
+                stamp = max(stamp, f.stat().st_mtime)
+    return stamp
+
+
+def watch_code(folder):
+    folder = Path(folder)
+    start = code_stamp(folder)
+
+    def _loop():
+        while True:
+            time.sleep(2)
+            if code_stamp(folder) > start:
+                os.execv(sys.executable, [sys.executable, "-m", "stratos"] + sys.argv[1:])
+
+    threading.Thread(target=_loop, daemon=True).start()
 
 
 def project(repo):
@@ -162,7 +210,10 @@ def snapshot(repos, metrics=None):
     }
 
 
-def make_server(repos, port, metrics=None):
+def make_server(repos, port, metrics=None, home=None):
+    def repos_for():
+        return repos if repos is not None else default_repos(home)
+
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format, *args):
             pass
@@ -175,11 +226,29 @@ def make_server(repos, port, metrics=None):
                 self.end_headers()
                 self.wfile.write(body)
             elif self.path == "/api/state":
-                body = json.dumps(snapshot(repos, metrics)).encode("utf-8")
+                body = json.dumps(snapshot(repos_for(), metrics)).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(body)
+            elif self.path.startswith("/api/live"):
+                qs = urllib.parse.urlparse(self.path).query
+                params = urllib.parse.parse_qs(qs)
+                name = params.get("project", [None])[0]
+                found = None
+                for r in repos_for():
+                    if Path(r).name == name:
+                        found = r
+                        break
+                if found is None:
+                    self.send_response(404)
+                    self.end_headers()
+                else:
+                    body = json.dumps(live(found)).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(body)
             else:
                 self.send_response(404)
                 self.end_headers()

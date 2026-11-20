@@ -47,6 +47,7 @@ from . import plantests
 from . import push
 from . import recall
 from . import replay
+from . import runlog
 from . import verify
 from . import wiki
 from .gateway import Gateway
@@ -119,6 +120,20 @@ def show_critique(gw, pid, goal, tasks):
 
 
 def main(argv=None):
+    args_list = sys.argv[1:] if argv is None else list(argv)
+    cmd = None
+    for item in args_list:
+        if not item.startswith("-"):
+            cmd = item
+            break
+    if cmd in runlog.LOGGED:
+        with runlog.tee(config.STATE_DIR / "run.log", args_list):
+            return _main(argv)
+    else:
+        return _main(argv)
+
+
+def _main(argv=None):
     # A redirected stdout uses the Windows code page (cp949); characters it lacks must not break a run (Orbit T009)
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
@@ -680,8 +695,10 @@ def main(argv=None):
         finally:
             store.close()
     elif args.cmd == "dashboard":
-        repos = [Path(r) for r in args.repo] if args.repo else dashboard.default_repos(config.STRATOS_HOME)
-        server = dashboard.make_server(repos, args.port, metrics=lambda: dashboard.metrics(config.BASE_URL))
+        repos = [Path(r) for r in args.repo] if args.repo else None
+        server = dashboard.make_server(repos, args.port, metrics=lambda: dashboard.metrics(config.BASE_URL),
+                                       home=None if args.repo else config.STRATOS_HOME)
+        dashboard.watch_code(Path(dashboard.__file__).parent)
         print(f"dashboard: http://127.0.0.1:{args.port}/")
         server.serve_forever()
         return 0
