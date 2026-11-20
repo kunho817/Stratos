@@ -53,6 +53,30 @@
   .pulse { animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: .45; } }
 
+  /* stream */
+  #stream pre, #terminal pre { background: #0d1320; border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px; margin: 0; overflow: auto; max-height: 320px; white-space: pre-wrap; word-break: break-all;
+    font-size: 13px; line-height: 1.4; }
+  #stream .dim { color: var(--faint); }
+  #terminal { background: #080c12; }
+  #terminal pre { background: #080c12; color: var(--text); font-size: 12px; line-height: 1.35; }
+  #terminal .green { color: var(--ok); }
+  #terminal .red { color: var(--bad); }
+  #terminal .dim2 { color: var(--faint); }
+
+  /* try */
+  #try textarea, #try input, #try button, #try pre { font: inherit; }
+  #try textarea { width: 100%; min-height: 120px; background: #0d1320; color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px; resize: vertical; }
+  #try input { width: 100%; margin-top: 8px; background: #0d1320; color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  #try button { margin-top: 10px; background: #59b8ff22; color: var(--info); border: 1px solid var(--info);
+    border-radius: 8px; padding: 7px 18px; cursor: pointer; font-weight: 600; }
+  #try pre { background: #0d1320; border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+    margin: 8px 0 0; white-space: pre-wrap; word-break: break-all; font-size: 12px; max-height: 200px;
+    overflow: auto; }
+  #try iframe { width: 100%; height: 480px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+
   /* hardware */
   .gauges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .gauge { text-align: center; }
@@ -112,6 +136,8 @@
   .top div span:first-child { color: var(--info); }
   .effgrid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; }
   .sub2 { color: var(--dim); font-size: 12px; margin: 0 0 6px; }
+  #projectPick { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 13px; }
   @media (max-width: 1100px) { main { grid-template-columns: 1fr; } .span2 { grid-column: auto; }
     .board { grid-template-columns: repeat(2, 1fr); } }
 </style>
@@ -120,11 +146,15 @@
 <header>
   <span class="dot" id="conn"></span>
   <h1>STRAT<span>OS</span></h1>
+  <select id="projectPick"></select>
   <span id="project"></span>
   <span id="clock" class="mono"></span>
 </header>
 <main>
   <section class="panel" id="live"><h2>지금 하는 일 <span class="right mono" id="elapsed"></span></h2><div id="liveBody"></div></section>
+  <section class="panel span2" id="stream"><h2>모델이 쓰는 중 <span class="right mono" id="streamMeta"></span></h2><pre class="mono" id="streamPre"></pre></section>
+  <section class="panel span2" id="terminal"><h2>터미널</h2><pre id="termPre"></pre></section>
+  <section class="panel span2" id="try"><h2>직접 해 보기</h2><div id="tryBody"></div></section>
   <section class="panel"><h2>하드웨어 <span class="right mono" id="gpuName"></span></h2>
     <div class="gauges" id="gauges"></div>
     <svg id="spark" viewBox="0 0 300 54" preserveAspectRatio="none"></svg>
@@ -154,7 +184,7 @@ function modelColor(m) {
   m = (m || "").toLowerCase();
   for (const k in MODEL_COLORS) if (m.startsWith(k)) return MODEL_COLORS[k];
   let h = 0; for (const c of m) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return `hsl(${h} 70% 65%)`;
+  return "hsl(" + h + " 70% 65%)";
 }
 function modelShort(m) {
   m = m || "?";
@@ -168,69 +198,80 @@ const PHASE_KO = { "reading the prompt": "프롬프트 읽는 중", thinking: "�
   generating: "생성 중" };
 const STATUS = [["todo", "대기"], ["running", "진행"], ["done", "완료"], ["needs_human", "사람 확인"]];
 const fmtT = (s) => { s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60);
-  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}:${String(s % 60).padStart(2, "0")}`; };
+  return m >= 60 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : m + ":" + String(s % 60).padStart(2, "0"); };
 const hhmm = (ts) => new Date(ts * 1000).toLocaleTimeString("ko-KR", { hour12: false });
 const gb = (b) => (b / 1073741824).toFixed(1);
 
-let state = null, selected = null, lastSeen = 0, serverSkew = 0;
+let state = null, selected = null, lastSeen = 0, serverSkew = 0, liveData = null;
+
+function picked() {
+  if (!state) return null;
+  const pick = $("projectPick").value;
+  const p = state.projects.find(function(x) { return x.name === pick; });
+  return p || state.projects[0] || null;
+}
+
 function setHTML(el, html) { if (el._html !== html) { el._html = html; el.innerHTML = html; } }
 
 function gauge(value, max, label, unit, color) {
   const f = Math.max(0, Math.min(1, (value ?? 0) / max)), r = 42, c = 2 * Math.PI * r;
-  return `<div class="gauge"><svg viewBox="0 0 100 100">
-    <circle cx="50" cy="50" r="${r}" fill="none" stroke="#1b2438" stroke-width="9"/>
-    <circle cx="50" cy="50" r="${r}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round"
-      stroke-dasharray="${c * f} ${c}" transform="rotate(-90 50 50)" style="transition: stroke-dasharray .6s"/>
-    <text x="50" y="56" text-anchor="middle" fill="#d8e1f0" font-size="19" font-weight="700">${value == null ? "–" : Math.round(value)}${unit}</text>
-  </svg><div class="l">${label}</div></div>`;
+  return '<div class="gauge"><svg viewBox="0 0 100 100">' +
+    '<circle cx="50" cy="50" r="' + r + '" fill="none" stroke="#1b2438" stroke-width="9"/>' +
+    '<circle cx="50" cy="50" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="9" stroke-linecap="round"' +
+    ' stroke-dasharray="' + (c * f) + ' ' + c + '" transform="rotate(-90 50 50)" style="transition: stroke-dasharray .6s"/>' +
+    '<text x="50" y="56" text-anchor="middle" fill="#d8e1f0" font-size="19" font-weight="700">' +
+    (value == null ? "–" : Math.round(value) + unit) + '</text>' +
+    '</svg><div class="l">' + label + '</div></div>';
 }
 
 function renderHardware(engine) {
-  if (!engine) { $("gauges").innerHTML = `<div class="idle" style="grid-column:1/4">PolyStrata에 연결되지 않음</div>`;
+  if (!engine) { $("gauges").innerHTML = '<div class="idle" style="grid-column:1/4">PolyStrata에 연결되지 않음</div>';
     $("hw").innerHTML = ""; $("spark").innerHTML = ""; return; }
   const h = engine.hardware || {};
   const memPct = h.gpu_mem_total ? 100 * h.gpu_mem_used / h.gpu_mem_total : null;
   const heat = h.gpu_temp ?? 0, heatColor = heat > 80 ? "#ff5d6c" : heat > 70 ? "#ffb547" : "#3fd18b";
   $("gauges").innerHTML = gauge(h.gpu_util, 100, "GPU 사용률", "%", "#59b8ff") +
-    gauge(memPct, 100, `VRAM ${h.gpu_mem_used ? gb(h.gpu_mem_used) : "–"} / ${h.gpu_mem_total ? gb(h.gpu_mem_total) : "–"} GB`, "%", "#b18cff") +
+    gauge(memPct, 100, "VRAM " + (h.gpu_mem_used ? gb(h.gpu_mem_used) : "–") + " / " + (h.gpu_mem_total ? gb(h.gpu_mem_total) : "–") + " GB", "%", "#b18cff") +
     gauge(h.gpu_temp, 100, "GPU 온도", "°", heatColor);
   $("hw").innerHTML = [
-    ["전력", h.gpu_power != null ? `${Math.round(h.gpu_power)} / ${Math.round(h.gpu_power_limit || 0)} W` : "–"],
-    ["CPU", h.cpu != null ? `${Math.round(h.cpu)} %` : "–"],
-    ["RAM", h.ram_used ? `${gb(h.ram_used)} / ${gb(h.ram_total)} GB` : "–"],
-    ["PCIe 수신", h.gpu_pcie_rx_mb != null ? `${Math.round(h.gpu_pcie_rx_mb)} MB/s` : "–"],
-    ["평균 생성", h.tok_s_mean ? `${h.tok_s_mean.toFixed(0)} tok/s` : "–"],
+    ["전력", h.gpu_power != null ? Math.round(h.gpu_power) + " / " + Math.round(h.gpu_power_limit || 0) + " W" : "–"],
+    ["CPU", h.cpu != null ? Math.round(h.cpu) + " %" : "–"],
+    ["RAM", h.ram_used ? gb(h.ram_used) + " / " + gb(h.ram_total) + " GB" : "–"],
+    ["PCIe 수신", h.gpu_pcie_rx_mb != null ? Math.round(h.gpu_pcie_rx_mb) + " MB/s" : "–"],
+    ["평균 생성", h.tok_s_mean ? h.tok_s_mean.toFixed(0) + " tok/s" : "–"],
     ["올라간 모델", modelShort(engine.model)],
-  ].map(([k, v]) => `<div><span>${k}</span><span>${esc(v)}</span></div>`).join("");
+  ].map(function(pair) {
+    return '<div><span>' + pair[0] + '</span><span>' + esc(pair[1]) + '</span></div>';
+  }).join("");
   const util = (engine.history || {}).gpu_util || [];
   if (util.length > 1) {
     const step = 300 / (util.length - 1);
-    const pts = util.map((u, i) => `${(i * step).toFixed(1)},${(52 - u * 0.5).toFixed(1)}`).join(" ");
-    $("spark").innerHTML = `<defs><linearGradient id="sg" x1="0" x2="0" y1="0" y2="1">
-      <stop offset="0" stop-color="#59b8ff" stop-opacity=".45"/><stop offset="1" stop-color="#59b8ff" stop-opacity="0"/></linearGradient></defs>
-      <polygon points="0,54 ${pts} 300,54" fill="url(#sg)"/><polyline points="${pts}" fill="none" stroke="#59b8ff" stroke-width="1.6"/>`;
+    const pts = util.map(function(u, i) { return (i * step).toFixed(1) + "," + (52 - u * 0.5).toFixed(1); }).join(" ");
+    $("spark").innerHTML = '<defs><linearGradient id="sg" x1="0" x2="0" y1="0" y2="1">' +
+      '<stop offset="0" stop-color="#59b8ff" stop-opacity=".45"/><stop offset="1" stop-color="#59b8ff" stop-opacity="0"/></linearGradient></defs>' +
+      '<polygon points="0,54 ' + pts + ' 300,54" fill="url(#sg)"/><polyline points="' + pts + '" fill="none" stroke="#59b8ff" stroke-width="1.6"/>';
   }
 }
 
-function taskTitle(project, id) { const t = (project?.tasks || []).find((x) => x.id === id); return t ? t.title : ""; }
+function taskTitle(project, id) { const t = (project?.tasks || []).find(function(x) { return x.id === id; }); return t ? t.title : ""; }
 
 function renderLive() {
-  const p = state.projects[0], cur = p?.current, live = state.engine?.live, el = $("liveBody");
+  const p = picked(), cur = p?.current, live = state.engine?.live, el = $("liveBody");
   const now = Date.now() / 1000 - serverSkew;
   $("live").classList.toggle("busy", !!cur);
   if (!cur) {
-    setHTML(el, `<div class="idle">쉬는 중 <span class="sub">— 마지막 활동 ${p?.updated ? fmtT(now - p.updated) + " 전" : "없음"}</span></div>`);
+    setHTML(el, '<div class="idle">쉬는 중 <span class="sub">— 마지막 활동 ' + (p?.updated ? fmtT(now - p.updated) + " 전" : "없음") + '</span></div>');
     $("elapsed").textContent = ""; return;
   }
   $("elapsed").textContent = fmtT(now - cur.since);
   if (cur.kind === "switch") {
     const c = modelColor(cur.model);
     $("live").style.setProperty("--glow", c + "22");
-    setHTML(el, `<div class="who"><span class="model" style="color:${c};border-color:${c}66">${esc(modelShort(cur.model))}</span>
-      <span class="role">모델을 올리는 중</span></div>
-      <div class="task pulse">${esc(modelShort(cur.from_model))} → ${esc(modelShort(cur.model))}</div>
-      <div class="sub">모델 교체에는 보통 6~100초가 걸립니다</div>
-      <div class="bar indet" style="--c1:${c};--c2:${c}"><i></i></div>`);
+    setHTML(el, '<div class="who"><span class="model" style="color:' + c + ';border-color:' + c + '66">' + esc(modelShort(cur.model)) + '</span>' +
+      '<span class="role">모델을 올리는 중</span></div>' +
+      '<div class="task pulse">' + esc(modelShort(cur.from_model)) + ' → ' + esc(modelShort(cur.model)) + '</div>' +
+      '<div class="sub">모델 교체에는 보통 6~100초가 걸립니다</div>' +
+      '<div class="bar indet" style="--c1:' + c + ';--c2:' + c + '"><i></i></div>');
     return;
   }
   const c = modelColor(cur.model);
@@ -242,40 +283,41 @@ function renderLive() {
     phase = PHASE_KO[live.phase] || live.phase || live.state;
     if (reading && live.prompt_total) {
       const f = 100 * (live.prompt_read || 0) / live.prompt_total;
-      bar = `<div class="bar" style="--c1:#59b8ff;--c2:#3fd1c5"><i style="width:${f}%"></i></div>
-        <div class="barlabel mono"><span>프롬프트 ${live.prompt_read || 0} / ${live.prompt_total} tok</span><span>${f.toFixed(0)}%</span></div>`;
+      bar = '<div class="bar" style="--c1:#59b8ff;--c2:#3fd1c5"><i style="width:' + f + '%"></i></div>' +
+        '<div class="barlabel mono"><span>프롬프트 ' + (live.prompt_read || 0) + ' / ' + live.prompt_total + ' tok</span><span>' + f.toFixed(0) + '%</span></div>';
     } else if (reading) {
-      bar = `<div class="bar indet"><i></i></div><div class="barlabel mono"><span>프롬프트 ${live.prompt_tokens || "?"} tok</span><span></span></div>`;
+      bar = '<div class="bar indet"><i></i></div><div class="barlabel mono"><span>프롬프트 ' + (live.prompt_tokens || "?") + ' tok</span><span></span></div>';
     } else {
       const f = max ? 100 * gen / max : 0;
-      bar = `<div class="bar" style="--c1:${c};--c2:#b18cff"><i style="width:${f}%"></i></div>
-        <div class="barlabel mono"><span>생성 ${gen.toLocaleString()} / ${max.toLocaleString()} tok</span><span>프롬프트 ${(live.prompt_tokens || 0).toLocaleString()} tok</span></div>`;
+      bar = '<div class="bar" style="--c1:' + c + ';--c2:#b18cff"><i style="width:' + f + '%"></i></div>' +
+        '<div class="barlabel mono"><span>생성 ' + gen.toLocaleString() + ' / ' + max.toLocaleString() + ' tok</span><span>프롬프트 ' + (live.prompt_tokens || 0).toLocaleString() + ' tok</span></div>';
     }
-    if (live.tok_s) tps = `<span class="tps mono">${live.tok_s.toFixed(0)}<small>tok/s</small></span>`;
+    if (live.tok_s) tps = '<span class="tps mono">' + live.tok_s.toFixed(0) + '<small>tok/s</small></span>';
   } else {
-    phase = "요청 보내는 중"; bar = `<div class="bar indet"><i></i></div>`;
+    phase = "요청 보내는 중"; bar = '<div class="bar indet"><i></i></div>';
   }
-  setHTML(el, `<div class="who"><span class="model" style="color:${c};border-color:${c}66">${esc(modelShort(cur.model))}</span>
-      <span class="role">${esc(ROLE_KO[cur.role] || cur.role)} · 시도 ${esc(cur.attempt)}</span></div>
-    <div class="task"><span class="id mono">${esc(cur.task)}</span>${esc(taskTitle(p, cur.task))}</div>
-    <div class="sub">${esc(p.name)}</div>
-    <div class="phase"><span class="name">${esc(phase)}</span>${tps}</div>${bar}`);
+  setHTML(el, '<div class="who"><span class="model" style="color:' + c + ';border-color:' + c + '66">' + esc(modelShort(cur.model)) + '</span>' +
+    '<span class="role">' + esc(ROLE_KO[cur.role] || cur.role) + ' · 시도 ' + esc(cur.attempt) + '</span></div>' +
+    '<div class="task"><span class="id mono">' + esc(cur.task) + '</span>' + esc(taskTitle(p, cur.task)) + '</div>' +
+    '<div class="sub">' + esc(p.name) + '</div>' +
+    '<div class="phase"><span class="name">' + esc(phase) + '</span>' + tps + '</div>' + bar);
 }
 
 function renderBoard() {
   const projects = state.projects;
-  if (!selected || !projects.find((p) => p.path === selected)) selected = projects[0]?.path;
-  $("tabs").innerHTML = projects.map((p) => {
+  if (!selected || !projects.find(function(p) { return p.path === selected; })) selected = projects[0]?.path;
+  $("tabs").innerHTML = projects.map(function(p) {
     const n = p.tasks.length, d = p.counts.done || 0;
-    return `<button class="${p.path === selected ? "on" : ""}" data-path="${esc(p.path)}">${esc(p.name)} <span class="mono">${d}/${n}</span></button>`;
+    return '<button class="' + (p.path === selected ? "on" : "") + '" data-path="' + esc(p.path) + '">' + esc(p.name) + ' <span class="mono">' + d + '/' + n + '</span></button>';
   }).join("");
-  for (const b of $("tabs").querySelectorAll("button")) b.onclick = () => { selected = b.dataset.path; renderBoard(); renderEfficiency(); };
-  const p = projects.find((x) => x.path === selected);
+  for (const b of $("tabs").querySelectorAll("button")) b.onclick = function() { selected = b.dataset.path; renderBoard(); renderEfficiency(); };
+  const p = projects.find(function(x) { return x.path === selected; });
   if (!p) { $("board").innerHTML = ""; return; }
   const n = p.tasks.length || 1;
   const colors = { done: "#3fd18b", running: "#59b8ff", awaiting_review: "#b18cff", needs_human: "#ff5d6c", todo: "#2b3653" };
-  $("progress").innerHTML = ["done", "awaiting_review", "running", "needs_human", "todo"].map((s) =>
-    `<i style="width:${100 * (p.counts[s] || 0) / n}%;background:${colors[s]}" title="${s} ${p.counts[s] || 0}"></i>`).join("");
+  $("progress").innerHTML = ["done", "awaiting_review", "running", "needs_human", "todo"].map(function(s) {
+    return '<i style="width:' + (100 * (p.counts[s] || 0) / n) + '%;background:' + colors[s] + '" title="' + s + ' ' + (p.counts[s] || 0) + '"></i>';
+  }).join("");
   const running = p.current?.kind === "call" ? p.current.task : null;
   const groups = { todo: [], running: [], done: [], needs_human: [] };
   for (const t of [...p.tasks].reverse()) {
@@ -284,89 +326,221 @@ function renderBoard() {
     if (t.id === running) s = "running";
     (groups[s] || groups.todo).push(t);
   }
-  $("board").innerHTML = STATUS.map(([s, label]) => `<div class="col"><h3>${label} <b>${groups[s].length}</b></h3><div class="cards">${
-    groups[s].slice(0, s === "done" ? 40 : 100).map((t) => `<div class="card ${t.id === running ? "running" : esc(t.status)}">
-      <span class="mono">${esc(t.id)}</span>${t.triage ? `<span class="tag">${esc(t.triage)}</span>` : ""}
-      <div class="t">${esc(t.title)}</div></div>`).join("")}</div></div>`).join("");
+  $("board").innerHTML = STATUS.map(function(pair) {
+    const s = pair[0], label = pair[1];
+    return '<div class="col"><h3>' + label + ' <b>' + groups[s].length + '</b></h3><div class="cards">' +
+      groups[s].slice(0, s === "done" ? 40 : 100).map(function(t) {
+        return '<div class="card ' + (t.id === running ? "running" : esc(t.status)) + '">' +
+          '<span class="mono">' + esc(t.id) + '</span>' + (t.triage ? '<span class="tag">' + esc(t.triage) + '</span>' : '') +
+          '<div class="t">' + esc(t.title) + '</div></div>';
+      }).join("") + '</div></div>';
+  }).join("");
 }
 
 function evLine(e) {
-  const m = e.model ? `<em>${esc(modelShort(e.model))}</em>` : "";
+  const m = e.model ? '<em>' + esc(modelShort(e.model)) + '</em>' : '';
   switch (e.kind) {
-    case "call_start": return ["▶", `${esc(e.task)} ${m} ${esc(ROLE_KO[e.role] || e.role)} 시작 <em>시도 ${esc(e.attempt)}</em>`];
-    case "call": return ["◆", `${esc(e.task)} ${m} 응답 <em>${e.completion_tokens ?? "?"} tok · ${e.seconds}s${e.finish === "length" ? " · 길이 제한" : ""}</em>`];
+    case "call_start": return ["▶", esc(e.task) + ' ' + m + ' ' + esc(ROLE_KO[e.role] || e.role) + ' 시작 <em>시도 ' + esc(e.attempt) + '</em>'];
+    case "call": return ["◆", esc(e.task) + ' ' + m + ' 응답 <em>' + (e.completion_tokens ?? "?") + ' tok · ' + e.seconds + 's' + (e.finish === "length" ? ' · 길이 제한' : '') + '</em>'];
     case "outcome": {
-      const r = e.result || "", ok = /passed|approve/.test(r), bad = /fail|no_files|changes|error|conflict|dropped/.test(r);
-      return [ok ? "✔" : bad ? "✘" : "•", `${esc(e.task)} <span style="color:${ok ? "var(--ok)" : bad ? "var(--bad)" : "var(--dim)"}">${esc(r)}</span>`];
+      const r = e.result || '', ok = /passed|approve/.test(r), bad = /fail|no_files|changes|error|conflict|dropped/.test(r);
+      return [ok ? "✔" : bad ? "✘" : "•", esc(e.task) + ' <span style="color:' + (ok ? "var(--ok)" : bad ? "var(--bad)" : "var(--dim)") + '">' + esc(r) + '</span>'];
     }
-    case "switch_start": return ["⇄", `모델 교체 시작 ${m}`];
-    case "switch": return ["⇄", `모델 교체 ${esc(modelShort(e.from_model))} → ${m} <em>${e.seconds}s</em>`];
-    case "triage": return ["⚖", `${esc(e.task)} 분류: <b>${esc(e.verdict)}</b> <em>${esc((e.reason || "").slice(0, 120))}</em>`];
-    case "verdict": return ["✋", `${esc(e.task)} ${esc(e.result)} <em>${esc((e.reason || "").slice(0, 100))}</em>`];
-    case "diagnosis": return ["🩺", `${esc(e.task)} 진단`];
+    case "switch_start": return ["⇄", '모델 교체 시작 ' + m];
+    case "switch": return ["⇄", '모델 교체 ' + esc(modelShort(e.from_model)) + ' → ' + m + ' <em>' + e.seconds + 's</em>'];
+    case "triage": return ["⚖", esc(e.task) + ' 분류: <b>' + esc(e.verdict) + '</b> <em>' + esc((e.reason || '').slice(0, 120)) + '</em>'];
+    case "verdict": return ["✋", esc(e.task) + ' ' + esc(e.result) + ' <em>' + esc((e.reason || '').slice(0, 100)) + '</em>'];
+    case "diagnosis": return ["🩺", esc(e.task) + ' 진단'];
     case "decision": return null;
-    default: return ["·", `${esc(e.kind)} ${esc(e.task || "")}`];
+    default: return ["·", esc(e.kind) + ' ' + esc(e.task || '')];
   }
 }
 
 function renderFeed() {
-  const p = state.projects[0];
+  const p = picked();
   if (!p) return;
   const evs = p.events.slice().reverse();
-  $("feed").innerHTML = evs.map((e) => {
+  $("feed").innerHTML = evs.map(function(e) {
     const l = evLine(e); if (!l) return "";
-    return `<div class="ev${e.ts > lastSeen && lastSeen ? " new" : ""}"><span class="ts mono">${hhmm(e.ts)}</span><span class="ic">${l[0]}</span><span class="msg">${l[1]}</span></div>`;
+    return '<div class="ev' + (e.ts > lastSeen && lastSeen ? ' new' : '') + '"><span class="ts mono">' + hhmm(e.ts) + '</span><span class="ic">' + l[0] + '</span><span class="msg">' + l[1] + '</span></div>';
   }).join("");
-  lastSeen = Math.max(lastSeen, ...p.events.map((e) => e.ts), 0);
+  lastSeen = Math.max(lastSeen, ...p.events.map(function(e) { return e.ts; }), 0);
 }
 
 function renderStats() {
-  const t = state.engine?.totals || {}, p = state.projects[0] || {}, s = p.stats || {};
-  const all = state.projects.reduce((a, x) => ({ d: a.d + (x.counts.done || 0), n: a.n + x.tasks.length }), { d: 0, n: 0 });
+  const t = state.engine?.totals || {}, p = picked() || {}, s = p.stats || {};
+  const all = state.projects.reduce(function(a, x) { return { d: a.d + (x.counts.done || 0), n: a.n + x.tasks.length }; }, { d: 0, n: 0 });
   const items = [
-    [`${all.d}`, `완료한 작업 (전체 ${all.n})`],
+    ["" + all.d, "완료한 작업 (전체 " + all.n + ")"],
     [t.output_tokens ? (t.output_tokens / 1e6).toFixed(2) + "M" : "–", "생성한 토큰 (PolyStrata 시작 후)"],
-    [s.model_seconds ? fmtT(s.model_seconds) : "–", `모델 시간 · ${esc(p.name || "")}`],
-    [s.switch_seconds ? fmtT(s.switch_seconds) : "–", `모델 교체 시간 · ${esc(p.name || "")}`],
+    [s.model_seconds ? fmtT(s.model_seconds) : "–", "모델 시간 · " + esc(p.name || "")],
+    [s.switch_seconds ? fmtT(s.switch_seconds) : "–", "모델 교체 시간 · " + esc(p.name || "")],
   ];
-  $("stats").innerHTML = items.map(([v, l]) => `<div class="stat"><div class="v mono">${v}</div><div class="l">${l}</div></div>`).join("");
+  $("stats").innerHTML = items.map(function(pair) {
+    return '<div class="stat"><div class="v mono">' + pair[0] + '</div><div class="l">' + pair[1] + '</div></div>';
+  }).join("");
 }
-
 
 const CAUSES = [["useful", "통과한 코드", "#3fd18b"], ["review", "리뷰", "#b18cff"], ["support", "계획·테스트·분류 등", "#59b8ff"],
   ["tests_failed", "테스트 실패", "#ff5d6c"], ["cut_off", "길이 제한에 잘림", "#ff8a4c"], ["no_files", "파일 없음", "#ffb547"],
   ["dropped_defs", "정의 삭제", "#e06cff"], ["discarded", "사람이 되돌림", "#c0506a"], ["other_failure", "기타 실패", "#8a5060"]];
 function renderEfficiency() {
-  const p = state.projects.find((x) => x.path === selected) || state.projects[0];
+  const p = picked() || state.projects[0];
   const e = p?.efficiency;
-  if (!e) { setHTML($("effStats"), `<div class="idle" style="grid-column:1/5">효율 자료 없음</div>`); return; }
+  if (!e) { setHTML($("effStats"), '<div class="idle" style="grid-column:1/5">효율 자료 없음</div>'); return; }
   $("effName").textContent = p.name;
   const ft = e.first_try || {}, w = e.waste || {}, tm = e.time || {}, co = e.cut_off || {};
-  const total = Object.values(e.by_cause || {}).reduce((a, c) => a + c.completion_tokens, 0);
-  const roles = Object.entries(ft.by_role || {}).map(([r, [a, n]]) => `${ROLE_KO[r] || r} ${a}/${n}`).join(" · ");
+  const total = Object.values(e.by_cause || {}).reduce(function(a, c) { return a + c.completion_tokens; }, 0);
+  const roles = Object.entries(ft.by_role || {}).map(function(pair) { return (ROLE_KO[pair[0]] || pair[0]) + ' ' + pair[1][0] + '/' + pair[1][1]; }).join(" · ");
   setHTML($("effStats"), [
-    [`${((w.share || 0) * 100).toFixed(1)}%`, `낭비된 생성 토큰 (${(w.completion_tokens || 0).toLocaleString()} / ${total.toLocaleString()})`],
-    [ft.tasks ? `${Math.round(100 * ft.passed / ft.tasks)}%` : "–", `첫 시도 통과 ${ft.passed || 0}/${ft.tasks || 0}${roles ? " · " + roles : ""}`],
+    [(w.share || 0) * 100 > 0 ? ((w.share || 0) * 100).toFixed(1) + "%" : "0%", "낭비된 생성 토큰 (" + (w.completion_tokens || 0).toLocaleString() + " / " + total.toLocaleString() + ")"],
+    [ft.tasks ? Math.round(100 * ft.passed / ft.tasks) + "%" : "–", "첫 시도 통과 " + (ft.passed || 0) + "/" + (ft.tasks || 0) + (roles ? " · " + roles : "")],
     [e.attempts ? e.attempts.toFixed(2) : "–", "통과한 작업당 평균 시도"],
-    [`${co.calls || 0}`, `길이 제한에 잘린 호출 (${(co.completion_tokens || 0).toLocaleString()} tok)`],
-  ].map(([v, l]) => `<div class="stat"><div class="v mono">${v}</div><div class="l">${esc(l)}</div></div>`).join(""));
+    ["" + (co.calls || 0), "길이 제한에 잘린 호출 (" + (co.completion_tokens || 0).toLocaleString() + " tok)"],
+  ].map(function(pair) {
+    return '<div class="stat"><div class="v mono">' + pair[0] + '</div><div class="l">' + esc(pair[1]) + '</div></div>';
+  }).join(""));
   const by = e.by_cause || {};
-  setHTML($("causeBar"), CAUSES.filter(([k]) => by[k]).map(([k, l, c]) =>
-    `<i style="width:${100 * by[k].completion_tokens / (total || 1)}%;background:${c}" title="${l} ${by[k].completion_tokens} tok"></i>`).join(""));
-  setHTML($("causeLegend"), CAUSES.filter(([k]) => by[k]).map(([k, l, c]) =>
-    `<span><b style="background:${c}"></b>${l} ${(100 * by[k].completion_tokens / (total || 1)).toFixed(0)}% · ${by[k].calls}회 · ${fmtT(by[k].seconds)}</span>`).join(""));
+  setHTML($("causeBar"), CAUSES.filter(function(c) { return by[c[0]]; }).map(function(c) {
+    return '<i style="width:' + (100 * by[c[0]].completion_tokens / (total || 1)) + '%;background:' + c[2] + '" title="' + c[1] + ' ' + by[c[0]].completion_tokens + ' tok"></i>';
+  }).join(""));
+  setHTML($("causeLegend"), CAUSES.filter(function(c) { return by[c[0]]; }).map(function(c) {
+    return '<span><b style="background:' + c[2] + '"></b>' + c[1] + ' ' + (100 * by[c[0]].completion_tokens / (total || 1)).toFixed(0) + '% · ' + by[c[0]].calls + '회 · ' + fmtT(by[c[0]].seconds) + '</span>';
+  }).join(""));
   const act = tm.active_seconds || 1, parts = [["model_seconds", "모델 생성", "#59b8ff"], ["switch_seconds", "모델 교체", "#ffb547"], ["other_seconds", "테스트·git·기타", "#4a5672"]];
-  setHTML($("timeBar"), parts.map(([k, l, c]) => `<i style="width:${100 * (tm[k] || 0) / act}%;background:${c}" title="${l}"></i>`).join(""));
-  setHTML($("timeLegend"), parts.map(([k, l, c]) => `<span><b style="background:${c}"></b>${l} ${fmtT(tm[k] || 0)} (${(100 * (tm[k] || 0) / act).toFixed(0)}%)</span>`).join("") +
-    `<span>활동 시간 ${fmtT(tm.active_seconds || 0)}</span>`);
-  setHTML($("topTasks"), (e.top_tasks || []).map((x) => `<div><span>${esc(x.task || "-")}</span><span class="sub">${esc(taskTitle(p, x.task))}</span>
-    <span>${x.completion_tokens.toLocaleString()} tok</span><span>${fmtT(x.seconds)}</span></div>`).join(""));
+  setHTML($("timeBar"), parts.map(function(p) {
+    return '<i style="width:' + (100 * (tm[p[0]] || 0) / act) + '%;background:' + p[2] + '" title="' + p[1] + '"></i>';
+  }).join(""));
+  setHTML($("timeLegend"), parts.map(function(p) {
+    return '<span><b style="background:' + p[2] + '"></b>' + p[1] + ' ' + fmtT(tm[p[0]] || 0) + ' (' + (100 * (tm[p[0]] || 0) / act).toFixed(0) + '%)</span>';
+  }).join("") + '<span>활동 시간 ' + fmtT(tm.active_seconds || 0) + '</span>');
+  setHTML($("topTasks"), (e.top_tasks || []).map(function(x) {
+    return '<div><span>' + esc(x.task || "-") + '</span><span class="sub">' + esc(taskTitle(p, x.task)) + '</span>' +
+      '<span>' + x.completion_tokens.toLocaleString() + ' tok</span><span>' + fmtT(x.seconds) + '</span></div>';
+  }).join(""));
+}
+
+function renderStream() {
+  const live = liveData;
+  const meta = $("streamMeta");
+  const pre = $("streamPre");
+  if (!live) { meta.textContent = ""; pre.innerHTML = ""; return; }
+  const call = live.call;
+  if (call) {
+    let label = esc(call.task) + " · " + esc(ROLE_KO[call.role] || call.role) + " · " + esc(modelShort(call.model)) + " · 시도 " + esc(call.attempt);
+    if (call.finished) label = "끝남 · " + label;
+    meta.textContent = label;
+  } else {
+    meta.textContent = "";
+  }
+  const text = live.text || "";
+  const sep = "--- answer ---";
+  const idx = text.indexOf(sep);
+  if (idx >= 0) {
+    const before = text.slice(0, idx);
+    const after = text.slice(idx + sep.length);
+    pre.innerHTML = '<span class="dim">' + esc(before) + '</span>' + esc(after);
+  } else {
+    pre.innerHTML = esc(text);
+  }
+  pre.scrollTop = pre.scrollHeight;
+}
+
+function renderTerminal() {
+  const live = liveData;
+  const pre = $("termPre");
+  if (!live) { pre.innerHTML = ""; return; }
+  const lines = (live.log || "").split("\n");
+  const html = lines.map(function(line) {
+    const e = esc(line);
+    if (/passed|: done/.test(line)) return '<span class="green">' + e + '</span>';
+    if (/failed|error|needs_human/.test(line)) return '<span class="red">' + e + '</span>';
+    if (/model switch/.test(line)) return '<span class="dim2">' + e + '</span>';
+    return e;
+  }).join("\n");
+  pre.innerHTML = html;
+  pre.scrollTop = pre.scrollHeight;
+}
+
+let lastTryProject = null;
+function renderTry() {
+  const p = picked();
+  const name = p ? p.name : "";
+  if (name === lastTryProject) return;
+  lastTryProject = name;
+  const body = $("tryBody");
+  if (!p) { body.innerHTML = ""; return; }
+  const tryKind = p.try;
+  if (tryKind === "cli") {
+    body.innerHTML = '<textarea id="tryText" placeholder="입력"></textarea>' +
+      '<input id="tryArgs" placeholder="추가 인자">' +
+      '<button id="tryBtn">실행</button>' +
+      '<pre id="tryCode"></pre>' +
+      '<pre id="tryStdout"></pre>' +
+      '<pre id="tryStderr"></pre>';
+    $("tryBtn").onclick = async function() {
+      const text = $("tryText").value;
+      const args = $("tryArgs").value;
+      try {
+        const r = await fetch("/api/try?project=" + encodeURIComponent(name), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Stratos": "1" },
+          body: JSON.stringify({ text: text, args: args })
+        });
+        const d = await r.json();
+        $("tryCode").textContent = "exit code: " + d.code;
+        $("tryStdout").textContent = d.stdout;
+        $("tryStderr").textContent = d.stderr;
+      } catch (e) {
+        $("tryCode").textContent = "요청 실패";
+        $("tryStdout").textContent = "";
+        $("tryStderr").textContent = String(e);
+      }
+    };
+  } else if (tryKind === "static") {
+    const url = "/try/" + encodeURIComponent(name) + "/index.html";
+    body.innerHTML = '<a href="' + url + '" target="_blank">새 창에서 열기</a>' +
+      '<iframe src="' + url + '" style="width:100%;height:480px;border:1px solid var(--line);border-radius:8px;background:#fff;margin-top:8px"></iframe>';
+  } else {
+    body.innerHTML = '<p class="sub">this project has no [try] table in its stratos.toml</p>';
+  }
+}
+
+function renderPicker() {
+  const sel = $("projectPick");
+  const projects = state.projects;
+  const currentVal = sel.value;
+  sel.innerHTML = projects.map(function(p) {
+    return '<option value="' + esc(p.name) + '">' + esc(p.name) + '</option>';
+  }).join("");
+  if (currentVal && projects.find(function(p) { return p.name === currentVal; })) {
+    sel.value = currentVal;
+  } else {
+    sel.value = projects[0]?.name || "";
+  }
 }
 
 function render() {
   if (!state) return;
-  $("project").textContent = state.projects[0] ? `· ${state.projects[0].name}` : "";
-  renderLive(); renderHardware(state.engine); renderBoard(); renderEfficiency(); renderFeed(); renderStats();
+  renderPicker();
+  const p = picked();
+  $("project").textContent = p ? "· " + p.name : "";
+  renderLive(); renderHardware(state.engine); renderBoard(); renderEfficiency(); renderFeed(); renderStats(); renderTry();
+}
+
+async function pollLive() {
+  const p = picked();
+  if (!p) return;
+  try {
+    const r = await fetch("/api/live?project=" + encodeURIComponent(p.name), { cache: "no-store" });
+    if (r.ok) {
+      liveData = await r.json();
+    } else {
+      liveData = null;
+    }
+  } catch (e) { liveData = null; }
+  renderStream();
+  renderTerminal();
 }
 
 async function poll() {
@@ -376,14 +550,22 @@ async function poll() {
     serverSkew = Date.now() / 1000 - state.time;
     $("conn").classList.add("on");
     render();
+    pollLive();
   } catch (e) { $("conn").classList.remove("on"); }
   setTimeout(poll, 1500);
 }
-setInterval(() => {
+
+$("projectPick").onchange = function() { render(); renderTry(); pollLive(); };
+
+setInterval(function() {
   $("clock").textContent = new Date().toLocaleTimeString("ko-KR", { hour12: false });
-  const cur = state?.projects[0]?.current;
+  const p = picked();
+  const cur = p?.current;
   if (cur) $("elapsed").textContent = fmtT(Date.now() / 1000 - serverSkew - cur.since);
 }, 1000);
+
+setInterval(pollLive, 700);
+
 poll();
 </script>
 </body>
