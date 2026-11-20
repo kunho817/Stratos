@@ -113,6 +113,15 @@ Each P ends with push + a trial. Replaces the rest of work order 2.**
   Decided (user, 2026-11-21): packs for the reviewer and triage are ON HOLD - retry when more is built; keep upkeep
   (cheap); a second-model check of lessons is not needed now (the junk came from a source bug, fixed). Next memory
   experiment: the planner and the test writer, where wrong data rules and contracts between tasks cost the most.
+  **Trial 14: Sieve round 2 (2026-11-21) - after P14.** Hard mode, ranked suggestions, --top/--hard/--history; 16
+  cases for the 3 solve tasks (no model), CLI tests drafted. 4/4 done, first try 3/4 (6/9 over both rounds), 1.44
+  attempts per passed task, waste 1.8%; 69 tests; 5 CLI runs equal Claude's reference. upkeep ran in a trial for the
+  first time: 12 corrections -> 5 lessons (from Claude's plan edits; 3 vague - they read "one module per task" as
+  "list the file" - 2 good), a 7-page wiki. Found: a test-writer answer wrapped each FILE header in its own fence
+  and parse_files left the first file's closing fence in it (fixed, test); refcheck's "crashed" report worked
+  (ranked); round-1 tests fake best_guess with two arguments, so the goal had to say "without --hard call it as
+  before". Cleaning (user: VS Code's repo panel): 61 task worktrees had piled up in the trials (rule 8 was only
+  applied to Stratos); `clean` now keeps a folder in use (VS Code) and goes on; CLAUDE.md rule 8 now covers trials.
 - P15 Jev: a fair test first - replay both branches (keep/switch model, rules' role vs Jev's role) on past tasks
   with the replay tool, so "Jev was right" is not decided by the rules' own choices; adopt it per decision where
   it wins; new uses to try: which drafts a person should read first, whether a failure is test_wrong (triage).

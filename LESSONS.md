@@ -54,3 +54,8 @@ lines; a person reads them before they are committed.
 - [tests, fakes] When a function's signature changes, update all existing fakes to match the new parameters to prevent runtime errors. (Stratos: reset:T217:1)
 - [tests, cli] When testing CLI arguments, verify the test asserts on the actual parsed kwargs or output, not just the function call signature, to catch missing or extra parameters. (Stratos: reset:T221:1)
 - [tests, encoding] When testing output that may contain non-ASCII characters, specify the expected encoding or use unicode strings to avoid decode errors on non-UTF-8 terminals. (Stratos: draft:tests/test_dashboard_try.py:(module):1)
+- [plan, code] When a task creates a new file, include that file in the files list to ensure it is generated. (Sieve: plan:P001:parse_history)
+- [plan, code] When a goal specifies dotted module imports, explicitly list the required module files in the files section to ensure they are generated. (Sieve: plan:P001:cli)
+- [plan, code] When a goal specifies new functions, include the target file in the files list to ensure the code is generated. (Sieve: plan:P001:solve)
+- [plan, tests] When a goal adds a new parameter to a function, list the existing test files that call it to ensure they are updated to accept the new argument. (Sieve: plan:P002:best_guess_hard)
+- [plan, cli] When a CLI flag changes default behavior or argument count, explicitly state the new default value and how it differs from the previous one. (Sieve: plan:P002:cli_top_hard_history)
