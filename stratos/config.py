@@ -83,6 +83,9 @@ LINT = os.environ.get("STRATOS_LINT", "1") != "0"
 # feed the memory's context packs to the models
 MEMORY = True
 
+# stream answers into STATE_DIR/live for the dashboard
+STREAM = True
+
 # CPU embedding model for the memory; jina's code model found 7/8 expected chunks in a top 5, bge-small 5/8
 EMBED = {"model": "jinaai/jina-embeddings-v2-base-code", "cache_dir": r"C:\PolyStrata-data\embeddings", "max_chars": 2000}
 
