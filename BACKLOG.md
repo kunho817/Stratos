@@ -331,6 +331,20 @@ code found that U was never wired (the plan gave undo to game.js only; the criti
 attempt 3, the new 2+2 plan). 116 tests, pushed. Lumen overall: first try 9/13, 2.17 attempts per passed task, waste
 8.7%.
 
+**Trial 9: Drift, an ice-sliding puzzle (D:\Strata\Trials\Drift, JS, 2026-11-20) - the trial after P5.** Levels made by
+Claude with a search (2 of Claude's 3 hand-made levels were unsolvable - checked before use). Readiness metrics
+(user, 2026-11-20: "when can it run alone?"): **goals changed 4 of 5** (the critic named 2 of the 4), drafts: 1 of 5
+unusable (grid), the slide draft 14/14 right against Claude's reference, but **3 drafts held a wrong test each** that
+cost about 3 attempts apiece: two render tests contradicted each other (background vs board cells), a game test passed
+one level without the list of levels, the main draft passed direction names where the others agreed on DIRS values.
+Consensus fired on all three and triage then said test_wrong twice, correctly. Also: an inBounds(grid) trap that
+both models fell into the same way (a false consensus - 40% of the signal), a totalMoves bug in game.js that only the
+main task's test exposed (main could not fix it: T006), and Claude's own goal edit that called `gems` the level's
+gems while the game draft used it as the taken Set. Playing headless found **0 bugs** after the fixes (all 4 levels
+solved in their fewest moves through the real game). Claude also reset the finished T003 by mistake (the cancelled
+command had gone on) and restored it from its commit -> P6 reset guard. Result: first try 2/6, 4.67 attempts per
+passed task, waste 31% - the cost was tests and contracts between tasks, not code. 63 tests, private repo.
+
 **Watching and measuring (user, 2026-11-19): dashboard, efficiency, push per P (T145-T153).**
 `stratos dashboard` (127.0.0.1:8765): the gateway now writes call_start/switch_start, so the page shows who is
 writing which task right now, PolyStrata's live /metrics (phase, generated/max tokens, tok/s), GPU/VRAM/temperature
@@ -491,6 +505,16 @@ repo: the user decides).
   after-the-fact version of item 17; the reviewer sees short changed files whole (< 300 lines), imports of the
   longer ones. Experiment (c) again with that context: **Qwen3.6 10/10 and 10/10** (was 9/9; T012-a1's real missing
   import is now caught, the false blocks stay gone). Both tasks passed on the first try.
+  **P6 built (T177-T181, 798 tests, 2026-11-20) - guards against Claude's own slips** (user: "too many small
+  mistakes"): lint.py runs ruff (installed in Stratos's venv) on the Python files a model writes - undefined names
+  (F821-F823) stop an attempt before the tests, unused imports (F401) are removed after they pass and the tests run
+  again (history: 12 NameError attempts, 5 of 43 review rejections about unused code; ruff found 5 such spots in
+  Stratos itself); `reset` refuses a done task without --force; `stratos add` warns about a test list that holds
+  another waiting task's new test, old tests that import the changed files, missing or broken test files. Plus a
+  Claude Code PostToolUse hook (D:\Strata\.claude) that syntax-checks every .py/.js file Claude writes, and
+  CLAUDE.md rule 14. Notes: a lint fix that breaks the tests now fails the attempt - it should restore the files
+  and keep the pass; the suite slowed from ~55 s to ~70 s (add tests build the real code map); JS has no linter
+  (no npm in trials).
 17. **Differential draft check** (trial 8): for a task whose rules can be computed (simulate, scoring, parsing), have
    a second model write a small independent reference implementation from the goal alone, run the drafted tests
    against it, and flag the tests that fail on it (the test or the reference is wrong - a person decides). Claude's
