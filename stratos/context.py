@@ -101,7 +101,7 @@ def build_messages(task, root, failure=None, memory=None, before=None):
     if memory:
         parts.append("MEMORY (found for this task: lessons and related code):\n" + memory)
     if failure:
-        parts.append("YOUR PREVIOUS ATTEMPT FAILED. Test output:\n```\n" + failure + "\n```\nFix it.")
+        parts.append("YOUR PREVIOUS ATTEMPT FAILED and was not kept: the files above are as they were before it, so send every change again. Test output:\n```\n" + failure + "\n```\nFix it.")
     elif before:
         parts.append("BEFORE YOUR CHANGE THE TESTS FAIL LIKE THIS (make them pass):\n```\n" + before + "\n```")
     return [{"role": "system", "content": CODER_SYSTEM}, {"role": "user", "content": "\n\n".join(parts)}]
