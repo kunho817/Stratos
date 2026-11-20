@@ -52,7 +52,46 @@ def project_files(root, settings=None):
     return sorted(paths)
 
 
-def build_messages(task, diff, files=None):
+def changed_paths(diff):
+    seen = []
+    for line in diff.splitlines():
+        if line.startswith("+++ b/"):
+            path = line[len("+++ b/"):].strip()
+            if path not in seen:
+                seen.append(path)
+    return seen
+
+
+def import_lines(root, paths):
+    root = Path(root)
+    blocks = []
+    for path in paths:
+        p = root / path
+        if not p.is_file():
+            continue
+        suffix = p.suffix.lower()
+        if suffix not in (".py", ".js", ".mjs"):
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        lines = []
+        for line in text.splitlines():
+            if suffix == ".py":
+                if line.startswith("import ") or line.startswith("from "):
+                    lines.append(line)
+            else:
+                if line.startswith("import "):
+                    lines.append(line)
+        if lines:
+            blocks.append(f"{path}:\n" + "\n".join(lines))
+        else:
+            blocks.append(f"{path}:\n(no imports)")
+    return "\n\n".join(blocks)
+
+
+def build_messages(task, diff, files=None, imports=None):
     task_id = task.get("id", "")
     title = task.get("title", "")
     goal = task.get("goal", "")
@@ -62,11 +101,18 @@ def build_messages(task, diff, files=None):
             "PROJECT FILES (every module that exists; a name that is not here is not a module):\n"
             + "\n".join(files) + "\n\n"
         )
+    imports_part = ""
+    if imports:
+        imports_part = (
+            "IMPORTS OF THE CHANGED FILES (after the change; lines outside the diff exist too):\n"
+            + imports + "\n\n"
+        )
     user = (
         "Task id: {id}\n"
         "Title: {title}\n"
         "Goal: {goal}\n\n"
         + files_part +
+        imports_part +
         "Diff:\n"
         "```diff\n"
         "{diff}\n"

@@ -212,8 +212,10 @@ def review_tasks(store, gw, task_ids, log=print):
         wt = Path(task["worktree"])
         diff_text = gitops.commit_diff(wt)
         attempt = task.get("attempts", 0)
+        imports_text = review.import_lines(wt, review.changed_paths(diff_text))
         try:
-            rv_call, rv_text = gw.chat(review.build_messages(task, diff_text, files=review.project_files(wt)), task=task_id, role="reviewer",
+            rv_call, rv_text = gw.chat(review.build_messages(task, diff_text, files=review.project_files(wt),
+                                       imports=imports_text), task=task_id, role="reviewer",
                                        attempt=attempt, model=rv_role["model"], effort=rv_role["effort"],
                                        max_tokens=rv_role["max_tokens"])
         except Exception as e:   # a timed-out reviewer (T052) must not stop the batch; the candidate waits for the next run
