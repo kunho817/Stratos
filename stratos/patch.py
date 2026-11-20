@@ -174,6 +174,14 @@ def parse_files(text, allowed=None):
         close =max((c for c in range(j + 1, len(seg)) if seg[c].strip() == "```"), default=None)
         if close is None:
             continue
+        # (Claude, 2026-11-21) the next header wrapped in its own fence: "```" / "" / "```" + next FILE - the first
+        # fence closes this file, the last one opens the wrapper (Sieve P002 drafts kept a stray fence)
+        if k + 1 < len(heads) and all(not s.strip() for s in seg[close + 1:]):
+            prev = close - 1
+            while prev > j and not seg[prev].strip():
+                prev -= 1
+            if prev > j and seg[prev].strip() == "```":
+                close = prev
         out.append((path, "".join(seg[j + 1:close])))
     if not out:
         lone = _lone_block(lines, allowed)
