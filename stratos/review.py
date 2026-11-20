@@ -91,7 +91,26 @@ def import_lines(root, paths):
     return "\n\n".join(blocks)
 
 
-def build_messages(task, diff, files=None, imports=None):
+def whole_files(root, paths, max_lines=300):
+    root = Path(root)
+    blocks = []
+    short = []
+    for path in paths:
+        p = root / path
+        if not p.is_file():
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if len(text.splitlines()) < max_lines:
+            block = f"FILE AFTER THE CHANGE: {path}\n```\n{text.rstrip(chr(10))}\n```"
+            blocks.append(block)
+            short.append(path)
+    return "\n\n".join(blocks), short
+
+
+def build_messages(task, diff, files=None, imports=None, whole=None):
     task_id = task.get("id", "")
     title = task.get("title", "")
     goal = task.get("goal", "")
@@ -107,12 +126,16 @@ def build_messages(task, diff, files=None, imports=None):
             "IMPORTS OF THE CHANGED FILES (after the change; lines outside the diff exist too):\n"
             + imports + "\n\n"
         )
+    whole_part = ""
+    if whole:
+        whole_part = "WHOLE CHANGED FILES (judge the diff with the code around it):\n" + whole + "\n\n"
     user = (
         "Task id: " + task_id + "\n"
         "Title: " + title + "\n"
         "Goal: " + goal + "\n\n"
         + files_part +
         imports_part +
+        whole_part +
         "Diff:\n"
         "```diff\n"
         + diff + "\n"
