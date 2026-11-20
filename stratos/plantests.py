@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 from . import codemap, config, context, decide, draftcheck, embed, lint, memstore, plan, patch, recall, refcheck
+from . import cases
 
 
 def system_prompt(language, test_runner):
@@ -238,32 +239,65 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                                          always_tags={"tests"})
                 except Exception as e:
                     log(f"memory: {e}")
-            old = old_tests(cmap, task)
-            messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old)
-            kw = {"task": f"{plan_id}-{key}", "role": "test_writer", "attempt": 1,
-                  "model": model_cfg["model"], "effort": model_cfg["effort"],
-                  "max_tokens": model_cfg["max_tokens"]}
-            if model_cfg.get("reasoning_budget") is not None:
-                kw["reasoning_budget"] = model_cfg["reasoning_budget"]
-            call_id, answer = gw.chat(messages, **kw)
-            answer_path = answers_dir / f"{plan_id}-{key}-tests.md"
-            answer_path.write_text(answer, encoding="utf-8")
-            files = patch.parse_files(answer, allowed=task["tests"])
-            # A header-less answer belongs to the only test file still to write (existing ones are never overwritten;
-            # tower defense P002, 2026-11-19: a new file listed with two existing ones was dropped)
-            new_tests = [t for t in task["tests"] if not Path(root, t).exists()]
-            if len(new_tests) == 1 and not files and not _has_file_marker(answer):
-                inner = _strip_lone_fence(answer)
-                if inner is not None:
-                    files = [(new_tests[0], inner)]
+            lines = task.get("cases") or []
+            files = None
+
+            if lines:
+                parsed = cases.parse("\n".join(lines))
+                if not parsed["other"]:
+                    files = [(task["tests"][0], cases.render(parsed))]
+                    log(f"{task['tests'][0]}: written from {len(parsed['plain'])} cases (no model)")
                 else:
-                    blocks = _fenced_blocks(answer)
-                    if len(blocks) >= 2:
-                        files = [(new_tests[0], max(blocks, key=len))]
+                    old = old_tests(cmap, task)
+                    messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old)
+                    messages[1]["content"] += "\n\nCASES (write one test for each, with exactly these values):\n" + "\n".join(lines)
+                    kw = {"task": f"{plan_id}-{key}", "role": "test_writer", "attempt": 1,
+                          "model": model_cfg["model"], "effort": model_cfg["effort"],
+                          "max_tokens": model_cfg["max_tokens"]}
+                    if model_cfg.get("reasoning_budget") is not None:
+                        kw["reasoning_budget"] = model_cfg["reasoning_budget"]
+                    call_id, answer = gw.chat(messages, **kw)
+                    answer_path = answers_dir / f"{plan_id}-{key}-tests.md"
+                    answer_path.write_text(answer, encoding="utf-8")
+                    files = patch.parse_files(answer, allowed=task["tests"])
+                    new_tests = [t for t in task["tests"] if not Path(root, t).exists()]
+                    if len(new_tests) == 1 and not files and not _has_file_marker(answer):
+                        inner = _strip_lone_fence(answer)
+                        if inner is not None:
+                            files = [(new_tests[0], inner)]
+                        else:
+                            blocks = _fenced_blocks(answer)
+                            if len(blocks) >= 2:
+                                files = [(new_tests[0], max(blocks, key=len))]
+                            else:
+                                first_line = answer.splitlines()[0] if answer else ""
+                                if not first_line.lstrip().startswith("```"):
+                                    files = [(new_tests[0], answer)]
+            else:
+                old = old_tests(cmap, task)
+                messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old)
+                kw = {"task": f"{plan_id}-{key}", "role": "test_writer", "attempt": 1,
+                      "model": model_cfg["model"], "effort": model_cfg["effort"],
+                      "max_tokens": model_cfg["max_tokens"]}
+                if model_cfg.get("reasoning_budget") is not None:
+                    kw["reasoning_budget"] = model_cfg["reasoning_budget"]
+                call_id, answer = gw.chat(messages, **kw)
+                answer_path = answers_dir / f"{plan_id}-{key}-tests.md"
+                answer_path.write_text(answer, encoding="utf-8")
+                files = patch.parse_files(answer, allowed=task["tests"])
+                new_tests = [t for t in task["tests"] if not Path(root, t).exists()]
+                if len(new_tests) == 1 and not files and not _has_file_marker(answer):
+                    inner = _strip_lone_fence(answer)
+                    if inner is not None:
+                        files = [(new_tests[0], inner)]
                     else:
-                        first_line = answer.splitlines()[0] if answer else ""
-                        if not first_line.lstrip().startswith("```"):
-                            files = [(new_tests[0], answer)]
+                        blocks = _fenced_blocks(answer)
+                        if len(blocks) >= 2:
+                            files = [(new_tests[0], max(blocks, key=len))]
+                        else:
+                            first_line = answer.splitlines()[0] if answer else ""
+                            if not first_line.lstrip().startswith("```"):
+                                files = [(new_tests[0], answer)]
             written = {}
             for fpath, fcontent in files:
                 written[fpath] = fcontent
