@@ -63,6 +63,18 @@ Each P ends with push + a trial. Replaces the rest of work order 2.**
   restart is needed), shows what later P's add (plans and their critiques, refcheck results, draft flags, memory
   counts, Jev vs rules, efficiency over time); a "try it" page per trial (web games served as static files, CLI
   tools run with a fixed command from stratos.toml on text pasted in the page; 127.0.0.1 only, no free shell).
+  **P12 built (T212-T216, 900 tests, 2026-11-20).** run.log (long commands tee their output), the gateway streams
+  every answer into .stratos/live (current.json + current.txt; PolyStrata sends text/event-stream with usage in the
+  last chunk), dashboard: /api/live, new trials found per request, a code watcher that restarts the server
+  (os.execv - on Windows the restarted server is a new process the shell no longer tracks), "try it" (stratos.toml
+  [try]: a fixed command on pasted text, no shell, needs the X-Stratos header; or a static page under /try/), page
+  panels: project picker, the streamed answer, a terminal view, try it. 7 trials got [try] (Ledger needs a database:
+  none). Found by Claude: stream pieces may be null and the live file stayed open on errors (fixed, test); run_try's
+  Python child printed in cp949 and failed on non-ASCII text (fixed: PYTHONIOENCODING/PYTHONUTF8); the picker
+  rebuilt its options every poll and closed an open list (fixed); the reviewer blocked T216 a7 for "projects[0]"
+  (snapshot already sorts newest first). Tiel cannot write the 390-line page whole within its 6000 tokens (4 cut-off
+  answers, no edit blocks) - big non-Python files should go to coder_hard or be split. Quill: a Korean heading gets
+  the slug "-" (only a-z0-9 kept) - per spec, but useless for Korean; a later Quill round.
 - P13 code cleanup: unused code (ruff F is clean; by name, gitops.append_to_commit_message and
   plan.check_new_tests are used only by tests), features that stay off (draftcheck since P7) - keep or remove,
   shared answer reading (loop._judge and refcheck.check read answers the same way), long modules that the models
