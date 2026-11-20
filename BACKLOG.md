@@ -75,6 +75,18 @@ Each P ends with push + a trial. Replaces the rest of work order 2.**
   (snapshot already sorts newest first). Tiel cannot write the 390-line page whole within its 6000 tokens (4 cut-off
   answers, no edit blocks) - big non-Python files should go to coder_hard or be split. Quill: a Korean heading gets
   the slug "-" (only a-z0-9 kept) - per spec, but useless for Korean; a later Quill round.
+  **Trial 13: Sieve, a five-letter word game helper (D:\Strata\Trials\Sieve, Python, 2026-11-20) - after P12, the
+  first trial with test CASES.** Claude wrote 30 cases for the 4 plain-call tasks (feedback with repeated letters,
+  parse errors with exact messages, candidates, worst case, best guess and its tie rule, word list parsing), checked
+  each by hand and on a reference; plan-tests wrote those 4 test files with no model call ("written from N cases"),
+  and Swift's references agreed with all 40 tests (the CLI's 10 drafted by the test writer). Result: 3/5 first try,
+  1.6 attempts per passed task, waste 2.4% (lowest so far); 41 tests; 5 CLI runs equal to Claude's reference; the
+  dashboard's try-it runs it. The one first-try failure the cases caused was right: T002's message did not match the
+  exact case. The CLI drafts monkeypatched "sieve.cli.sieve.solve.candidates" - an interface the goal left open
+  (how cli imports); fixed by naming the import form in the goal.
+  Decision (Claude, P13): __main__.py is not split now - 17 test files patch cli.Gateway/refresh_memory/run_all, and
+  since edit blocks (P8) and slim context (P10) the models edit it fine (T207 2nd try, T213 1st). Revisit if
+  __main__ tasks fail again on size.
 - P13 code cleanup: unused code (ruff F is clean; by name, gitops.append_to_commit_message and
   plan.check_new_tests are used only by tests), features that stay off (draftcheck since P7) - keep or remove,
   shared answer reading (loop._judge and refcheck.check read answers the same way), long modules that the models
