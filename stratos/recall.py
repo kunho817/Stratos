@@ -2,6 +2,8 @@ from stratos import memsearch
 
 CUT = {"code": 1000, "test": 800, "wiki": 2000}
 
+ALWAYS_N = 5
+
 SECTIONS = [
     ("guide", "GENERAL LESSONS (from earlier projects)", 4),
     ("lesson", "LESSONS FROM PEOPLE'S CORRECTIONS", 5),
@@ -21,18 +23,23 @@ def pack(store, query, embedder=None, cmap=None, budget=12000, sections=None, al
 
     if always_tags:
         heading = "GENERAL LESSONS (from earlier projects)"
+        tagged = [c for c in store.all("guide") if set(c["title"].split(", ")) & always_tags]
+        if len(tagged) > ALWAYS_N:
+            hits = memsearch.search(store, query, embedder, cmap, k=len(store.all("guide")), kinds={"guide"})
+            ordered_ids = [h["id"] for h in hits]
+            ordered = sorted(tagged, key=lambda c: ordered_ids.index(c["id"]) if c["id"] in ordered_ids else len(ordered_ids))
+            tagged = ordered[:ALWAYS_N]
+
         lines = []
-        for chunk in store.all("guide"):
-            tags = set(chunk["title"].split(", "))
-            if tags & always_tags:
-                line = f"- {chunk['text']}"
-                new_lines = lines + [line]
-                section_text = heading + ":\n" + "\n".join(new_lines)
-                total = section_text
-                if finished_sections:
-                    total = "\n\n".join([section_text] + finished_sections)
-                if len(total) <= budget:
-                    lines = new_lines
+        for chunk in tagged:
+            line = f"- {chunk['text']}"
+            new_lines = lines + [line]
+            section_text = heading + ":\n" + "\n".join(new_lines)
+            total = section_text
+            if finished_sections:
+                total = "\n\n".join([section_text] + finished_sections)
+            if len(total) <= budget:
+                lines = new_lines
 
         if lines:
             section_text = heading + ":\n" + "\n".join(lines)
@@ -73,4 +80,3 @@ def pack(store, query, embedder=None, cmap=None, budget=12000, sections=None, al
             finished_sections.append(current_section_text)
 
     return "\n\n".join(finished_sections)
-
