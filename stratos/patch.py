@@ -61,7 +61,6 @@ def _read_blocks(section):
                     second_divider = True
             elif END_RE.match(s):
                 end = i
-            if divider is not None and end is not None:
                 break
             i += 1
         if divider is None or end is None or second_divider:
