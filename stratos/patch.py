@@ -17,6 +17,7 @@ last bare ``` line before the next header, and with `allowed` given only a heade
 holds such fences or headers, T025's fallback saves it from the first fence to the last bare ```.
 """
 import ast
+import difflib
 import re
 from pathlib import Path, PurePosixPath
 
@@ -25,9 +26,23 @@ from . import config
 HEADER_RE = re.compile(r"^\s*FILE:\s*`?([^\s`]+)`?\s*$")
 REMOVAL_WORDS = ("remove", "delete", "drop", "rename", "replace", "삭제", "제거")
 
+BLOCK_RE = re.compile(r"<<<<<<< SEARCH\n(.*?)\n?=======\n(.*?)\n?>>>>>>> REPLACE", re.S)
+
 
 class PatchRefused(Exception):
     pass
+
+
+class EditMismatch(Exception):
+    def __init__(self, path, search, found, closest):
+        self.path = path
+        self.search = search
+        self.found = found
+        self.closest = closest
+        msg = f"{path}: the SEARCH text was found {found} times (it must be found exactly once)"
+        if closest:
+            msg += f"; the closest line is {closest}"
+        super().__init__(msg)
 
 
 def _norm(path):
@@ -155,6 +170,63 @@ def apply_files(root, files, protected, allowed=None):
         dest.write_text(body, encoding="utf-8")
         written.append(str(p))
     return written
+
+
+def parse_edits(text, allowed=None):
+    """Find SEARCH/REPLACE blocks in FILE sections. Returns [(path, [(search, replace), ...])] in answer order.
+    A path met again appends its blocks to its first entry."""
+    ok = {_norm(a) for a in allowed} if allowed is not None else None
+    lines = (text or "").splitlines(keepends=True)
+    heads = []
+    for i, line in enumerate(lines):
+        m = HEADER_RE.match(line)
+        if m:
+            heads.append((i, m.group(1).strip()))
+    result = []
+    seen = {}
+    for k, (i, path) in enumerate(heads):
+        end = heads[k + 1][0] if k + 1 < len(heads) else len(lines)
+        section = "".join(lines[i + 1:end])
+        if ok is not None and _norm(path) not in ok:
+            continue
+        blocks = BLOCK_RE.findall(section)
+        if not blocks:
+            continue
+        norm = _norm(path)
+        if norm in seen:
+            result[seen[norm]][1].extend(blocks)
+        else:
+            seen[norm] = len(result)
+            result.append((path, list(blocks)))
+    return result
+
+
+def render_edits(root, edits):
+    """Apply SEARCH/REPLACE blocks to existing files. Returns [(path, new_text)]. Nothing is written."""
+    results = []
+    for path, blocks in edits:
+        p = Path(root, path)
+        if not p.is_file():
+            raise EditMismatch(path, blocks[0][0], 0, "")
+        text = p.read_text(encoding="utf-8")
+        for search, replace in blocks:
+            n = text.count(search)
+            if n != 1:
+                first_line = next((ln.strip() for ln in search.splitlines() if ln.strip()), "")
+                best_ratio = -1.0
+                closest = ""
+                for idx, line in enumerate(text.splitlines()):
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    ratio = difflib.SequenceMatcher(None, first_line, stripped).ratio()
+                    if ratio > best_ratio:
+                        best_ratio = ratio
+                        closest = f"line {idx + 1}: {stripped}"
+                raise EditMismatch(path, search, n, closest)
+            text = text.replace(search, replace, 1)
+        results.append((path, text))
+    return results
 
 
 def _top_level_names(text):
