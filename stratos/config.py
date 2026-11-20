@@ -110,6 +110,6 @@ LEARNER = {"model": "qwen3.6-35b-a3b-ud-q3_k_m", "effort": "none", "max_tokens":
 WIKI = {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "none", "max_tokens": 3000}
 
 # REF_WRITER: writes an independent reference implementation from the goal; it failed every known wrong test in the experiment
-REF_WRITER = {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "low", "max_tokens": 12000}
+REF_WRITER = {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 24000, "reasoning_budget": 3000}
 # REF_CHECK: run the reference check after drafts in plan-tests; STRATOS_REF_CHECK=0 turns it off
 REF_CHECK = os.environ.get("STRATOS_REF_CHECK", "1") != "0"

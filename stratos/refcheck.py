@@ -6,6 +6,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from stratos import verify
+
 from stratos import config, decide, patch
 
 SYSTEM = (
@@ -104,8 +106,7 @@ def check(gw, plan_id, task, root, tests, extra=None):
         )
         cfg = config.REF_WRITER
         gw.ensure_model(cfg["model"])
-        _, answer = gw.chat(
-            build_messages(task, root),
+        chat_kwargs = dict(
             task=f"{plan_id}-{task['key']}",
             role="reference",
             attempt=1,
@@ -113,6 +114,9 @@ def check(gw, plan_id, task, root, tests, extra=None):
             effort=cfg["effort"],
             max_tokens=cfg["max_tokens"],
         )
+        if "reasoning_budget" in cfg:
+            chat_kwargs["reasoning_budget"] = cfg["reasoning_budget"]
+        _, answer = gw.chat(build_messages(task, root), **chat_kwargs)
         answers_dir = config.STATE_DIR / "answers"
         answers_dir.mkdir(parents=True, exist_ok=True)
         (answers_dir / f"{plan_id}-{task['key']}-reference.md").write_text(answer, encoding="utf-8")
@@ -136,6 +140,10 @@ def check(gw, plan_id, task, root, tests, extra=None):
             dest = Path(copy) / path
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(content, encoding="utf-8")
+        errors = verify.syntax_errors(copy, [p for p, _ in files])
+        if errors:
+            return {"status": "error", "total": 0, "failing": [],
+                    "first_error": "the reference does not compile: " + errors[0], "files": []}
         cmd = config.PROJECT["test_command"] + tests
         try:
             r = subprocess.run(
