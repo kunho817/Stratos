@@ -18,7 +18,16 @@ trial. Replaces the rest of work order 2 (its P10-P12 are folded in below).**
   every draft (b); refcheck tells "the reference crashed" from "interface" (a); old test files not shown as
   "missing" (c); the Claude Code hook also runs ruff F on test files Claude writes; Claude's fixes to drafts (the
   "(Claude: ...)" notes in commits) become lessons (d); measure: wrong drafts per task, per trial.
-- P11 dashboard: keeps itself current - picks up new projects and plans, reloads its own code after a merge (now a
+  **Test cases instead of test code (user, 2026-11-20):** Claude gives the cases (call, input, expected - the part
+  that needs judgement) and Stratos writes the test files. Cases that are plain calls (module, function, args ->
+  result or error) are turned into pytest parametrize mechanically (no model; this is the table-driven item);
+  cases that need setup (files, fakes, monkeypatch, CLI) go to the test writer with the case list, and the
+  existing checks (ruff, collect, refcheck, Claude's reference) run on the result. Removes Claude's slips in test
+  code and the drafts' wrong expected values. Try it on Stratos's own tasks too (rule 1 would change).
+- P11 dashboard (user: "only progress bars is dull - stream what it is doing, show the terminal log"): a live
+  view - the model's answer streamed token by token as it writes (the gateway asks PolyStrata with stream=true and
+  appends the text to a live file; the page reads it over server-sent events), the run log of run-all/plan-tests,
+  the current step (attempt, model switch, tests running, review), test output as it comes. It also keeps itself current - picks up new projects and plans, reloads its own code after a merge (now a
   restart is needed), shows what later P's add (plans and their critiques, refcheck results, draft flags, memory
   counts, Jev vs rules, efficiency over time); a "try it" page per trial (web games served as static files, CLI
   tools run with a fixed command from stratos.toml on text pasted in the page; 127.0.0.1 only, no free shell).
