@@ -60,76 +60,80 @@ def check_answer(task, wt, text, finish=None):
             detail = ("You tried to call a tool, but there are no tools here and you cannot open files. "
                       "Everything you need is in this message: answer with the FILE blocks directly.")
     else:
+        edit_failed = False
         if edits:
             try:
                 rendered = patch.render_edits(wt, edits)
             except patch.EditMismatch as e:
-                return "edit_mismatch", str(e) + "\nCopy the SEARCH lines exactly from the file as shown above, or write the whole file."
-            files = rendered + files
-        dropped = patch.dropped_definitions(wt, files, task["goal"])
-        if dropped:
-            result, detail = "dropped_defs", (
-                "Your answer drops existing definitions that the goal did not ask to remove:\n"
-                + "\n".join(f"{path}: {', '.join(names)}" for path, names in sorted(dropped.items()))
-                + "\nKeep everything that is already in the file: change an existing file with SEARCH/REPLACE edit blocks, or write the whole file completely.")
-        else:
-            base = []
-            if config.LINT:
-                base = lint.check(wt, [p for p, _ in files if Path(wt, p).exists()])
-            try:
-                written = patch.apply_files(wt, files, task["protected"], allowed)
-            except patch.PatchRefused as e:
-                result, detail = "refused", str(e)
+                result, detail = "edit_mismatch", str(e) + "\nCopy the SEARCH lines exactly from the file as shown above, or write the whole file."
+                edit_failed = True
+            if not edit_failed:
+                files = rendered + files
+        if not edit_failed:
+            dropped = patch.dropped_definitions(wt, files, task["goal"])
+            if dropped:
+                result, detail = "dropped_defs", (
+                    "Your answer drops existing definitions that the goal did not ask to remove:\n"
+                    + "\n".join(f"{path}: {', '.join(names)}" for path, names in sorted(dropped.items()))
+                    + "\nKeep everything that is already in the file: change an existing file with SEARCH/REPLACE edit blocks, or write the whole file completely.")
             else:
-                errors = verify.syntax_errors(wt, written)
-                if errors:
-                    result, detail = "syntax_error", (
-                        "Your files do not compile:\n"
-                        + "\n".join(errors)
-                        + "\nCheck the syntax of every file you write; for an existing file, change only the lines you need with SEARCH/REPLACE edit blocks.")
+                base = []
+                if config.LINT:
+                    base = lint.check(wt, [p for p, _ in files if Path(wt, p).exists()])
+                try:
+                    written = patch.apply_files(wt, files, task["protected"], allowed)
+                except patch.PatchRefused as e:
+                    result, detail = "refused", str(e)
                 else:
-                    if config.LINT:
-                        lint_errors = lint.check(wt, written)
-                        base_stripped = collections.Counter(
-                            re.sub(r":\d+:\d+: ", ": ", line, count=1) for line in base
-                        )
-                        kept = []
-                        for line in lint_errors:
-                            stripped = re.sub(r":\d+:\d+: ", ": ", line, count=1)
-                            if base_stripped[stripped] > 0:
-                                base_stripped[stripped] -= 1
+                    errors = verify.syntax_errors(wt, written)
+                    if errors:
+                        result, detail = "syntax_error", (
+                            "Your files do not compile:\n"
+                            + "\n".join(errors)
+                            + "\nCheck the syntax of every file you write; for an existing file, change only the lines you need with SEARCH/REPLACE edit blocks.")
+                    else:
+                        if config.LINT:
+                            lint_errors = lint.check(wt, written)
+                            base_stripped = collections.Counter(
+                                re.sub(r":\d+:\d+: ", ": ", line, count=1) for line in base
+                            )
+                            kept = []
+                            for line in lint_errors:
+                                stripped = re.sub(r":\d+:\d+: ", ": ", line, count=1)
+                                if base_stripped[stripped] > 0:
+                                    base_stripped[stripped] -= 1
+                                else:
+                                    kept.append(line)
+                            if kept:
+                                result = "lint_error"
+                                detail = ("Your files use names that are not defined:\n"
+                                          + "\n".join(kept)
+                                          + "\nDefine or import every name you use.")
                             else:
-                                kept.append(line)
-                        if kept:
-                            result = "lint_error"
-                            detail = ("Your files use names that are not defined:\n"
-                                      + "\n".join(kept)
-                                      + "\nDefine or import every name you use.")
+                                ok, out = verify.run_tests(wt, task["tests"])
+                                result, detail = ("passed" if ok else "failed"), out
+                                if ok:
+                                    kept = {}
+                                    for p in written:
+                                        if p.endswith(".py"):
+                                            fp = Path(wt, p)
+                                            if fp.exists():
+                                                kept[p] = fp.read_text(encoding="utf-8")
+                                    fixed = lint.fix(wt, written)
+                                    if fixed:
+                                        ok2, out2 = verify.run_tests(wt, task["tests"])
+                                        if ok2:
+                                            result = "passed"
+                                            detail = out + "\n(lint removed unused imports in: " + ", ".join(fixed) + ")"
+                                        else:
+                                            for p in fixed:
+                                                if p in kept:
+                                                    Path(wt, p).write_text(kept[p], encoding="utf-8")
+                                            result = "passed"
+                                            detail = out + "\n(lint fix undone: it broke the tests)"
                         else:
                             ok, out = verify.run_tests(wt, task["tests"])
                             result, detail = ("passed" if ok else "failed"), out
-                            if ok:
-                                kept = {}
-                                for p in written:
-                                    if p.endswith(".py"):
-                                        fp = Path(wt, p)
-                                        if fp.exists():
-                                            kept[p] = fp.read_text(encoding="utf-8")
-                                fixed = lint.fix(wt, written)
-                                if fixed:
-                                    ok2, out2 = verify.run_tests(wt, task["tests"])
-                                    if ok2:
-                                        result = "passed"
-                                        detail = out + "\n(lint removed unused imports in: " + ", ".join(fixed) + ")"
-                                    else:
-                                        for p in fixed:
-                                            if p in kept:
-                                                Path(wt, p).write_text(kept[p], encoding="utf-8")
-                                        result = "passed"
-                                        detail = out + "\n(lint fix undone: it broke the tests)"
-                    else:
-                        ok, out = verify.run_tests(wt, task["tests"])
-                        result, detail = ("passed" if ok else "failed"), out
     if finish == "length" and result != "passed":
         detail = ("Your answer was cut off: it reached the length limit. Think briefly and write only the "
                   "files the task needs, completely.\n" + detail)

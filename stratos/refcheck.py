@@ -6,9 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from stratos import verify
-
-from stratos import config, decide, patch
+from stratos import config, decide, patch, verify
 
 SYSTEM = (
     "You write the source files of one task of a project from its goal alone "
