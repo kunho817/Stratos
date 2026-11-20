@@ -41,6 +41,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -195,15 +196,18 @@ def test_cli(tmp_path, monkeypatch, capsys):
     class FakeServer:
         def serve_forever(self):
             made.append("served")
-    monkeypatch.setattr(dashboard, "make_server", lambda repos, port, metrics=None: made.append(
-        (repos, port, metrics is not None)) or FakeServer())
+    # (task dashboard_live: without --repo the server gets repos=None and home, so new trials show up without a
+    # restart, and a watcher restarts the server when the code changes; Claude updated this test)
+    monkeypatch.setattr(dashboard, "make_server", lambda repos, port, metrics=None, home=None: made.append(
+        (repos, port, metrics is not None, home)) or FakeServer())
+    monkeypatch.setattr(dashboard, "watch_code", lambda folder: made.append(("watch", folder)))
     assert cli.main(["dashboard", "--port", "9001", "--repo", str(tmp_path / "a"), str(tmp_path / "b")]) == 0
-    assert made == [([tmp_path / "a", tmp_path / "b"], 9001, True), "served"]
+    assert made[0] == ([tmp_path / "a", tmp_path / "b"], 9001, True, None) and made[-1] == "served"
     assert "dashboard: http://127.0.0.1:9001/" in capsys.readouterr().out
     made.clear()
-    monkeypatch.setattr(dashboard, "default_repos", lambda home: ["R"] if home == config.STRATOS_HOME else [])
     cli.main(["dashboard"])
-    assert made[0] == (["R"], 8765, True)
+    assert made[0] == (None, 8765, True, config.STRATOS_HOME)
+    assert ("watch", Path(dashboard.__file__).parent) in made
 
 
 def test_current_is_only_the_newest_start(tmp_path, monkeypatch):
