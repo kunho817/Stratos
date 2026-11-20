@@ -536,6 +536,28 @@ repo: the user decides).
   checks (dropped definitions, protected files, syntax, lint, tests); a SEARCH found 0 or 2+ times gives
   "edit_mismatch" with the closest line. Nit: an edit_mismatch skips the cut-off note. Next: measure on a
   trial round that changes existing code; the reviewer's diffs should shrink too.
+  **Trial 10: Pantry round 3 (2026-11-20, P7+P8 on a project that changes existing code; 3 tasks: `;` comments,
+  have/used without a unit, list --markdown; 200 tests, pushed).** Edit blocks: Swift changed the 200-line cli.py in
+  553-2550 tokens per answer (whole files took 6-9k before), 0 SEARCH mismatches by Swift; Tiel ignored the format
+  twice (half a file -> dropped_defs, then a syntax error) - partly the old "write each file completely" hints.
+  Planner goals fixed 2 of 3; drafts: 2 wrong tests in list_markdown - the "2 oz spice" unit trap a third time, now
+  a data rule in Pantry's CONVENTIONS.md. New problems, each fixed through Stratos:
+  - refcheck flagged all 3 tasks wrongly: the reference writer never saw the files it changed and rewrote cli.py
+    whole (T191: it sees them and answers with edit blocks; answers saved as answers/<plan>-<key>-reference.md).
+    Even then Tiel broke its own edit blocks (several "=======") -> Swift writes references, thinking budget 3000,
+    a reference that does not compile is an error, not a flag (T194). Re-run on the round-3 drafts
+    (scratchpad recheck_pantry3.py): recipe_comments agree 0/13, cli_count agree 0/14, list_markdown flagged exactly
+    the 2 tests Claude had found wrong by hand. **First clean refcheck result on a change round.**
+  - lint vs reviewer: lint blamed an old undefined name in a function the task did not touch; the coder defined it
+    to pass, the reviewer rejected that as out of scope 3 times (T015 accepted by hand). T192: lint only blames
+    errors the answer adds (compared without row:col); the hints mention edit blocks.
+  - a failed edit attempt is thrown away, but the next answer sent only the fix (an import) as if the edits had
+    stayed (T192 attempt 2). T193: the retry message says the attempt was not kept and to send every change again.
+  - Claude's mistakes: an old lint fake (same errors for any call) failed T192 once; heredoc escapes broke a test
+    file twice (the hook and py_compile caught both at once).
+  Efficiency (Stratos, all tasks): first try 105/194, 2.62 attempts per passed task, waste 40.2%.
+  Nits: refcheck.py has two `from stratos import` lines (T194); addcheck still lists ~40 old tests for a config.py
+  task (cap it / only tests that use the changed names).
 17. **Differential draft check** (trial 8): for a task whose rules can be computed (simulate, scoring, parsing), have
    a second model write a small independent reference implementation from the goal alone, run the drafted tests
    against it, and flag the tests that fail on it (the test or the reference is wrong - a person decides). Claude's
