@@ -83,7 +83,15 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
   went to the rules. The escalation "truth" (did a different role pass later) is shaped by the rules' own
   choices, so it cannot show Jev is better; a real test needs replays of both branches - not worth it now that
   coder tasks escalate after 2 tries anyway.
-  Still open in P4: the reviewer (Qwen3.6) - the weakest checker in experiment (a) and 4 wrong blocking reviews in
+  **Experiment (c) done (scratchpad review_eval.py, 2026-11-20):** 10 review cases from trials 5-7 with a known
+  verdict (3 should block, 7 should pass), the current prompt with the file list, 2 runs: **Qwen3.6 9/9 (the
+  reviewer stays)**, Tiel 8/8, Swift 6/5, Flint 4/4 (Flint flags unrequested things everywhere - the opposite of
+  experiments a and b: each role has its own best model). The P2/P3 fixes held: the task-key case and the nit now
+  pass. All four models called T013-a11 wrong for "no import json" - the import was in the file, not in the diff:
+  T173 shows the reviewer the import lines of the changed files. Claude found by reading T173 that build_messages
+  joined parts into a str.format template, so a JS import `{ b }` raised KeyError (latent since T166's file list):
+  T174. A reviewer change would not cut switches, so the switch cost stays open.
+  Still open in P4 (older note): the reviewer (Qwen3.6) - the weakest checker in experiment (a) and 4 wrong blocking reviews in
   trials 5-7 (a nit as medium, a task key read as a module, a short-circuit read as NameError, a present import
   called missing) while it caught one real bug (the servings padding) - and its load costs 2 switches per round:
   replay the reviewer cases of trials 5-7 with Swift/Tiel/Flint as reviewer (experiment c); worktrees get main
