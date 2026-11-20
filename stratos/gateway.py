@@ -59,42 +59,42 @@ class Gateway:
             meta = {"call_id": call_id, "task": task, "role": role, "attempt": attempt, "model": model,
                     "started": t0}
             (live / "current.json").write_text(json.dumps(meta), encoding="utf-8")
-            fh = (live / "current.txt").open("w", encoding="utf-8")
             reasoning_parts = []
             content_parts = []
             usage = {}
             finish = None
             answer_marker_written = False
-            for line in self._stream_lines("/v1/chat/completions", body):
-                if not line.startswith("data:"):
-                    continue
-                data = line[5:].strip()
-                if data == "[DONE]":
-                    break
-                chunk = json.loads(data)
-                if "usage" in chunk:
-                    usage = chunk["usage"]
-                choices = chunk.get("choices")
-                if not choices:
-                    continue
-                delta = choices[0].get("delta", {})
-                if "reasoning_content" in delta:
-                    rc = delta["reasoning_content"]
-                    reasoning_parts.append(rc)
-                    fh.write(rc)
-                    fh.flush()
-                c = delta.get("content")
-                if c:
-                    if not answer_marker_written and reasoning_parts:
-                        fh.write("\n--- answer ---\n")
-                        answer_marker_written = True
-                    content_parts.append(c)
-                    fh.write(c)
-                    fh.flush()
-                fr = choices[0].get("finish_reason")
-                if fr:
-                    finish = fr
-            fh.close()
+            # (Claude, reading T214) null pieces add nothing, and the file is closed on errors too
+            with (live / "current.txt").open("w", encoding="utf-8") as fh:
+                for line in self._stream_lines("/v1/chat/completions", body):
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    chunk = json.loads(data)
+                    if chunk.get("usage"):
+                        usage = chunk["usage"]
+                    choices = chunk.get("choices")
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta") or {}
+                    rc = delta.get("reasoning_content")
+                    if rc:
+                        reasoning_parts.append(rc)
+                        fh.write(rc)
+                        fh.flush()
+                    c = delta.get("content")
+                    if c:
+                        if not answer_marker_written and reasoning_parts:
+                            fh.write("\n--- answer ---\n")
+                            answer_marker_written = True
+                        content_parts.append(c)
+                        fh.write(c)
+                        fh.flush()
+                    fr = choices[0].get("finish_reason")
+                    if fr:
+                        finish = fr
             content = "".join(content_parts)
             reasoning = "".join(reasoning_parts)
             secs = round(time.time() - t0, 2)

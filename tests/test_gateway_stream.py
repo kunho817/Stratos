@@ -75,6 +75,30 @@ def test_reasoning_only_answer(tmp_path, monkeypatch):
     assert text == "FILE: b.py"
 
 
+def test_null_pieces_and_errors(tmp_path, monkeypatch):
+    """(Claude, reading T214) A chunk may carry "reasoning_content": null or "content": null; those add nothing. An
+    error while reading the stream still closes current.txt and is raised."""
+    monkeypatch.setattr(config, "STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(config, "STREAM", True)
+    lines = [chunk({"reasoning_content": None, "content": None}), chunk({"reasoning_content": "r"}),
+             chunk({"content": "A", "reasoning_content": None}), chunk({}, finish="stop"), "data: [DONE]"]
+    monkeypatch.setattr(gateway.Gateway, "_stream_lines", lambda self, path, body: iter(lines))
+    _, text = gateway.Gateway(Tel()).chat([], task="T", role="r", attempt=1, model="m", effort="low", max_tokens=5)
+    assert text == "A"
+
+    def broken(self, path, body):
+        yield chunk({"content": "half"})
+        raise OSError("connection reset")
+    monkeypatch.setattr(gateway.Gateway, "_stream_lines", broken)
+    try:
+        gateway.Gateway(Tel()).chat([], task="T", role="r", attempt=1, model="m", effort="low", max_tokens=5)
+        raise AssertionError("expected OSError")
+    except OSError:
+        pass
+    live = config.STATE_DIR / "live" / "current.txt"
+    live.unlink()   # closed: Windows refuses to delete a file that is still open
+
+
 def test_on_by_default_off_in_tests():
     from pathlib import Path
     assert "\nSTREAM = True" in Path(config.__file__).read_text(encoding="utf-8")
