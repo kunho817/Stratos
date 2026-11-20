@@ -48,12 +48,33 @@ def task_memory(task):
         return None
 
 
-def check_answer(task, wt, text, finish=None):
-    """Judge one model answer: parse its FILE blocks, apply them, run the tests; (result, detail)."""
+def _lint_fix(wt, written, tests, out):
+    """After the tests pass, lint.fix removes unused imports; if the fix breaks the tests, undo it."""
+    kept = {}
+    for p in written:
+        if p.endswith(".py"):
+            fp = Path(wt, p)
+            if fp.exists():
+                kept[p] = fp.read_text(encoding="utf-8")
+    fixed = lint.fix(wt, written)
+    if not fixed:
+        return "passed", out
+    ok2, out2 = verify.run_tests(wt, tests)
+    if ok2:
+        return "passed", out + "\n(lint removed unused imports in: " + ", ".join(fixed) + ")"
+    for p in fixed:
+        if p in kept:
+            Path(wt, p).write_text(kept[p], encoding="utf-8")
+    return "passed", out + "\n(lint fix undone: it broke the tests)"
+
+
+def _judge(task, wt, text, finish):
+    """Judge one model answer: parse, apply, run the tests; return (result, detail) as soon as a step decides."""
     allowed = task["files"] or None
     edits = patch.parse_edits(text, allowed)
     edited = {p for p, _ in edits}
     files = [f for f in patch.parse_files(text, allowed) if f[0] not in edited]
+
     if not files and not edits:
         result, detail = "no_files", "the answer held no FILE blocks for the task's files"
         if finish == "tool_calls":
@@ -62,95 +83,82 @@ def check_answer(task, wt, text, finish=None):
         elif re.search(r"[<>=]{3,}\s*(SEARCH|REPLACE)", text or ""):
             detail = ("Your edit blocks could not be read. Each one must be exactly:\nFILE: <path>\n<<<<<<< SEARCH\n"
                       "<lines copied from the file>\n=======\n<the new lines>\n>>>>>>> REPLACE")
-    else:
-        partial_lines = []
-        for path, body in files:
-            fp = Path(wt, path)
-            if fp.is_file():
-                old = len(fp.read_text(encoding="utf-8").splitlines())
-                new = len(body.splitlines())
-                if old >= 20 and new * 2 < old:
-                    partial_lines.append(
-                        f"{path}: you sent {new} lines as the whole file, but the file has {old}. "
-                        "Send only the changes as SEARCH/REPLACE edit blocks (each SEARCH copied exactly from the file), "
-                        "or the whole file with everything in it.")
-        if partial_lines:
-            result, detail = "partial_file", "\n".join(partial_lines)
-        else:
-            edit_failed = False
-            if edits:
-                try:
-                    rendered = patch.render_edits(wt, edits)
-                except patch.EditMismatch as e:
-                    result, detail = "edit_mismatch", str(e) + "\nCopy the SEARCH lines exactly from the file as shown above, or write the whole file."
-                    edit_failed = True
-                if not edit_failed:
-                    files = rendered + files
-            if not edit_failed:
-                dropped = patch.dropped_definitions(wt, files, task["goal"])
-                if dropped:
-                    result, detail = "dropped_defs", (
-                        "Your answer drops existing definitions that the goal did not ask to remove:\n"
-                        + "\n".join(f"{path}: {', '.join(names)}" for path, names in sorted(dropped.items()))
-                        + "\nKeep everything that is already in the file: change an existing file with SEARCH/REPLACE edit blocks, or write the whole file completely.")
-                else:
-                    base = []
-                    if config.LINT:
-                        base = lint.check(wt, [p for p, _ in files if Path(wt, p).exists()])
-                    try:
-                        written = patch.apply_files(wt, files, task["protected"], allowed)
-                    except patch.PatchRefused as e:
-                        result, detail = "refused", str(e)
-                    else:
-                        errors = verify.syntax_errors(wt, written)
-                        if errors:
-                            result, detail = "syntax_error", (
-                                "Your files do not compile:\n"
-                                + "\n".join(errors)
-                                + "\nCheck the syntax of every file you write; for an existing file, change only the lines you need with SEARCH/REPLACE edit blocks.")
-                        else:
-                            if config.LINT:
-                                lint_errors = lint.check(wt, written)
-                                base_stripped = collections.Counter(
-                                    re.sub(r":\d+:\d+: ", ": ", line, count=1) for line in base
-                                )
-                                kept = []
-                                for line in lint_errors:
-                                    stripped = re.sub(r":\d+:\d+: ", ": ", line, count=1)
-                                    if base_stripped[stripped] > 0:
-                                        base_stripped[stripped] -= 1
-                                    else:
-                                        kept.append(line)
-                                if kept:
-                                    result = "lint_error"
-                                    detail = ("Your files use names that are not defined:\n"
-                                              + "\n".join(kept)
-                                              + "\nDefine or import every name you use.")
-                                else:
-                                    ok, out = verify.run_tests(wt, task["tests"])
-                                    result, detail = ("passed" if ok else "failed"), out
-                                    if ok:
-                                        kept = {}
-                                        for p in written:
-                                            if p.endswith(".py"):
-                                                fp = Path(wt, p)
-                                                if fp.exists():
-                                                    kept[p] = fp.read_text(encoding="utf-8")
-                                        fixed = lint.fix(wt, written)
-                                        if fixed:
-                                            ok2, out2 = verify.run_tests(wt, task["tests"])
-                                            if ok2:
-                                                result = "passed"
-                                                detail = out + "\n(lint removed unused imports in: " + ", ".join(fixed) + ")"
-                                            else:
-                                                for p in fixed:
-                                                    if p in kept:
-                                                        Path(wt, p).write_text(kept[p], encoding="utf-8")
-                                                result = "passed"
-                                                detail = out + "\n(lint fix undone: it broke the tests)"
-                            else:
-                                ok, out = verify.run_tests(wt, task["tests"])
-                                result, detail = ("passed" if ok else "failed"), out
+        return result, detail
+
+    partial_lines = []
+    for path, body in files:
+        fp = Path(wt, path)
+        if fp.is_file():
+            old = len(fp.read_text(encoding="utf-8").splitlines())
+            new = len(body.splitlines())
+            if old >= 20 and new * 2 < old:
+                partial_lines.append(
+                    f"{path}: you sent {new} lines as the whole file, but the file has {old}. "
+                    "Send only the changes as SEARCH/REPLACE edit blocks (each SEARCH copied exactly from the file), "
+                    "or the whole file with everything in it.")
+    if partial_lines:
+        return "partial_file", "\n".join(partial_lines)
+
+    if edits:
+        try:
+            rendered = patch.render_edits(wt, edits)
+        except patch.EditMismatch as e:
+            return "edit_mismatch", str(e) + "\nCopy the SEARCH lines exactly from the file as shown above, or write the whole file."
+        files = rendered + files
+
+    dropped = patch.dropped_definitions(wt, files, task["goal"])
+    if dropped:
+        return "dropped_defs", (
+            "Your answer drops existing definitions that the goal did not ask to remove:\n"
+            + "\n".join(f"{path}: {', '.join(names)}" for path, names in sorted(dropped.items()))
+            + "\nKeep everything that is already in the file: change an existing file with SEARCH/REPLACE edit blocks, or write the whole file completely.")
+
+    base = []
+    if config.LINT:
+        base = lint.check(wt, [p for p, _ in files if Path(wt, p).exists()])
+
+    try:
+        written = patch.apply_files(wt, files, task["protected"], allowed)
+    except patch.PatchRefused as e:
+        return "refused", str(e)
+
+    errors = verify.syntax_errors(wt, written)
+    if errors:
+        return "syntax_error", (
+            "Your files do not compile:\n"
+            + "\n".join(errors)
+            + "\nCheck the syntax of every file you write; for an existing file, change only the lines you need with SEARCH/REPLACE edit blocks.")
+
+    if config.LINT:
+        lint_errors = lint.check(wt, written)
+        base_stripped = collections.Counter(
+            re.sub(r":\d+:\d+: ", ": ", line, count=1) for line in base
+        )
+        kept = []
+        for line in lint_errors:
+            stripped = re.sub(r":\d+:\d+: ", ": ", line, count=1)
+            if base_stripped[stripped] > 0:
+                base_stripped[stripped] -= 1
+            else:
+                kept.append(line)
+        if kept:
+            return "lint_error", ("Your files use names that are not defined:\n"
+                                   + "\n".join(kept)
+                                   + "\nDefine or import every name you use.")
+
+    ok, out = verify.run_tests(wt, task["tests"])
+    if not ok:
+        return "failed", out
+
+    if config.LINT:
+        return _lint_fix(wt, written, task["tests"], out)
+
+    return "passed", out
+
+
+def check_answer(task, wt, text, finish=None):
+    """Judge one model answer: parse its FILE blocks, apply them, run the tests; (result, detail)."""
+    result, detail = _judge(task, wt, text, finish)
     if finish == "length" and result != "passed":
         detail = ("Your answer was cut off: it reached the length limit. Think briefly and write only the "
                   "files the task needs, completely.\n" + detail)
