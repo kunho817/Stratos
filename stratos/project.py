@@ -16,7 +16,7 @@ def _default_settings():
         "language": "python",
         "source_dirs": ["stratos"],
         "test_dir": "tests",
-        "writable_suffixes": [".py", ".md", ".toml", ".txt", ".json"],
+        "writable_suffixes": [".py", ".md", ".toml", ".txt", ".json", ".html"],
         "test_command": [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"],
         "test_runner": "pytest",
         "test_suffixes": [".py"],

@@ -1,6 +1,6 @@
 """Tests for stratos/project.py: load_settings(repo) reads repo/"stratos.toml" (if it exists) and fills
 every missing key with a Stratos-default: language "python", source_dirs ["stratos"], test_dir "tests",
-writable_suffixes [".py", ".md", ".toml", ".txt", ".json"], test_command ["python","-m","pytest","-q","-p",
+writable_suffixes [".py", ".md", ".toml", ".txt", ".json", ".html"] (.html since P12: the dashboard page), test_command ["python","-m","pytest","-q","-p",
 "no:cacheprovider"], test_runner "pytest", test_suffixes [".py"], draft_check_command ["python","-m","pytest",
 "--collect-only","-q"], example_test "tests/test_diagnose.py". In test_command and draft_check_command the first
 element "python" is replaced by sys.executable. Each call returns a fresh dict; the default lists are never shared
@@ -16,7 +16,7 @@ DEFAULTS = {
     "language": "python",
     "source_dirs": ["stratos"],
     "test_dir": "tests",
-    "writable_suffixes": [".py", ".md", ".toml", ".txt", ".json"],
+    "writable_suffixes": [".py", ".md", ".toml", ".txt", ".json", ".html"],
     "test_command": [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"],
     "test_runner": "pytest",
     "test_suffixes": [".py"],
