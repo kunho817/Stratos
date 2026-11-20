@@ -48,3 +48,13 @@ def test_build_messages_with_imports():
     assert user.index("PROJECT FILES") < user.index("IMPORTS OF THE CHANGED FILES")
     assert review.build_messages(TASK, DIFF) == review.build_messages(TASK, DIFF, imports=None)
     assert "IMPORTS OF" not in review.build_messages(TASK, DIFF, imports="")[1]["content"]
+
+
+def test_braces_in_imports_and_goal_are_kept():
+    """(task review_braces) Found by Claude reading T173: build_messages joined the parts into the str.format template,
+    so a JS import such as `import { b } from "./b.js"` raised KeyError(' b ') and every JS review would fail."""
+    task = {"id": "T1", "title": "t {x}", "goal": "keep {braces} as they are"}
+    user = review.build_messages(task, "+const o = { a: 1 };", files=["src/{odd}.js"],
+                                 imports='src/a.js:\nimport { b } from "./b.js";')[1]["content"]
+    assert 'import { b } from "./b.js";' in user
+    assert "src/{odd}.js" in user and "keep {braces} as they are" in user and "+const o = { a: 1 };" in user
