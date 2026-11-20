@@ -48,7 +48,7 @@ def test_replay_with_role_defaults(proj, capsys):
     assert [t["id"] for t in tasks] == [b, a] and tasks[0]["goal"] == "goal b"
     r = config.ROLES["coder"]
     assert kw == {"model": r["model"], "effort": r["effort"], "max_tokens": r["max_tokens"], "tries": 2,
-                  "repo": config.REPO, "root": config.WORKTREES}
+                  "repo": config.REPO, "root": config.WORKTREES, "memory": False}   # (task replay_memory added memory; Claude updated this test)
     assert gw is made[0] and str(gw.telemetry.path).endswith("replay.jsonl")
     out = capsys.readouterr().out
     assert f"{b}: passed (1 attempts, 10 s)" in out and f"{a}: failed (2 attempts, 20 s)" in out
