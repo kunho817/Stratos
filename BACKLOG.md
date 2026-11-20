@@ -10,6 +10,31 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
 
 ## Open (top first)
 
+**Work order 3 (user, 2026-11-20, after trial 11): everything still to do, in order. Each P ends with push + a
+trial. Replaces the rest of work order 2 (its P10-P12 are folded in below).**
+- P10 tests (problems keep coming from tests). Causes so far: wrong drafts (data rules, arithmetic, an unread
+  goal), old tests and fakes pinning old behaviour, Claude's own slips (escapes, a measure on the wrong thing,
+  imports removed as unused), junk in drafts (a half-written duplicate function). Build: ruff F401/F811/F821 on
+  every draft (b); refcheck tells "the reference crashed" from "interface" (a); old test files not shown as
+  "missing" (c); the Claude Code hook also runs ruff F on test files Claude writes; Claude's fixes to drafts (the
+  "(Claude: ...)" notes in commits) become lessons (d); measure: wrong drafts per task, per trial.
+- P11 dashboard: keeps itself current - picks up new projects and plans, reloads its own code after a merge (now a
+  restart is needed), shows what later P's add (plans and their critiques, refcheck results, draft flags, memory
+  counts, Jev vs rules, efficiency over time); a "try it" page per trial (web games served as static files, CLI
+  tools run with a fixed command from stratos.toml on text pasted in the page; 127.0.0.1 only, no free shell).
+- P12 code cleanup: unused code (ruff F is clean; by name, gitops.append_to_commit_message and
+  plan.check_new_tests are used only by tests), features that stay off (draftcheck since P7) - keep or remove,
+  shared answer reading (loop._judge and refcheck.check read answers the same way), long modules that the models
+  edit badly (__main__.py 685 lines, report.py 582, plan.py 492: split by command), speed of the suite (~90 s).
+- P13 memory (the central goal): `memory learn` after each run-all/push, wiki pages for trial projects, packs for
+  the test writer/reviewer/triage, a second model checks wiki pages, the M6 A/B (with vs without memory).
+- P14 Jev: a fair test first - replay both branches (keep/switch model, rules' role vs Jev's role) on past tasks
+  with the replay tool, so "Jev was right" is not decided by the rules' own choices; adopt it per decision where
+  it wins; new uses to try: which drafts a person should read first, whether a failure is test_wrong (triage).
+- P15 time and the rest: model switches (36% of model time; order rounds by model), the design-by-numbers
+  "search" task kind (item 16), table-driven tests.
+- Then a direction question for the user: stage 5 (another language/engine, e.g. Unity C#).
+
 **Work order 2 (user, 2026-11-20, after P8): what was left out, in order. Each P ends with push + a trial.**
 - P9 Claude's and the models' small slips, mechanically: addcheck names only the old tests that use what the goal
   changes, capped at 8 (T195); lenient edit-block markers (T197); "partial_file" and an edit-format hint for
