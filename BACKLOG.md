@@ -99,6 +99,20 @@ Each P ends with push + a trial. Replaces the rest of work order 2.**
   edit badly (__main__.py 685 lines, report.py 582, plan.py 492: split by command), speed of the suite (~90 s).
 - P14 memory (the central goal): `memory learn` after each run-all/push, wiki pages for trial projects, packs for
   the test writer/reviewer/triage, a second model checks wiki pages, the M6 A/B (with vs without memory).
+  **P14 built (T220-T223, 2026-11-21).** upkeep: run-all learns from corrections not learned yet (resets, plan
+  edits, "(Claude: why)" notes in comments/docstrings - not in test data, not right after a single quote or backtick)
+  and updates the wiki of changed files; recall keeps only the 5 general lessons most relevant to the task (it put
+  every "code" lesson, the same 1.5k for every task); replay --memory (lessons only, none from the replayed task)
+  for the A/B. First automatic learn: 40 corrections -> 27 lessons; Claude removed 7 made from test data, 1 wrong
+  one (T210 stated backwards), later 3 from a docstring quoting the format - 19 kept, mostly sound.
+  **M6 A/B (Tiel, 1 try, tasks it once failed without a reset):** 23 tasks: off 7/23, on 5/23; 15 tasks in all four
+  runs: off 6+3 = 9/30, on 3+5 = 8/30. The same setting swings 6 <-> 3, more than any memory effect: lessons do
+  not raise the coder's first try. Its failures are format and code slips (partial files, lint, failing tests);
+  what helped across trials was exact goals and test cases (Quill, Cronix, Sieve). Two replay runs died midway
+  with no traceback (started with `&`, untracked - likely reaped; run experiments as tracked background tasks).
+  Decided (user, 2026-11-21): packs for the reviewer and triage are ON HOLD - retry when more is built; keep upkeep
+  (cheap); a second-model check of lessons is not needed now (the junk came from a source bug, fixed). Next memory
+  experiment: the planner and the test writer, where wrong data rules and contracts between tasks cost the most.
 - P15 Jev: a fair test first - replay both branches (keep/switch model, rules' role vs Jev's role) on past tasks
   with the replay tool, so "Jev was right" is not decided by the rules' own choices; adopt it per decision where
   it wins; new uses to try: which drafts a person should read first, whether a failure is test_wrong (triage).
