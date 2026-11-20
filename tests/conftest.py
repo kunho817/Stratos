@@ -22,6 +22,7 @@ def no_network(monkeypatch, tmp_path_factory):
     monkeypatch.setattr(config, "PREFLIGHT", False, raising=False)
     monkeypatch.setattr(config, "DRAFT_CHECK", False, raising=False)
     monkeypatch.setattr(config, "PLAN_CRITIQUE", False, raising=False)
+    monkeypatch.setattr(config, "LINT", False, raising=False)
     monkeypatch.setattr(config, "MEMORY", False, raising=False)
     monkeypatch.setattr(config, "LESSONS", tmp_path_factory.mktemp("lessons") / "LESSONS.md", raising=False)
 

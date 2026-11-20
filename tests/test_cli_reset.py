@@ -54,7 +54,8 @@ def lines(path):
 def test_reset_throws_the_result_away(proj, capsys):
     repo, root, store, state = proj
     tid, wt = finished_task(repo, root, store)
-    assert cli.main(["reset", tid, "--reason", "harness bug"]) == 0
+    # (task reset_force, 2026-11-20: a done task needs --force; this test was updated with it)
+    assert cli.main(["reset", tid, "--reason", "harness bug", "--force"]) == 0
     assert f"reset {tid}" in capsys.readouterr().out
     assert not wt.exists()
     assert gitops.git(repo, "branch", "--list", f"stratos/{tid}") == ""
