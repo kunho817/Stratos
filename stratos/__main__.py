@@ -382,6 +382,9 @@ def main(argv=None):
                     print(f'  - "{f["test"]}": {f["reason"]}')
             else:
                 print(f"{r['key']} {r['file']}: {r['status']}")
+            rc = r.get("refcheck")
+            if rc:
+                print(f"  reference: {rc['status']}" + (f" ({len(rc['failing'])} of {rc['total']} fail)" if rc["failing"] else ""))
         return 0
     elif args.cmd == "run":
         tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
@@ -679,3 +682,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+
