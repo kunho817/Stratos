@@ -4,7 +4,7 @@ config is read once at import, so each case imports it in a fresh Python process
 - STRATOS_REPO set: REPO = Path(that folder), STATE_DIR = REPO / ".stratos", WORKTREES = REPO.parent / (REPO.name +
   "-wt"), PROJECT = project.load_settings(REPO), WRITABLE_SUFFIXES = set(PROJECT["writable_suffixes"]).
 - STRATOS_REPO not set: REPO is Stratos's own folder and WORKTREES is its sibling "Stratos-wt", as before; PROJECT
-  holds Stratos's defaults and WRITABLE_SUFFIXES is {".py", ".md", ".toml", ".txt", ".json"}.
+  holds Stratos's defaults and WRITABLE_SUFFIXES is {".py", ".md", ".toml", ".txt", ".json", ".html"} (.html since P12).
 (The case written by the planner model reloaded config in-process with a fake project module left behind; that
 would have changed config for every later test.)"""
 import json
@@ -34,7 +34,7 @@ def test_default_is_stratos_itself():
     assert Path(got["repo"]) == ROOT
     assert Path(got["state"]) == ROOT / ".stratos"
     assert Path(got["wt"]) == ROOT.parent / "Stratos-wt"
-    assert got["suffixes"] == [".json", ".md", ".py", ".toml", ".txt"] and got["is_set"]
+    assert got["suffixes"] == [".html", ".json", ".md", ".py", ".toml", ".txt"] and got["is_set"]
     assert got["project"]["language"] == "python" and got["project"]["source_dirs"] == ["stratos"]
 
 
