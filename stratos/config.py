@@ -65,8 +65,8 @@ PLAN_CONVERTER = {"model": "qwen3.6-35b-a3b-ud-q4_k_m", "effort": "none", "max_t
 
 # checks drafted tests before any code is written; the drafts come from the same model, so no switch
 DRAFT_CHECKER = {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 12000}
-# STRATOS_DRAFT_CHECK=0 turns the draft checker off; on by default
-DRAFT_CHECK = os.environ.get("STRATOS_DRAFT_CHECK", "1") != "0"
+# off by default - on fresh drafts it found almost none of the real problems, trials 6-9
+DRAFT_CHECK = os.environ.get("STRATOS_DRAFT_CHECK", "0") != "0"
 
 # TRIAGE (2026-11-18): after a task fails its tests, a quick model decides whether the failing assertion is the test's
 # fault (test_wrong) or the code's (code_wrong), so the retry targets the right file. STRATOS_TRIAGE=0 turns it off.
@@ -111,3 +111,5 @@ WIKI = {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "none", "max_tokens"
 
 # REF_WRITER: writes an independent reference implementation from the goal; it failed every known wrong test in the experiment
 REF_WRITER = {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "low", "max_tokens": 12000}
+# REF_CHECK: run the reference check after drafts in plan-tests; STRATOS_REF_CHECK=0 turns it off
+REF_CHECK = os.environ.get("STRATOS_REF_CHECK", "1") != "0"

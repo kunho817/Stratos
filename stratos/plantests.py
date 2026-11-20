@@ -6,7 +6,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from . import codemap, config, context, decide, draftcheck, embed, memstore, plan, patch, recall
+from . import codemap, config, context, decide, draftcheck, embed, memstore, plan, patch, recall, refcheck
 
 
 def system_prompt(language, test_runner):
@@ -221,6 +221,9 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
             log(f"memory: {e}")
             store = None
 
+    task_written = {}
+    task_entries = {}
+
     try:
         for i, task in enumerate(p["tasks"]):
             key = task["key"]
@@ -260,6 +263,8 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
             written = {}
             for fpath, fcontent in files:
                 written[fpath] = fcontent
+            task_written[key] = []
+            task_entries[key] = []
             for tpath in task["tests"]:
                 if tpath not in written:
                     status = "missing"
@@ -293,6 +298,7 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                                         status=status)
                 entry = {"key": key, "file": tpath, "status": status}
                 if status not in ("missing", "exists"):
+                    task_written[key].append(tpath)
                     found = outdated(written[tpath])
                     if found:
                         for o in found:
@@ -313,8 +319,33 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                                             flags=[f["test"] for f in flags])
                     entry["flags"] = flags
                 results.append(entry)
+                task_entries[key].append(entry)
     finally:
         if store is not None:
             store.close()
+
+    if config.REF_CHECK:
+        for i, task in enumerate(p["tasks"]):
+            key = task["key"]
+            paths = task_written.get(key, [])
+            if not paths:
+                continue
+            try:
+                r = refcheck.check(gw, plan_id, task, root, paths)
+            except Exception as e:
+                log(f"{key}: reference check failed: {e}")
+                continue
+            if r["status"] == "flagged":
+                log(f"{key}: reference implementation fails {len(r['failing'])} of {r['total']} tests: {', '.join(r['failing'])}")
+            elif r["status"] == "interface":
+                log(f"{key}: reference implementation fails {len(r['failing'])} of {r['total']} tests - the goal may leave the interface open: {r['first_error']}")
+            elif r["status"] == "agree":
+                log(f"{key}: reference implementation passes all {r['total']} tests")
+            elif r["status"] == "error":
+                log(f"{key}: reference check: {r['first_error']}")
+            gw.telemetry.record("ref_check", plan=plan_id, key=key, status=r["status"],
+                                total=r["total"], failing=r["failing"])
+            for entry in task_entries[key]:
+                entry["refcheck"] = r
 
     return results
