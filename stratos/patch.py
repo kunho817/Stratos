@@ -244,6 +244,20 @@ def parse_edits(text, allowed=None):
     return result
 
 
+def answer_files(root, text, allowed=None):
+    """The files an answer would write: its edit blocks rendered against the files under root, then its whole-file
+    blocks for paths that have no edit blocks; when the edits do not apply (EditMismatch), only the whole-file blocks.
+    Nothing is written."""
+    edits = parse_edits(text, allowed)
+    edited = {p for p, _ in edits}
+    whole = [f for f in parse_files(text, allowed) if f[0] not in edited]
+    try:
+        rendered = render_edits(root, edits)
+    except EditMismatch:
+        return whole
+    return rendered + whole
+
+
 def render_edits(root, edits):
     """Apply SEARCH/REPLACE blocks to existing files. Returns [(path, new_text)]. Nothing is written."""
     results = []

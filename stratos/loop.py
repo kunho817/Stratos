@@ -281,7 +281,7 @@ def write_task(store, gw, task_id, log=print):
         log(f"  consensus: {', '.join(models)} all failed {', '.join(consensus)}")
 
     if config.TRIAGE and last_failed_text is not None:
-        code_files = patch.parse_files(last_failed_text, task["files"] or None)
+        code_files = patch.answer_files(wt, last_failed_text, task["files"] or None)
         try:
             extra = {"consensus": consensus} if consensus else {}
             triage_result = triage.triage(gw, task, wt, code_files, last_failed_detail, **extra)
