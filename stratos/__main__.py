@@ -48,6 +48,7 @@ from . import push
 from . import recall
 from . import replay
 from . import runlog
+from . import upkeep
 from . import verify
 from . import wiki
 from .gateway import Gateway
@@ -438,6 +439,7 @@ def _main(argv=None):
             print("next pass: " + " ".join(again))
             statuses.update(run_all(store, gw, again))
             last = again
+        upkeep.after_run(gw, store, [tid for tid in order if store.get(tid)["status"] == "done"], refresh=refresh_memory)
         done = True
         for tid in order:
             task = store.get(tid)
