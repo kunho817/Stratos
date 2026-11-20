@@ -7,7 +7,6 @@ def plan(tasks, roles, current_model):
     order: ids of todo tasks in run order, greedily preferring the current model.
     blocked: ids of todo tasks that can never run, sorted.
     """
-    by_id = {t["id"]: t for t in tasks}
 
     def model_of(task):
         role = task.get("role", "coder")
