@@ -10,6 +10,6 @@ def test_last_line_of_the_system_prompt():
 
 
 def test_rules_are_all_there():
-    for rule in ("- You have no tools and cannot open files", "- Write complete files, never fragments or diffs.",
+    for rule in ("- You have no tools and cannot open files", "- A whole file must be complete, never a fragment.",
                  "- Do not change files marked READ-ONLY.", "- Use only the Python standard library"):
         assert rule in context.CODER_SYSTEM
