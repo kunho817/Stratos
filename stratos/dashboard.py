@@ -114,6 +114,9 @@ def run_try(repo, text, args=""):
             cmd.extend(shlex.split(args))
         env = os.environ.copy()
         env["PYTHONPATH"] = str(repo)
+        # (Claude) the output is read as UTF-8: a Python child on Windows would print in cp949 and fail on "É" or Korean
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
         try:
             r = subprocess.run(cmd, cwd=str(repo), env=env,
                                capture_output=True, text=True,

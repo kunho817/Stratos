@@ -12,7 +12,7 @@ than "cli"/"static").
 dashboard.run_try(repo, text, args="") -> {"code", "stdout", "stderr"} for a "cli" project: the text is written
 (UTF-8) to a new temporary folder as input_name; the command is the configured list with "{file}" replaced by that
 path, plus shlex.split(args) appended; it runs without a shell, cwd=repo, env PYTHONPATH=repo, timeout 10 s
-(code -1 and stderr "timed out after 10 s"); stdout and stderr are cut to 20000 characters. A project that is not
+(code -1 and stderr "timed out after 10 s"), with PYTHONIOENCODING=utf-8 and PYTHONUTF8=1 (Claude: a Python child printed in cp949 and failed on non-ASCII text); stdout and stderr are cut to 20000 characters. A project that is not
 "cli" raises ValueError.
 Server: POST /api/try?project=<name> with a JSON body {"text": ..., "args": ...} answers run_try as JSON; it needs
 the header "X-Stratos: 1" (403 without it - a page on another site cannot add it without a CORS preflight, which
