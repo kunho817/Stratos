@@ -411,26 +411,6 @@ def _extract_json(text):
     return text[start:end + 1]
 
 
-def check_new_tests(tasks, root):
-    root = Path(root)
-    seen_first = {}
-    for task in tasks:
-        key = task["key"]
-        first = task["tests"][0]
-        if first in seen_first:
-            other = seen_first[first]
-            raise PlanError(
-                f"Task {key}: its first test file '{first}' is also the first test file of task {other}."
-            )
-        if Path(root, first).exists():
-            raise PlanError(
-                f"Task {key}: its first test file '{first}' already exists. "
-                "Give every task a new test file first; existing test files may follow it."
-            )
-        seen_first[first] = key
-    return None
-
-
 def plan_hash(tasks):
     return hashlib.sha256(
         json.dumps(tasks, sort_keys=True, ensure_ascii=False).encode("utf-8")

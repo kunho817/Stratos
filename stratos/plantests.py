@@ -6,7 +6,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from . import codemap, config, context, decide, draftcheck, embed, lint, memstore, plan, patch, recall, refcheck
+from . import codemap, config, context, decide, embed, lint, memstore, plan, patch, recall, refcheck
 from . import cases
 
 
@@ -341,18 +341,6 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                         gw.telemetry.record("test_outdated", plan=plan_id, key=key, file=tpath,
                                             tests=[o["test"] for o in found])
                         entry["outdated"] = found
-                if config.DRAFT_CHECK and status not in ("missing", "exists", "old"):
-                    try:
-                        flags = draftcheck.check(gw, plan_id, p, task, root, tpath)
-                    except Exception as e:
-                        log(f"{tpath}: draft check failed: {e}")
-                        flags = []
-                    else:
-                        for f in flags:
-                            log(f'{tpath}: checker flags "{f["test"]}": {f["reason"]}')
-                        gw.telemetry.record("draft_check", plan=plan_id, key=key, file=tpath,
-                                            flags=[f["test"] for f in flags])
-                    entry["flags"] = flags
                 results.append(entry)
                 task_entries[key].append(entry)
     finally:
