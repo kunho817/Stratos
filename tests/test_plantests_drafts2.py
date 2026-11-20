@@ -248,6 +248,7 @@ def test_one_new_file_among_existing_ones_takes_a_lone_block(tmp_path, monkeypat
     gw = FakeGateway()
     gw.set_answer("```python\ndef test_a():\n    assert True\n```\n")
     results = plantests.draft_tests(gw, "P001", root, state_dir, log=lambda s: None)
-    assert [r["status"] for r in results] == ["collected", "missing"]   # an existing file not in the answer
+    # an existing file not in the answer ("old" since task drafts_lint; Claude updated this test)
+    assert [r["status"] for r in results] == ["collected", "old"]
     assert (root / "tests" / "test_new.py").read_text(encoding="utf-8") == "def test_a():\n    assert True\n"
     assert (root / "tests" / "test_old.py").read_text(encoding="utf-8") == "OLD\n"
