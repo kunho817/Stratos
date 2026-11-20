@@ -77,14 +77,15 @@ def judge(total, failing):
     return "flagged"
 
 
-def check(gw, plan_id, task, root, tests):
+def check(gw, plan_id, task, root, tests, extra=None):
     tmp = Path(tempfile.mkdtemp())
     try:
         copy = tmp / "p"
         shutil.copytree(
             root,
             copy,
-            ignore=shutil.ignore_patterns(".git", ".stratos", "node_modules", "__pycache__"),
+            ignore=shutil.ignore_patterns(".git", ".stratos", "node_modules", "__pycache__",
+                                          ".venv", "venv", "*-wt"),
         )
         cfg = config.REF_WRITER
         gw.ensure_model(cfg["model"])
@@ -99,7 +100,13 @@ def check(gw, plan_id, task, root, tests):
         )
         files = patch.parse_files(answer, task["files"])
         if not files:
-            return {"status": "error", "total": 0, "failing": [], "first_error": "no file in the answer"}
+            return {"status": "error", "total": 0, "failing": [], "first_error": "no file in the answer",
+                    "files": []}
+        if extra:
+            for path, content in extra:
+                dest = Path(copy) / path
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_text(content, encoding="utf-8")
         for path, content in files:
             dest = Path(copy) / path
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -116,7 +123,8 @@ def check(gw, plan_id, task, root, tests):
                 timeout=config.TEST_TIMEOUT_S,
             )
         except subprocess.TimeoutExpired:
-            return {"status": "error", "total": 0, "failing": [], "first_error": "tests timed out"}
+            return {"status": "error", "total": 0, "failing": [], "first_error": "tests timed out",
+                    "files": []}
         out = r.stdout + r.stderr
         total, failing = count_tests(out)
         first_error = ""
@@ -124,6 +132,7 @@ def check(gw, plan_id, task, root, tests):
             if "Error" in line or "assert" in line:
                 first_error = line.strip()[:200]
                 break
-        return {"status": judge(total, failing), "total": total, "failing": failing, "first_error": first_error}
+        return {"status": judge(total, failing), "total": total, "failing": failing,
+                "first_error": first_error, "files": files}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

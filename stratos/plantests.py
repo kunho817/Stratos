@@ -324,6 +324,7 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
         if store is not None:
             store.close()
 
+    refs = []
     if config.REF_CHECK:
         for i, task in enumerate(p["tasks"]):
             key = task["key"]
@@ -331,10 +332,11 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
             if not paths:
                 continue
             try:
-                r = refcheck.check(gw, plan_id, task, root, paths)
+                r = refcheck.check(gw, plan_id, task, root, paths, extra=list(refs))
             except Exception as e:
                 log(f"{key}: reference check failed: {e}")
                 continue
+            refs.extend(r.get("files", []))
             if r["status"] == "flagged":
                 log(f"{key}: reference implementation fails {len(r['failing'])} of {r['total']} tests: {', '.join(r['failing'])}")
             elif r["status"] == "interface":
