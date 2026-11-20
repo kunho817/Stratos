@@ -10,9 +10,19 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
 
 ## Open (top first)
 
-**Work order 3 (user, 2026-11-20, after trial 11): everything still to do, in order. Each P ends with push + a
-trial. Replaces the rest of work order 2 (its P10-P12 are folded in below).**
-- P10 tests (problems keep coming from tests). Causes so far: wrong drafts (data rules, arithmetic, an unread
+**Work order 3 (user, 2026-11-20, after trial 11; reordered the same day): everything still to do, in order.
+Each P ends with push + a trial. Replaces the rest of work order 2.**
+- P10 context: only what is needed (user: "only the needed parts, so the models' memory of a long context fades
+  less"). First the huge prompts (user asked why reading is sometimes enormous): coder prompts reach 56-66k
+  tokens (median 7-13k) on tasks that touch stratos/__main__.py - since T029 every module a task file imports is
+  shown whole as READ-ONLY, and __main__.py imports 25 modules: T179 (a reset flag) got 8.5k tokens of its own file,
+  2k of tests and ~45k of read-only modules it never needed (report.py 5k, loop.py 4.7k, plan.py 4.5k ...). Swift
+  spent 90-250 s per call on them. Fix: for imported modules show only the names the task's files use from them
+  (code-map signatures, or the symbol's text when it is short), whole text only for small modules; measure prompt
+  tokens and first-try before/after on replays.
+  The same rule for the other roles: triage (up to 34k tokens) and the test writer (up to 29k) get whole test
+  files and outputs - give them the failing tests and the names they use.
+- P11 tests (problems keep coming from tests). Causes so far: wrong drafts (data rules, arithmetic, an unread
   goal), old tests and fakes pinning old behaviour, Claude's own slips (escapes, a measure on the wrong thing,
   imports removed as unused), junk in drafts (a half-written duplicate function). Build: ruff F401/F811/F821 on
   every draft (b); refcheck tells "the reference crashed" from "interface" (a); old test files not shown as
@@ -24,30 +34,24 @@ trial. Replaces the rest of work order 2 (its P10-P12 are folded in below).**
   cases that need setup (files, fakes, monkeypatch, CLI) go to the test writer with the case list, and the
   existing checks (ruff, collect, refcheck, Claude's reference) run on the result. Removes Claude's slips in test
   code and the drafts' wrong expected values. Try it on Stratos's own tasks too (rule 1 would change).
-- P11 dashboard (user: "only progress bars is dull - stream what it is doing, show the terminal log"): a live
+- P12 dashboard (user: "only progress bars is dull - stream what it is doing, show the terminal log"): a live
   view - the model's answer streamed token by token as it writes (the gateway asks PolyStrata with stream=true and
   appends the text to a live file; the page reads it over server-sent events), the run log of run-all/plan-tests,
   the current step (attempt, model switch, tests running, review), test output as it comes. It also keeps itself current - picks up new projects and plans, reloads its own code after a merge (now a
   restart is needed), shows what later P's add (plans and their critiques, refcheck results, draft flags, memory
   counts, Jev vs rules, efficiency over time); a "try it" page per trial (web games served as static files, CLI
   tools run with a fixed command from stratos.toml on text pasted in the page; 127.0.0.1 only, no free shell).
-- P12 code cleanup. First the huge prompts (user asked why reading is sometimes enormous): coder prompts reach 56-66k
-  tokens (median 7-13k) on tasks that touch stratos/__main__.py - since T029 every module a task file imports is
-  shown whole as READ-ONLY, and __main__.py imports 25 modules: T179 (a reset flag) got 8.5k tokens of its own file,
-  2k of tests and ~45k of read-only modules it never needed (report.py 5k, loop.py 4.7k, plan.py 4.5k ...). Swift
-  spent 90-250 s per call on them. Fix: for imported modules show only the names the task's files use from them
-  (code-map signatures, or the symbol's text when it is short), whole text only for small modules; measure prompt
-  tokens and first-try before/after on replays. Then unused code (ruff F is clean; by name, gitops.append_to_commit_message and
+- P13 code cleanup: unused code (ruff F is clean; by name, gitops.append_to_commit_message and
   plan.check_new_tests are used only by tests), features that stay off (draftcheck since P7) - keep or remove,
   shared answer reading (loop._judge and refcheck.check read answers the same way), long modules that the models
   edit badly (__main__.py 685 lines, report.py 582, plan.py 492: split by command), speed of the suite (~90 s).
-- P13 memory (the central goal): `memory learn` after each run-all/push, wiki pages for trial projects, packs for
+- P14 memory (the central goal): `memory learn` after each run-all/push, wiki pages for trial projects, packs for
   the test writer/reviewer/triage, a second model checks wiki pages, the M6 A/B (with vs without memory).
-- P14 Jev: a fair test first - replay both branches (keep/switch model, rules' role vs Jev's role) on past tasks
+- P15 Jev: a fair test first - replay both branches (keep/switch model, rules' role vs Jev's role) on past tasks
   with the replay tool, so "Jev was right" is not decided by the rules' own choices; adopt it per decision where
   it wins; new uses to try: which drafts a person should read first, whether a failure is test_wrong (triage).
-- P15 time and the rest: model switches (36% of model time; order rounds by model), the design-by-numbers
-  "search" task kind (item 16), table-driven tests.
+- P16 time: model switches (36% of model time; order rounds by model), the design-by-numbers "search" task
+  kind (item 16). (Table-driven tests moved into P11.)
 - Then a direction question for the user: stage 5 (another language/engine, e.g. Unity C#).
 
 **Work order 2 (user, 2026-11-20, after P8): what was left out, in order. Each P ends with push + a trial.**
