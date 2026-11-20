@@ -485,6 +485,12 @@ repo: the user decides).
    switches). Tell the reviewer that performance notes are "low" unless the goal is about speed.
 15. **Done by a person:** no `stratos accept TID` (Claude edited tasks.json for Lumen T002); `drop` does not release
    tasks whose After names the dropped task.
+  **P5 built (T175-T176, 783 tests, 2026-11-20):** consensus - when two models wrote their own code and both
+  failed the same tests, the task records it and triage is told (history: 15 of 25 such tasks were later reset as
+  test-wrong, vs 3 of 12 without a shared test; 15 of all 20 test-wrong resets had the signal) - a free,
+  after-the-fact version of item 17; the reviewer sees short changed files whole (< 300 lines), imports of the
+  longer ones. Experiment (c) again with that context: **Qwen3.6 10/10 and 10/10** (was 9/9; T012-a1's real missing
+  import is now caught, the false blocks stay gone). Both tasks passed on the first try.
 17. **Differential draft check** (trial 8): for a task whose rules can be computed (simulate, scoring, parsing), have
    a second model write a small independent reference implementation from the goal alone, run the drafted tests
    against it, and flag the tests that fail on it (the test or the reference is wrong - a person decides). Claude's
