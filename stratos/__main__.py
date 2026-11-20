@@ -695,8 +695,10 @@ def _main(argv=None):
         finally:
             store.close()
     elif args.cmd == "dashboard":
-        repos = [Path(r) for r in args.repo] if args.repo else dashboard.default_repos(config.STRATOS_HOME)
-        server = dashboard.make_server(repos, args.port, metrics=lambda: dashboard.metrics(config.BASE_URL))
+        repos = [Path(r) for r in args.repo] if args.repo else None
+        server = dashboard.make_server(repos, args.port, metrics=lambda: dashboard.metrics(config.BASE_URL),
+                                       home=None if args.repo else config.STRATOS_HOME)
+        dashboard.watch_code(Path(dashboard.__file__).parent)
         print(f"dashboard: http://127.0.0.1:{args.port}/")
         server.serve_forever()
         return 0
