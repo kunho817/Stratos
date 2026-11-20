@@ -510,6 +510,10 @@ function renderPicker() {
   const sel = $("projectPick");
   const projects = state.projects;
   const currentVal = sel.value;
+  // (Claude) rebuild the options only when the set of projects changes: rebuilding on every poll closed an open list
+  const names = projects.map(function(p) { return p.name; }).slice().sort().join("\n");
+  if (sel._names === names) return;
+  sel._names = names;
   sel.innerHTML = projects.map(function(p) {
     return '<option value="' + esc(p.name) + '">' + esc(p.name) + '</option>';
   }).join("");
