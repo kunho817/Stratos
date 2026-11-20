@@ -75,6 +75,10 @@ Each P ends with push + a trial. Replaces the rest of work order 2.**
 - P16 time: model switches (36% of model time; order rounds by model), the design-by-numbers "search" task
   kind (item 16). (Table-driven tests moved into P11.)
 - Then a direction question for the user: stage 5 (another language/engine, e.g. Unity C#).
+- After P16 (user, 2026-11-20: "later, when the plan is done"): the Git Credential Manager error. Found: Stratos's
+  pushes and bash fetches work (GCM finds the stored credential); VS Code's git.autofetch fetched three private
+  trial repos at once (Quill, Lumen, Pantry) and the fetches hung for minutes; GCM is old (2.0.935, Git 2.40).
+  Options for the user: turn off git.autofetch, or update Git for Windows (newer GCM); ask for the error text.
 
 **Work order 2 (user, 2026-11-20, after P8): what was left out, in order. Each P ends with push + a trial.**
 - P9 Claude's and the models' small slips, mechanically: addcheck names only the old tests that use what the goal
