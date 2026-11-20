@@ -102,6 +102,10 @@ Each P ends with push + a trial. Replaces the rest of work order 2.**
 - P15 Jev: a fair test first - replay both branches (keep/switch model, rules' role vs Jev's role) on past tasks
   with the replay tool, so "Jev was right" is not decided by the rules' own choices; adopt it per decision where
   it wins; new uses to try: which drafts a person should read first, whether a failure is test_wrong (triage).
+- P16 also: replay is slow for experiments (user, 2026-11-21: "why so long?") - 23 tasks took ~15 min, of which
+  ~8 min model time; the rest is a new worktree per task, the tests run 3 times (VERIFY_RUNS, needed for real tasks
+  but not for a replay) and, with --memory, a new Embedder per task. Fix: replay checks with one run and loads the
+  embedder once.
 - P16 time: model switches (36% of model time; order rounds by model), the design-by-numbers "search" task
   kind (item 16). (Table-driven tests moved into P11.)
 - Then a direction question for the user: stage 5 (another language/engine, e.g. Unity C#).
