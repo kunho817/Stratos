@@ -244,18 +244,27 @@ def parse_edits(text, allowed=None):
     return result
 
 
-def answer_files(root, text, allowed=None):
-    """The files an answer would write: its edit blocks rendered against the files under root, then its whole-file
-    blocks for paths that have no edit blocks; when the edits do not apply (EditMismatch), only the whole-file blocks.
-    Nothing is written."""
+def read_answer(root, text, allowed=None):
+    """The answer's edits, whole-file blocks, rendered files (None on a mismatch), and the EditMismatch (None when
+    the edits apply). Nothing is written."""
     edits = parse_edits(text, allowed)
     edited = {p for p, _ in edits}
     whole = [f for f in parse_files(text, allowed) if f[0] not in edited]
     try:
-        rendered = render_edits(root, edits)
-    except EditMismatch:
-        return whole
-    return rendered + whole
+        files = render_edits(root, edits) + whole
+        error = None
+    except EditMismatch as e:
+        files = None
+        error = e
+    return {"edits": edits, "whole": whole, "files": files, "error": error}
+
+
+def answer_files(root, text, allowed=None):
+    """The files an answer would write: its edit blocks rendered against the files under root, then its whole-file
+    blocks for paths that have no edit blocks; when the edits do not apply (EditMismatch), only the whole-file blocks.
+    Nothing is written."""
+    r = read_answer(root, text, allowed)
+    return r["files"] if r["error"] is None else r["whole"]
 
 
 def render_edits(root, edits):
@@ -342,3 +351,4 @@ def dropped_definitions(root, files, goal=""):
         if dropped:
             out[_norm(path)] = dropped
     return out
+
