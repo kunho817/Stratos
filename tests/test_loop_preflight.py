@@ -14,7 +14,7 @@ model call and shows the base's failing output in the first prompt; check_answer
    With a failure, the failure part is shown as before and `before` is not.
 3. check_answer: after patch.apply_files, verify.syntax_errors(wt, written) (written = apply_files's list); when it
    is not empty the result is "syntax_error" with detail "Your files do not compile:\n" + the errors joined by "\n"
-   + "\nWrite each file completely and check its syntax.", and the tests are not run. A "length" finish still
+   + a hint to check the syntax (worded for edit blocks since task lint_new_and_hints), and the tests are not run. A "length" finish still
    prefixes the cut-off note as for other failures. A syntax_error is a failed attempt like any other (retried)."""
 import pytest
 
@@ -144,7 +144,9 @@ def test_syntax_error_skips_the_tests(env, tmp_path):
     result, detail = loop.check_answer(t, wt, BROKEN)
     assert result == "syntax_error"
     assert detail.startswith("Your files do not compile:\npkg/a.py: line 1: ")
-    assert detail.endswith("\nWrite each file completely and check its syntax.")
+    # (task lint_new_and_hints changed the hint; Claude updated this test)
+    assert detail.endswith("\nCheck the syntax of every file you write; for an existing file, change only the lines "
+                           "you need with SEARCH/REPLACE edit blocks.")
     result, detail = loop.check_answer(t, wt, BROKEN, finish="length")
     assert result == "syntax_error" and detail.startswith("Your answer was cut off")
 
