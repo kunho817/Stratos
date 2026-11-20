@@ -541,7 +541,13 @@ def _main(argv=None):
             if branch not in all_branches:
                 continue
             if branch in merged:
-                gitops.remove_worktree(config.REPO, config.WORKTREES, t["id"])
+                try:
+                    gitops.remove_worktree(config.REPO, config.WORKTREES, t["id"])
+                except (OSError, RuntimeError):
+                    # (Claude, 2026-11-21) VS Code held a task folder open and one refusal stopped the whole clean
+                    print(f"kept {t['id']} (its folder is in use: close it in other programs such as VS Code "
+                          "and run clean again)")
+                    continue
                 store.update(t["id"], cleaned=True, worktree=None)
                 print(f"cleaned {t['id']}")
                 cleaned += 1
