@@ -3,6 +3,8 @@
 Attempts follow the task's role's plan: the role's model a few times, then one cross-check by a different model.
 A task that still fails is handed to a person (status needs_human). The loop is split into a write phase (the
 attempts, committing a candidate when a review is on) and a review phase (judging the candidates)."""
+import collections
+import re
 from pathlib import Path
 
 from . import codemap, config, context, decide, diagnose, embed, gitops, jev, lint, memstore, patch, preflight, recall, review, triage, verify
@@ -69,8 +71,11 @@ def check_answer(task, wt, text, finish=None):
             result, detail = "dropped_defs", (
                 "Your answer drops existing definitions that the goal did not ask to remove:\n"
                 + "\n".join(f"{path}: {', '.join(names)}" for path, names in sorted(dropped.items()))
-                + "\nWrite each file completely: keep everything that is already in it and add or change only what the goal asks.")
+                + "\nKeep everything that is already in the file: change an existing file with SEARCH/REPLACE edit blocks, or write the whole file completely.")
         else:
+            base = []
+            if config.LINT:
+                base = lint.check(wt, [p for p, _ in files if Path(wt, p).exists()])
             try:
                 written = patch.apply_files(wt, files, task["protected"], allowed)
             except patch.PatchRefused as e:
@@ -81,14 +86,24 @@ def check_answer(task, wt, text, finish=None):
                     result, detail = "syntax_error", (
                         "Your files do not compile:\n"
                         + "\n".join(errors)
-                        + "\nWrite each file completely and check its syntax.")
+                        + "\nCheck the syntax of every file you write; for an existing file, change only the lines you need with SEARCH/REPLACE edit blocks.")
                 else:
                     if config.LINT:
                         lint_errors = lint.check(wt, written)
-                        if lint_errors:
+                        base_stripped = collections.Counter(
+                            re.sub(r":\d+:\d+: ", ": ", line, count=1) for line in base
+                        )
+                        kept = []
+                        for line in lint_errors:
+                            stripped = re.sub(r":\d+:\d+: ", ": ", line, count=1)
+                            if base_stripped[stripped] > 0:
+                                base_stripped[stripped] -= 1
+                            else:
+                                kept.append(line)
+                        if kept:
                             result = "lint_error"
                             detail = ("Your files use names that are not defined:\n"
-                                      + "\n".join(lint_errors)
+                                      + "\n".join(kept)
                                       + "\nDefine or import every name you use.")
                         else:
                             ok, out = verify.run_tests(wt, task["tests"])
