@@ -12,7 +12,7 @@
   python -m stratos report --plans
   python -m stratos push [--dry-run]
   python -m stratos clean
-  python -m stratos reset T001 --reason R
+  python -m stratos reset T001 --reason R [--force]
   python -m stratos drop T001 --reason R
   python -m stratos accept T001 --reason R
   python -m stratos replay T001 T002 --role coder --model M --effort E --max-tokens N --tries K
@@ -156,6 +156,7 @@ def main(argv=None):
     reset = sub.add_parser("reset", help="throw away a task's result so it runs again")
     reset.add_argument("task_id")
     reset.add_argument("--reason", required=True, help="why the task is being reset")
+    reset.add_argument("--force", action="store_true", help="also reset a task that is done")
     drop = sub.add_parser("drop", help="give a task up for good")
     drop.add_argument("task_id")
     drop.add_argument("--reason", required=True, help="why the task is being dropped")
@@ -525,6 +526,9 @@ def main(argv=None):
         if commit and subprocess.run(["git", "merge-base", "--is-ancestor", commit, "HEAD"],
                                      cwd=config.REPO, capture_output=True).returncode == 0:
             print(f"{args.task_id} is merged; reset would not take it out of HEAD", file=sys.stderr)
+            return 1
+        if task["status"] == "done" and not args.force:
+            print(f"{args.task_id} is done; add --force to throw its work away", file=sys.stderr)
             return 1
         gitops.remove_worktree(config.REPO, config.WORKTREES, args.task_id)
         store.update(args.task_id, status="todo", worktree=None, commit=None)
