@@ -22,6 +22,17 @@ Each P ends with push + a trial. Replaces the rest of work order 2.**
   tokens and first-try before/after on replays.
   The same rule for the other roles: triage (up to 34k tokens) and the test writer (up to 29k) get whole test
   files and outputs - give them the failing tests and the names they use.
+  **P10 built (T201-T203, 865 tests, 2026-11-20).** context: an imported module over 60 lines shows only the names
+  the task's files use (and those the goal names), short symbols whole, long ones as 6 lines + "...", the rest as a
+  name list (prompts: T179 56k -> 19k, T185 64k -> 27k, T200 31k -> 12k tokens). triage: only the failing tests and
+  the helpers/fixtures they use (whole files when no id names a file). Found on the way: triage read a failed
+  answer's code with parse_files only, so edit-block answers (most since P8) reached it as "(none)" -> patch.answer_files.
+  Replay (Swift, 1 try, the 6 tasks with the biggest prompts): 5/6 first try, 263 s, prompts 13-25k; their first
+  Swift tries before: 3/6, ~117 s per call, 35-61k (T163 and T200 had wrong tests then, fixed later - so the pass gain
+  is partly the tests; the time and token cut is not). The reviewer wrongly blocked a right answer twice in this
+  stretch (T198 a5, T201 a3: "from . import m mishandled" - it was handled): both times it misread branches of a long
+  new function; watch it in P11 (review false blocks per round) - item for the review pack in P14.
+  Nit: addcheck matches names across modules (plantests.build_messages warned for a context.build_messages change).
 - P11 tests (problems keep coming from tests). Causes so far: wrong drafts (data rules, arithmetic, an unread
   goal), old tests and fakes pinning old behaviour, Claude's own slips (escapes, a measure on the wrong thing,
   imports removed as unused), junk in drafts (a half-written duplicate function). Build: ruff F401/F811/F821 on
