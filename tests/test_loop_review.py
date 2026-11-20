@@ -76,12 +76,9 @@ def env(tmp_path, monkeypatch):
         rec["commits"].append(message)
         return f"sha{len(rec['commits'])}"
 
-    def append(w, text):
-        rec["appended"].append(text)
     monkeypatch.setattr(gitops, "discard_changes", discard)
     monkeypatch.setattr(gitops, "undo_last_commit", undo)
     monkeypatch.setattr(gitops, "commit_all", commit)
-    monkeypatch.setattr(gitops, "append_to_commit_message", append)
 
     def finalize(w, text):
         rec["finalized"].append(text)
@@ -121,7 +118,6 @@ def test_approved_review_finishes_the_task(env):
     assert [c["role"] for c in gw.calls] == ["coder", "reviewer"]
     assert gw.calls[1]["model"] == REVIEWER
     assert len(rec["commits"]) == 1 and any("approve" in a.lower() for a in rec["finalized"])
-    assert rec["appended"] == []        # T021: approval finalizes the candidate commit (title cleaned, review added)
 
 
 def test_rejected_candidate_is_undone_and_rewritten_with_the_issues(env):
@@ -152,7 +148,7 @@ def test_review_can_be_turned_off(env, monkeypatch):
     store, _, rec, _ = env
     gw = gateway(env, {"coder": [WRITER]})
     assert loop.run_task(store, gw, "T001", log=quiet) == "done"
-    assert [c["role"] for c in gw.calls] == ["coder"] and rec["appended"] == []
+    assert [c["role"] for c in gw.calls] == ["coder"]
     assert store.get("T001")["status"] == "done"
 
 

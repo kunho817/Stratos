@@ -112,7 +112,7 @@ def test_off(env, monkeypatch):
 def test_draft_check_is_off_by_default():
     import importlib.util
     text = open(importlib.util.find_spec("stratos.config").origin, encoding="utf-8").read()
-    assert 'DRAFT_CHECK = os.environ.get("STRATOS_DRAFT_CHECK", "0") != "0"' in text
+    assert "DRAFT_CHECK" not in text   # (task cleanup_dead: the draft checker is gone; Claude updated this test)
     assert 'REF_CHECK = os.environ.get("STRATOS_REF_CHECK", "1") != "0"' in text
 
 

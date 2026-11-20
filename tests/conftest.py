@@ -20,7 +20,6 @@ def no_network(monkeypatch, tmp_path_factory):
     monkeypatch.setattr(config, "PLAN_CONVERTER", None)
     monkeypatch.setattr(config, "TRIAGE", False, raising=False)
     monkeypatch.setattr(config, "PREFLIGHT", False, raising=False)
-    monkeypatch.setattr(config, "DRAFT_CHECK", False, raising=False)
     monkeypatch.setattr(config, "PLAN_CRITIQUE", False, raising=False)
     monkeypatch.setattr(config, "LINT", False, raising=False)
     monkeypatch.setattr(config, "REF_CHECK", False, raising=False)
