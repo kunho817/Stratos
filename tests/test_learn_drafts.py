@@ -59,5 +59,19 @@ def test_learn_reads_the_notes(tmp_path, monkeypatch):
     assert learn.learn(FakeGateway([]), [], [], lessons_path, state, "pantry")["corrections"] == 0
 
 
+def test_only_comments_and_docstrings_count(tmp_path):
+    """(task learn_notes_only, 2026-11-21) The first automatic learn read "(Claude: ...)" inside test DATA (this file's
+    TEST string, a fake note in test_upkeep.py) and made 7 junk lessons. A note counts only when it is in a comment
+    (tokenize COMMENT) or in a docstring (the first statement string of the module, a function or a class)."""
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_c.py").write_text(
+        'DATA = "X = 1  # (Claude: not a note, a string)"\n\n\n'
+        'def test_x():\n    """(Claude: a docstring note)"""\n    text = """(Claude: data again)"""\n'
+        '    assert text  # (Claude: a comment note)\n', encoding="utf-8")
+    texts = [c["text"] for c in learn.draft_corrections(tmp_path)]
+    assert texts == ["A person fixed a drafted test tests/test_c.py::test_x: a docstring note",
+                     "A person fixed a drafted test tests/test_c.py::test_x: a comment note"]
+
+
 def test_no_tests_folder(tmp_path):
     assert learn.draft_corrections(tmp_path) == []
