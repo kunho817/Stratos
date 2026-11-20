@@ -21,7 +21,10 @@ ANSWER = "FILE: pkg/a.py\n```python\nimport os\nX = 1\n```\n"
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "LINT", True)
     rec = {"check": [], "fix": [], "runs": [], "outs": [], "errors": [], "fixed": []}
-    monkeypatch.setattr(lint, "check", lambda root, paths: rec["check"].append(list(paths)) or list(rec["errors"]))
+    # an empty path list (the base check of files that do not exist yet, task lint_new_and_hints) gives no errors;
+    # Claude updated this fake, which returned the same errors for any call
+    monkeypatch.setattr(lint, "check", lambda root, paths: (rec["check"].append(list(paths)) or list(rec["errors"]))
+                        if paths else [])
     monkeypatch.setattr(lint, "fix", lambda root, paths: rec["fix"].append(list(paths)) or list(rec["fixed"]))
 
     def run(w, tests):
