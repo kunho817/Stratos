@@ -10,6 +10,31 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
 
 ## Open (top first)
 
+**Work order 2 (user, 2026-11-20, after P8): what was left out, in order. Each P ends with push + a trial.**
+- P9 Claude's and the models' small slips, mechanically: addcheck names only the old tests that use what the goal
+  changes, capped at 8 (T195); lenient edit-block markers (T197); "partial_file" and an edit-format hint for
+  unreadable blocks (T198); the cut-off note for edit_mismatch, one import line in refcheck (T196). Still: addcheck
+  should skip the tests of tasks in After (T198 got a wrong "new test of T196" warning).
+  **P9 built (T195-T200, 854 tests, 2026-11-20).** Seen at once: addcheck went from ~40 warnings to the 3 right ones
+  on the next add; partial_file caught Tiel (T200 a3: 101 of 385 lines) and Swift (T200 a7) and the next try passed.
+  Found while verifying: T197's line reader let a block without a divider swallow the next block (Claude read the
+  diff; T199); T198's answer held the marker text inside a string and the old regex split it mid-line (T197's
+  line reader fixes that). check_answer had 9 nested levels (deepest line 56 spaces): T196/T198 failed 7 times on
+  its indentation and the reviewer misread a branch (T198 a5 accepted by hand) -> T200 split it into _judge with
+  early returns and _lint_fix (nesting 12 -> 3 by an ast count). Claude's slips: T200's first test counted
+  indentation, so aligned string lines failed both models (consensus named it), and the goal's "change nothing
+  else" left no room for the helper the limit needed. Lesson: a structural limit is measured on the structure
+  (ast), and the goal must allow what the limit forces.
+- P10 time: model switches are 12,558 s of 72,421 s active (switches = 36% of model time). Order the rounds so one
+  load serves more calls (item 5); measure before and after with report --efficiency.
+- P11 memory (the central goal, items 0/M5/M6 and P3 leftovers): context packs for the test writer, reviewer and
+  triage; a second model checks wiki pages; the M6 A/B (with vs without memory on fixed goals).
+- P12 design-by-numbers "search" task kind (item 16); table-driven tests (P7 leftover).
+- Then a direction question for the user: stage 5 (another language/engine, e.g. Unity C#).
+- Closed without building: item 8 (worktrees get main) - `reset` rebuilds the copy and `status` warns about test
+  files changed after a task was added; item 9 (non-Python rescue) - edit blocks made it rare; P1's quick re-ask on a
+  syntax error - partial_file/edit hints cover the common cases.
+
 **Work order (user, 2026-11-20): P1 -> P2 -> P3 -> P4, each P ends with push + a trial.**
 - P1 first-try pass rate without more model calls: preflight (run the task's tests on its base before any model
   call; refuse import errors of other modules, broken test files, failing old tests), the preflight failures in the
