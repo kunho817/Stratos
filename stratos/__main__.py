@@ -193,6 +193,7 @@ def _main(argv=None):
     replay_p.add_argument("--max-tokens", type=int, default=None, help="override the role's max_tokens")
     replay_p.add_argument("--tries", type=int, default=2, help="attempts per task")
     replay_p.add_argument("--reasoning-budget", type=int, default=None, help="override the role's reasoning budget")
+    replay_p.add_argument("--memory", action="store_true", help="lesson-only memory pack for the replay")
 
     memory_p = sub.add_parser("memory", help="index and search the code memory")
     memory_sub = memory_p.add_subparsers(dest="memory_cmd", required=True)
@@ -645,10 +646,11 @@ def _main(argv=None):
         if budget is not None:
             results = replay.replay(tasks, gw, model=model, effort=effort, max_tokens=max_tokens,
                                     tries=args.tries, repo=config.REPO, root=config.WORKTREES,
-                                    reasoning_budget=budget)
+                                    reasoning_budget=budget, memory=args.memory)
         else:
             results = replay.replay(tasks, gw, model=model, effort=effort, max_tokens=max_tokens,
-                                    tries=args.tries, repo=config.REPO, root=config.WORKTREES)
+                                    tries=args.tries, repo=config.REPO, root=config.WORKTREES,
+                                    memory=args.memory)
         total_seconds = 0.0
         passed = 0
         for res in results:

@@ -6,10 +6,11 @@ task loop (loop.check_answer). It is for trying a model (for example a new one) 
 with a known outcome; nothing is committed or merged.
 """
 
+import re
 import time
 from pathlib import Path
 
-from . import config, context, gitops, loop
+from . import config, context, embed, gitops, loop, memstore, recall
 
 
 def base_commit(repo, task_id):
@@ -21,7 +22,23 @@ def base_commit(repo, task_id):
     return None
 
 
-def replay(tasks, gw, *, model, effort, max_tokens, tries, repo, root, log=print, reasoning_budget=None):
+def lesson_pack(store, task, embedder=None):
+    text = recall.pack(store, task["title"] + "\n" + task["goal"], embedder, None,
+                       budget=6000,
+                       sections=[("lesson", "LESSONS FROM PEOPLE'S CORRECTIONS", 3)],
+                       always_tags={"code"})
+    if not text:
+        return None
+    pattern = re.compile(r"\b" + re.escape(task["id"]) + r"\b")
+    lines = text.splitlines()
+    kept = [line for line in lines if not pattern.search(line)]
+    if not any(line.startswith("- ") for line in kept):
+        return None
+    return "\n".join(kept)
+
+
+def replay(tasks, gw, *, model, effort, max_tokens, tries, repo, root, log=print,
+           reasoning_budget=None, memory=False):
     root = Path(root)
     results = []
     for task in tasks:
@@ -38,11 +55,21 @@ def replay(tasks, gw, *, model, effort, max_tokens, tries, repo, root, log=print
         attempts = 0
         result = "no_base"
         failure = None
+        pack = None
+        if memory and (config.STATE_DIR / "memory.db").exists():
+            store = memstore.Store(config.STATE_DIR / "memory.db")
+            try:
+                pack = lesson_pack(store, task, embed.Embedder())
+            finally:
+                store.close()
         try:
             for n in range(1, tries + 1):
                 attempts = n
                 gw.ensure_model(model)
-                messages = context.build_messages(task, path, failure)
+                if pack is not None:
+                    messages = context.build_messages(task, path, failure, memory=pack)
+                else:
+                    messages = context.build_messages(task, path, failure)
                 start = time.perf_counter()
                 if reasoning_budget is not None:
                     call_id, text = gw.chat(messages, task=task_id, role="replay", attempt=n, model=model,
@@ -66,3 +93,4 @@ def replay(tasks, gw, *, model, effort, max_tokens, tries, repo, root, log=print
             gitops.git(repo, "worktree", "prune")
         results.append({"task": task_id, "result": result, "attempts": attempts, "seconds": seconds})
     return results
+
