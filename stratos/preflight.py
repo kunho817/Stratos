@@ -105,7 +105,7 @@ def missing_imports(output, wt, tests):
 
     for _, m in matches:
         if m.re is _PY_CANNOT_IMPORT:
-            name, module, file = m.group(1), m.group(2), m.group(3)
+            name, file = m.group(1), m.group(3)
             rel = _to_relative(file, wt)
             if rel is not None and rel.endswith("__init__.py"):
                 sub = Path(rel).parent / (name + ".py")

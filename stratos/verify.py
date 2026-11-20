@@ -5,7 +5,6 @@ code that depends on set or dict order can pass once by luck (T003's first answe
 import os
 import re
 import subprocess
-import sys
 
 from . import config
 

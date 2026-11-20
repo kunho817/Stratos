@@ -4,7 +4,6 @@ before the tasks run."""
 import ast
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 from . import codemap, config, context, decide, draftcheck, embed, memstore, plan, patch, recall

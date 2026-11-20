@@ -17,7 +17,6 @@ def summarize(events, since=None):
     wasted_tokens = 0
     human_verdicts = 0
 
-    call_outcomes = {}
     call_tokens = {}
     passed_since_verdict = {}
 

@@ -10,8 +10,9 @@ refcheck.build_messages(task, root) -> [system, user]; the user message holds "G
 that is not one of task["files"] as f"EXISTING FILE {path}:\n```\n{text}\n```" (POSIX paths, sorted), then
 "CONVENTIONS:\n" + CONVENTIONS.md when it exists. Never a test file.
 refcheck.count_tests(output) -> (total, failing ids): TAP ("ok N - name" / "not ok N - name") or pytest (total =
-the "N passed" + "M failed" + "K error"/"K errors" numbers of the summary line; failing ids from decide._extract_ids,
-which also reads "ERROR <file>" lines of a file that could not be imported).
+the "N passed" + "M failed" + "K error"/"K errors" numbers of the LAST line that has any of them - pytest also
+prints "Interrupted: 1 error during collection" above its summary; failing ids from decide._extract_ids, which also
+reads "ERROR <file>" lines of a file that could not be imported).
 refcheck.judge(total, failing) -> "agree" when no failing, "interface" when len(failing) * 2 > total, else "flagged".
 refcheck.check(gw, plan_id, task, root, tests) -> {"status", "total", "failing", "first_error"}: copies root to a
 temporary folder (without .git, .stratos, node_modules, __pycache__), asks config.REF_WRITER (gw.ensure_model, then
@@ -87,6 +88,9 @@ def test_count_tests_and_judge():
     assert refcheck.count_tests(tap) == (3, ["b"])
     py = "FAILED tests/x.py::test_b - assert 1 == 2\n1 failed, 2 passed in 0.1s"
     assert refcheck.count_tests(py) == (3, ["tests/x.py::test_b"])
+    broken = ("ERROR tests/x.py - ImportError: cannot import name 'add'\n!!! Interrupted: 1 error during collection !!!"
+              "\n1 error in 0.2s")
+    assert refcheck.count_tests(broken) == (1, ["tests/x.py"])
     assert refcheck.judge(3, []) == "agree"
     assert refcheck.judge(3, ["b"]) == "flagged"
     assert refcheck.judge(4, ["a", "b"]) == "flagged"
