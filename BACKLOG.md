@@ -87,6 +87,12 @@ Each P ends with push + a trial. Replaces the rest of work order 2.**
   Decision (Claude, P13): __main__.py is not split now - 17 test files patch cli.Gateway/refresh_memory/run_all, and
   since edit blocks (P8) and slim context (P10) the models edit it fine (T207 2nd try, T213 1st). Revisit if
   __main__ tasks fail again on size.
+  **P13 built (T217-T219, 890 tests, 2026-11-20).** push runs the suite with pytest-xdist (-n auto; pyproject
+  lists dev = pytest, pytest-xdist, ruff): 890 tests in ~22 s instead of ~100 s; removed gitops.append_to_commit_
+  message, plan.check_new_tests, config.ATTEMPT_PLAN and the draft checker (draftcheck.py, DRAFT_CHECK/DRAFT_CHECKER
+  and their 3 test files); one answer reader patch.read_answer for loop._judge, refcheck.check and answer_files.
+  Claude's slip again: an old fake (test_push's run_tests lambda) not updated before add - Swift worked around it
+  with try/except TypeError and the reviewer rightly blocked that. Kept: __main__.py whole (see trial 13).
 - P13 code cleanup: unused code (ruff F is clean; by name, gitops.append_to_commit_message and
   plan.check_new_tests are used only by tests), features that stay off (draftcheck since P7) - keep or remove,
   shared answer reading (loop._judge and refcheck.check read answers the same way), long modules that the models
