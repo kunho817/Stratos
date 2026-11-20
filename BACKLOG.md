@@ -314,6 +314,23 @@ round 2's counting). Worktree removal failed 3 times with "Permission denied" wh
 Left: `have 6 eggs` needs a unit (round 1's CLI). 159 tests.
 Pantry overall: first try 7/13, 3.08 attempts per passed task, waste 18.3%.
 
+**Trial 8: Lumen round 2 (splitters, undo, moves; 2026-11-20) - the trial after P4's first part.**
+The critic (Flint) gave 12 lines, 5-6 real (no way to get solvable splitter levels; cellAt rejecting splitters in
+main.js; mirrorsLeft redefined; rejected clicks counted as moves; undo of an empty history); Claude also dropped the
+planner's levels task (design by numbers, item 16). **OUTDATED fired for the first time:** the undo and moves
+drafts named 7 old tests that compare whole states (newGame, nextLevel, restartLevel, onKey) - all right; they now
+compare their own fields. It missed one: the round-1 test that pinned a path with a repeated cell, which round 2's
+"no repeats" contradicts - so T008 could not pass (3 attempts; triage said code_wrong). The draft checker flagged the
+render draft's syntax error 14 times (once per test) and missed game_splitters' syntax error and the loop test's
+miscalculation (a "\" mirror the hand trace forgot). **Claude found both bad tests by running the drafts against a
+30-line reference simulate** - a differential check, the strongest draft check seen so far (see item 17).
+Run: T009-T012 passed their tests on the first try (T008 after the test fixes, on attempt 4). The reviewer rejected
+T012 three times, wrongly: "moves rises even on rejected clicks" - every rejection returns early, above the diff
+hunk; like T013-a11's import, the reviewer lacks the code around the hunk (item 18). Accepted by hand. Reading the
+code found that U was never wired (the plan gave undo to game.js only; the critic missed it): T013 (Swift on
+attempt 3, the new 2+2 plan). 116 tests, pushed. Lumen overall: first try 9/13, 2.17 attempts per passed task, waste
+8.7%.
+
 **Watching and measuring (user, 2026-11-19): dashboard, efficiency, push per P (T145-T153).**
 `stratos dashboard` (127.0.0.1:8765): the gateway now writes call_start/switch_start, so the page shows who is
 writing which task right now, PolyStrata's live /metrics (phase, generated/max tokens, tok/s), GPU/VRAM/temperature
@@ -468,6 +485,13 @@ repo: the user decides).
    switches). Tell the reviewer that performance notes are "low" unless the goal is about speed.
 15. **Done by a person:** no `stratos accept TID` (Claude edited tasks.json for Lumen T002); `drop` does not release
    tasks whose After names the dropped task.
+17. **Differential draft check** (trial 8): for a task whose rules can be computed (simulate, scoring, parsing), have
+   a second model write a small independent reference implementation from the goal alone, run the drafted tests
+   against it, and flag the tests that fail on it (the test or the reference is wrong - a person decides). Claude's
+   own 30-line reference found the 2 bad tests that the model checker missed. Measure on trials 1, 4, 5, 8.
+18. **Reviewer context** (trial 8 T012, trial 7 T013-a11): the reviewer judges hunks without the code around them;
+   2 of the 3 remaining false blocks came from that. Show the whole new file when it is short (< 300 lines), else the
+   changed functions whole (code map spans).
 16. **Design-by-numbers tasks** (Orbit T007, Lumen T002): a one-shot coder cannot design data that must satisfy a
    measurable rule. A "search" task kind: the model writes a small generator/solver, the harness runs it and keeps
    its output as the data file.
