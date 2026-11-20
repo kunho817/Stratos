@@ -341,6 +341,8 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                 log(f"{key}: reference implementation fails {len(r['failing'])} of {r['total']} tests: {', '.join(r['failing'])}")
             elif r["status"] == "interface":
                 log(f"{key}: reference implementation fails {len(r['failing'])} of {r['total']} tests - the goal may leave the interface open: {r['first_error']}")
+            elif r["status"] == "crashed":
+                log(f"{key}: the reference implementation crashed ({r['first_error']}) - this says nothing about the tests")
             elif r["status"] == "agree":
                 log(f"{key}: reference implementation passes all {r['total']} tests")
             elif r["status"] == "error":

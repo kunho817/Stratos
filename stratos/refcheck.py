@@ -64,6 +64,26 @@ def build_messages(task, root):
     ]
 
 
+def crash_line(output, files):
+    wanted = {f.replace("\\", "/") for f in files}
+    crash_lines = []
+    for line in output.splitlines():
+        m = re.match(r"^\s*(\S+\.py):(\d+): (\w+)\s*$", line)
+        if m:
+            path = m.group(1).replace("\\", "/")
+            n = m.group(2)
+            error = m.group(3)
+            if path in wanted and error != "AssertionError":
+                crash_lines.append((path, n, error))
+    total, failing = count_tests(output)
+    if not failing:
+        return ""
+    if len(crash_lines) >= len(failing):
+        path, n, error = crash_lines[0]
+        return f"{path}:{n}: {error}"
+    return ""
+
+
 def count_tests(output):
     tap = re.findall(r"^\s*(not ok|ok) \d+ - (.+)$", output, re.M)
     if tap:
@@ -158,6 +178,10 @@ def check(gw, plan_id, task, root, tests, extra=None):
                     "files": []}
         out = r.stdout + r.stderr
         total, failing = count_tests(out)
+        crash = crash_line(out, [p for p, _ in files])
+        if crash:
+            return {"status": "crashed", "total": total, "failing": failing,
+                    "first_error": crash, "files": files}
         first_error = ""
         for line in out.splitlines():
             if "Error" in line or "assert" in line:
