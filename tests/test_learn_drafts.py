@@ -73,5 +73,16 @@ def test_only_comments_and_docstrings_count(tmp_path):
                      "A person fixed a drafted test tests/test_c.py::test_x: a comment note"]
 
 
+def test_quoted_markers_are_examples(tmp_path):
+    """(Claude, 2026-11-21) A docstring that explains the format quotes it - '"(Claude: why)"' - and three junk lessons
+    came from such a docstring; a marker right after a quote or a backtick is not a note."""
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_d.py").write_text(
+        'def test_y():\n    """Notes look like "(Claude: why)" or `(Claude: why)`.\n    (Claude: a real one)"""\n',
+        encoding="utf-8")
+    assert [c["text"] for c in learn.draft_corrections(tmp_path)] == [
+        "A person fixed a drafted test tests/test_d.py::test_y: a real one"]
+
+
 def test_no_tests_folder(tmp_path):
     assert learn.draft_corrections(tmp_path) == []

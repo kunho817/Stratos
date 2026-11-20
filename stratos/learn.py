@@ -207,7 +207,9 @@ def draft_corrections(repo, test_dir="tests"):
                 if s_start <= idx < s_end:
                     in_span = True
                     break
-            if not in_span:
+            # (Claude, 2026-11-21) a marker right after a quote or backtick is an example of the format ("(Claude: ...)"
+            # in a docstring that explains it), not a note - three junk lessons came from one
+            if not in_span or (idx > 0 and text[idx - 1] in "\"'`"):
                 pos = idx + 1
                 continue
             line = text[:idx].count("\n") + 1
