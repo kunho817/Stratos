@@ -1,7 +1,10 @@
 """Local model turns people's corrections into general lessons (memory layer M3b)."""
 
+import ast
+import io
 import json
 import math
+import tokenize
 from pathlib import Path
 
 from stratos import codemap, config, lessons, memstore
@@ -138,6 +141,45 @@ def _cosine(v1, v2):
     return dot / (norm1 * norm2)
 
 
+def _pos_to_offset(text, pos):
+    """Convert (line, col) from tokenize/ast (1-based line, 0-based col) to char offset."""
+    lines = text.split('\n')
+    offset = 0
+    for i in range(pos[0] - 1):
+        offset += len(lines[i]) + 1
+    offset += pos[1]
+    return offset
+
+
+def _allowed_spans(text):
+    """Return list of (start_off, end_off) char-offset tuples for comments and docstrings."""
+    spans = []
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+            if tok.type == tokenize.COMMENT:
+                start_off = _pos_to_offset(text, tok.start)
+                end_off = _pos_to_offset(text, tok.end)
+                spans.append((start_off, end_off))
+    except tokenize.TokenError:
+        pass
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        tree = None
+    if tree is not None:
+        if tree.body and isinstance(tree.body[0], ast.Expr) and isinstance(tree.body[0].value, ast.Constant) and isinstance(tree.body[0].value.value, str):
+            c = tree.body[0].value
+            spans.append((_pos_to_offset(text, (c.lineno, c.col_offset)),
+                          _pos_to_offset(text, (c.end_lineno, c.end_col_offset))))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                if node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant) and isinstance(node.body[0].value.value, str):
+                    c = node.body[0].value
+                    spans.append((_pos_to_offset(text, (c.lineno, c.col_offset)),
+                                  _pos_to_offset(text, (c.end_lineno, c.end_col_offset))))
+    return spans
+
+
 def draft_corrections(repo, test_dir="tests"):
     """Collect corrections from (Claude: ...) notes in test files under repo/test_dir."""
     base = Path(repo, test_dir)
@@ -154,11 +196,20 @@ def draft_corrections(repo, test_dir="tests"):
         text = f.read_text(encoding="utf-8")
         syms = codemap.scan_python(text)
         syms = [s for s in syms if s["kind"] in ("function", "class")]
+        spans = _allowed_spans(text)
         pos = 0
         while True:
             idx = text.find("(Claude:", pos)
             if idx == -1:
                 break
+            in_span = False
+            for s_start, s_end in spans:
+                if s_start <= idx < s_end:
+                    in_span = True
+                    break
+            if not in_span:
+                pos = idx + 1
+                continue
             line = text[:idx].count("\n") + 1
             depth = 1
             j = idx + len("(Claude:")
