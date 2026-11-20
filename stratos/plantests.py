@@ -6,7 +6,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from . import codemap, config, context, decide, draftcheck, embed, memstore, plan, patch, recall, refcheck
+from . import codemap, config, context, decide, draftcheck, embed, lint, memstore, plan, patch, recall, refcheck
 
 
 def system_prompt(language, test_runner):
@@ -139,6 +139,10 @@ def build_messages(task, root, example=None, earlier=(), memory=None, old=()):
             {"role": "user", "content": "\n\n".join(parts)}]
 
 
+def draft_problems(root, path):
+    return lint.check(root, [path], codes=("F811", "F821", "F822", "F823"))
+
+
 def check_draft(root, path):
     p = Path(root, path)
     if path.endswith(".py"):
@@ -266,8 +270,12 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
             task_written[key] = []
             task_entries[key] = []
             for tpath in task["tests"]:
+                problems = []
                 if tpath not in written:
-                    status = "missing"
+                    if Path(root, tpath).exists():
+                        status = "old"
+                    else:
+                        status = "missing"
                 elif Path(root, tpath).exists():
                     status = "exists"
                     log(f"{tpath} already exists, not overwritten")
@@ -286,6 +294,11 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                         if ids:
                             status = "leaks"
                             log(f"{tpath}: leaks into: {', '.join(ids[:5])}")
+                    if tpath.endswith(".py") and status == "collected":
+                        problems = draft_problems(root, tpath)
+                        if problems:
+                            for line in problems:
+                                log(f"{tpath}: lint: {line}")
                     written_so_far.append(tpath)
                 if status == "risky":
                     gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
@@ -297,7 +310,9 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                     gw.telemetry.record("test_draft", plan=plan_id, key=key, file=tpath,
                                         status=status)
                 entry = {"key": key, "file": tpath, "status": status}
-                if status not in ("missing", "exists"):
+                if problems:
+                    entry["lint"] = problems
+                if status not in ("missing", "exists", "old"):
                     task_written[key].append(tpath)
                     found = outdated(written[tpath])
                     if found:
@@ -306,7 +321,7 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                         gw.telemetry.record("test_outdated", plan=plan_id, key=key, file=tpath,
                                             tests=[o["test"] for o in found])
                         entry["outdated"] = found
-                if config.DRAFT_CHECK and status not in ("missing", "exists"):
+                if config.DRAFT_CHECK and status not in ("missing", "exists", "old"):
                     try:
                         flags = draftcheck.check(gw, plan_id, p, task, root, tpath)
                     except Exception as e:

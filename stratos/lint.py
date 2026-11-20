@@ -34,7 +34,7 @@ def _filter_py(root, paths):
     return py
 
 
-def check(root, paths):
+def check(root, paths, codes=ERRORS):
     py = _filter_py(root, paths)
     if not py or not available():
         return []
@@ -42,7 +42,7 @@ def check(root, paths):
     root_path = Path(root)
     result = subprocess.run(
         [sys.executable, "-m", "ruff", "check", "--no-cache",
-         "--select", ",".join(ERRORS), "--output-format", "json"] + py,
+         "--select", ",".join(codes), "--output-format", "json"] + py,
         cwd=str(root_path), capture_output=True, text=True,
         encoding="utf-8", errors="replace", timeout=120,
     )
