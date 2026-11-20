@@ -45,6 +45,17 @@ Each P ends with push + a trial. Replaces the rest of work order 2.**
   cases that need setup (files, fakes, monkeypatch, CLI) go to the test writer with the case list, and the
   existing checks (ruff, collect, refcheck, Claude's reference) run on the result. Removes Claude's slips in test
   code and the drafts' wrong expected values. Try it on Stratos's own tasks too (rule 1 would change).
+  **P11 built (T204-T211, 2026-11-20).** refcheck "crashed" (every failure an exception raised in the reference's
+  own files), drafts get ruff F811/F821-F823 lines in their results, existing test files of a task are "old" (not
+  "missing"); cases.py + `stratos cases FILE --out PATH` + plan tasks' "cases": plain-call cases ("f(x) == y",
+  "f(x) raises E: msg") become one pytest function each with no model, other lines go to the test writer as a
+  CASES list; learn reads Claude's "(Claude: why)" notes in fixed drafts as corrections (memory learn ... repo);
+  a new task file now sees the modules its tests import and its goal names (Cronix T006: Tiel rewrote 5 modules it
+  thought missing). Claude's Claude Code hook also runs ruff F811/F821-F823 (it caught a missing Path import at
+  once). Found by reading diffs: T208 copied a 25-line model call into a second branch (T211 cleanup). Claude's
+  slips: T210's goal said "the same import rules" (tests/ is not the package, so absolute imports went unresolved -
+  consensus + triage named it); T211's test demanded one helper call where one per branch is fine. Tiel's first
+  tries were weak on this stretch (1 of 6), Swift finished them.
 - P12 dashboard (user: "only progress bars is dull - stream what it is doing, show the terminal log"): a live
   view - the model's answer streamed token by token as it writes (the gateway asks PolyStrata with stream=true and
   appends the text to a live file; the page reads it over server-sent events), the run log of run-all/plan-tests,
