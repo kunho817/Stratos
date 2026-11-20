@@ -31,7 +31,13 @@ trial. Replaces the rest of work order 2 (its P10-P12 are folded in below).**
   restart is needed), shows what later P's add (plans and their critiques, refcheck results, draft flags, memory
   counts, Jev vs rules, efficiency over time); a "try it" page per trial (web games served as static files, CLI
   tools run with a fixed command from stratos.toml on text pasted in the page; 127.0.0.1 only, no free shell).
-- P12 code cleanup: unused code (ruff F is clean; by name, gitops.append_to_commit_message and
+- P12 code cleanup. First the huge prompts (user asked why reading is sometimes enormous): coder prompts reach 56-66k
+  tokens (median 7-13k) on tasks that touch stratos/__main__.py - since T029 every module a task file imports is
+  shown whole as READ-ONLY, and __main__.py imports 25 modules: T179 (a reset flag) got 8.5k tokens of its own file,
+  2k of tests and ~45k of read-only modules it never needed (report.py 5k, loop.py 4.7k, plan.py 4.5k ...). Swift
+  spent 90-250 s per call on them. Fix: for imported modules show only the names the task's files use from them
+  (code-map signatures, or the symbol's text when it is short), whole text only for small modules; measure prompt
+  tokens and first-try before/after on replays. Then unused code (ruff F is clean; by name, gitops.append_to_commit_message and
   plan.check_new_tests are used only by tests), features that stay off (draftcheck since P7) - keep or remove,
   shared answer reading (loop._judge and refcheck.check read answers the same way), long modules that the models
   edit badly (__main__.py 685 lines, report.py 582, plan.py 492: split by command), speed of the suite (~90 s).
