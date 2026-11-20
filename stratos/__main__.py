@@ -28,6 +28,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from . import addcheck
 from . import codemap
 from . import config
 from . import dashboard
@@ -201,8 +202,15 @@ def main(argv=None):
         else:
             goal = args.goal
         role = args.role
-        add_one(store, args.title, goal, split(args.files), split(args.protected), split(args.tests),
-                role, split(args.after))
+        t = add_one(store, args.title, goal, split(args.files), split(args.protected), split(args.tests),
+                    role, split(args.after))
+        try:
+            lines = addcheck.check(config.REPO, t, [o for o in store.tasks() if o["id"] != t["id"]],
+                                   codemap.build(config.REPO))
+            for line in lines:
+                print(f"  warning: {line}")
+        except Exception as e:
+            print(f"  warning: the add check failed: {e}")
     elif args.cmd == "plan":
         try:
             goal = open(args.goal_file, encoding="utf-8").read()
