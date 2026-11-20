@@ -515,6 +515,19 @@ repo: the user decides).
   CLAUDE.md rule 14. Notes: a lint fix that breaks the tests now fails the attempt - it should restore the files
   and keep the pass; the suite slowed from ~55 s to ~70 s (add tests build the real code map); JS has no linter
   (no npm in trials).
+  **P7 built (T182-T188, 812 tests, 2026-11-20):** refcheck.py - after plan-tests writes the drafts, Tiel writes
+  each task's files from the goal alone (never the tests), the references build on each other in plan order, and
+  the drafts run against them: some failing -> those tests are flagged; most failing -> "the goal may leave the
+  interface open". Experiment (scratchpad ref_eval.py, 4 cases, 5 known wrong tests, Tiel and Swift x2): every
+  wrong test failed on every reference (20/20); Drift slide failed 14/14 every time = the interface gap Claude
+  had fixed by hand. The model draft checker is now off by default. Also: a lint fix that breaks the tests is
+  undone, Stratos itself is pyflakes-clean (a test keeps it so). Run notes: T185 (3 files with __main__.py) failed
+  6 times on cut-off/partial answers - dropped and split (T186/T187); preflight refused T186 at once for a
+  missing After (its second real catch); T184 and T188 failed on Claude's goal text (tmp/"p" on mkdtemp's str)
+  and on old tests Claude had not updated (an exact-dict assert, a fake without the new argument) - consensus
+  and triage named each one. add's old-test warning lists dozens of files for config.py/loop.py tasks, so the one
+  that mattered was missed: show only the tests that call the changed names (code map), cap the list, skip tasks
+  in After. Not done: table-driven test cases (refcheck gives their main gain on normal test files).
 17. **Differential draft check** (trial 8): for a task whose rules can be computed (simulate, scoring, parsing), have
    a second model write a small independent reference implementation from the goal alone, run the drafted tests
    against it, and flag the tests that fail on it (the test or the reference is wrong - a person decides). Claude's
