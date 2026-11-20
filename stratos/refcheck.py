@@ -10,14 +10,30 @@ from stratos import config, decide, patch
 
 SYSTEM = (
     "You write the source files of one task of a project from its goal alone "
-    "(you do not see its tests). Answer with each whole file in this format "
-    "and nothing else:\nFILE: <path>\n```\n<content>\n```"
+    "(you do not see its tests). For a file that already exists, answer with edit blocks:\n"
+    "FILE: <path>\n"
+    "<<<<<<< SEARCH\n"
+    "<lines copied exactly from the file as shown>\n"
+    "=======\n"
+    "<the lines that replace them>\n"
+    ">>>>>>> REPLACE\n"
+    "For a new file, answer with the whole file:\n"
+    "FILE: <path>\n"
+    "```\n"
+    "<content>\n"
+    "```\n"
+    "Answer with nothing else."
 )
 
 
 def build_messages(task, root):
     parts = ["GOAL:\n" + task["goal"], "WRITE THESE FILES: " + ", ".join(task["files"])]
     task_files_set = set(task["files"])
+    for path in task["files"]:
+        f = Path(root) / path
+        if f.is_file():
+            text = f.read_text(encoding="utf-8")
+            parts.append(f"FILE YOU MAY CHANGE {path}:\n```\n{text}\n```")
     existing = []
     for d in config.PROJECT["source_dirs"]:
         dir_path = Path(root) / d
@@ -54,7 +70,6 @@ def count_tests(output):
         total = len(tap)
         failing = [name.strip() for ok, name in tap if ok == "not ok"]
         return (total, failing)
-    # pytest: find the last line that has numbers before passed/failed/errors
     lines = output.splitlines()
     last_line = None
     for line in lines:
@@ -98,10 +113,20 @@ def check(gw, plan_id, task, root, tests, extra=None):
             effort=cfg["effort"],
             max_tokens=cfg["max_tokens"],
         )
-        files = patch.parse_files(answer, task["files"])
-        if not files:
+        answers_dir = config.STATE_DIR / "answers"
+        answers_dir.mkdir(parents=True, exist_ok=True)
+        (answers_dir / f"{plan_id}-{task['key']}-reference.md").write_text(answer, encoding="utf-8")
+        edits = patch.parse_edits(answer, task["files"])
+        edited = {p for p, _ in edits}
+        whole = [f for f in patch.parse_files(answer, task["files"]) if f[0] not in edited]
+        if not edits and not whole:
             return {"status": "error", "total": 0, "failing": [], "first_error": "no file in the answer",
                     "files": []}
+        try:
+            rendered = patch.render_edits(copy, edits)
+        except patch.EditMismatch as e:
+            return {"status": "error", "total": 0, "failing": [], "first_error": str(e), "files": []}
+        files = rendered + whole
         if extra:
             for path, content in extra:
                 dest = Path(copy) / path
@@ -136,3 +161,4 @@ def check(gw, plan_id, task, root, tests, extra=None):
                 "first_error": first_error, "files": files}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
