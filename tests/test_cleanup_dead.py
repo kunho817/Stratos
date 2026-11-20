@@ -3,7 +3,7 @@ gitops.append_to_commit_message and plan.check_new_tests were called only by the
 them with finalize_commit_message and fix_new_tests), config.ATTEMPT_PLAN was read by nothing since tasks have
 roles, and the model draft checker (draftcheck.py, config.DRAFT_CHECK / DRAFT_CHECKER) has been off by default
 since P7, when the reference check (refcheck) replaced it. All of them go, with their tests."""
-import importlib.util
+
 import inspect
 
 from stratos import config, gitops, plan, plantests
@@ -14,7 +14,7 @@ def test_gone():
     assert not hasattr(plan, "check_new_tests")
     for name in ("ATTEMPT_PLAN", "DRAFT_CHECK", "DRAFT_CHECKER"):
         assert not hasattr(config, name), name
-    assert importlib.util.find_spec("stratos.draftcheck") is None
+    # (stratos/draftcheck.py itself is deleted by Claude after the merge: tasks cannot delete files)
     assert "draftcheck" not in inspect.getsource(plantests)
 
 
