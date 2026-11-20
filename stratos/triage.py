@@ -7,8 +7,9 @@ fixes the code. Returns {"verdict", "test", "reason"} from the model's JSON answ
 
 import json
 import re
+import re as _re
 
-from . import config
+from . import config, codemap, decide
 
 SYSTEM = (
     "You are triaging a Stratos task that failed its tests. Read the task's goal, the test files, the code, and the "
@@ -27,18 +28,137 @@ _UNCLEAR = {"verdict": "unclear", "test": "", "reason": ""}
 _JSON_OBJ = re.compile(r"\{(?:[^{}]|\([^{}]*\)|\[[^\]]*\])*\}")
 
 
+def test_parts(root, tests, test_output):
+    """Return a list of (path, text) for the triage prompt.
+
+    Shows only the failing tests and what they use. When no failing id names any test
+    path, every test file is shown whole.
+    """
+    ids = decide._extract_ids(test_output)
+
+    # Parse each id into (path, name, is_bare)
+    parsed = []
+    for id_ in ids:
+        if "::" in id_:
+            path, name = id_.split("::", 1)
+            # Cut [...] suffix from name
+            name = _re.sub(r"\[.*\]$", "", name)
+            parsed.append((path, name, False))
+        else:
+            parsed.append((id_, "", True))
+
+    # paths = test paths of `tests` with any "::..." cut off, in order
+    paths = []
+    for t in tests:
+        path = t.split("::")[0]
+        paths.append(path)
+
+    # shown = the paths some id names
+    shown = []
+    for p in paths:
+        for (ip, iname, is_bare) in parsed:
+            if ip == p:
+                shown.append(p)
+                break
+
+    if not shown:
+        # Return all test files whole
+        result = []
+        for p in paths:
+            try:
+                text = (root / p).read_text(encoding="utf-8")
+            except OSError:
+                text = ""
+            result.append((p, text))
+        return result
+
+    result = []
+    for p in shown:
+        try:
+            text = (root / p).read_text(encoding="utf-8")
+        except OSError:
+            text = ""
+
+        # Check if this path is named by a bare id
+        bare = any(is_bare and ip == p for (ip, iname, is_bare) in parsed)
+        if bare or text == "":
+            result.append((p, text))
+            continue
+
+        # Slim the file
+        syms = codemap.scan_python(text)
+        # Filter to only function and class symbols
+        func_class_syms = [s for s in syms if s["kind"] in ("function", "class")]
+
+        # Failing test names for this path
+        failing_names = []
+        for (ip, iname, is_bare) in parsed:
+            if ip == p and iname:
+                failing_names.append(iname)
+
+        # Build symbol name set
+        sym_names = {s["name"] for s in func_class_syms}
+
+        # wanted = failing test names that are symbols
+        wanted = set()
+        for name in failing_names:
+            if name in sym_names:
+                wanted.add(name)
+
+        # BFS: add names in "uses" of wanted symbols that are symbols, until nothing new
+        queue = list(wanted)
+        while queue:
+            current = queue.pop(0)
+            for s in func_class_syms:
+                if s["name"] == current:
+                    for u in s["uses"]:
+                        if u in sym_names and u not in wanted:
+                            wanted.add(u)
+                            queue.append(u)
+                    break
+
+        # header = lines before the first symbol start
+        # Compute start for each symbol (walk up decorator lines)
+        lines = text.splitlines()
+        sym_starts = {}
+        for s in func_class_syms:
+            start = s["line"] - 1  # 0-based
+            while start > 0 and lines[start - 1].lstrip().startswith("@"):
+                start -= 1
+            sym_starts[s["name"]] = start
+
+        if func_class_syms:
+            first_start = min(sym_starts[s["name"]] for s in func_class_syms)
+            header = "\n".join(lines[:first_start]).rstrip()
+        else:
+            header = ""
+
+        # Collect wanted symbols in file order
+        wanted_syms = [s for s in func_class_syms if s["name"] in wanted]
+        wanted_syms.sort(key=lambda s: sym_starts[s["name"]])
+
+        parts = []
+        if header:
+            parts.append(header)
+        for s in wanted_syms:
+            start = sym_starts[s["name"]]
+            end = s["end"]
+            part = "\n".join(lines[start:end])
+            parts.append(part)
+
+        result.append((p, "\n\n".join(parts)))
+
+    return result
+
+
 def build_messages(task, root, code_files, test_output, consensus=None):
     """Build the system + user messages for the triage call."""
     lines = []
     lines.append("Goal: " + task["goal"])
     lines.append("")
-    lines.append("Test files:")
-    for test_path in task.get("tests", []):
-        try:
-            text = (root / test_path).read_text(encoding="utf-8")
-        except OSError:
-            text = ""
-        lines.append(f"- {test_path}:")
+    lines.append("Test files (the failing tests and what they use):")
+    for path, text in test_parts(root, task.get("tests", []), test_output):
+        lines.append(f"- {path}:")
         lines.append(text)
         lines.append("")
     lines.append("Code files:")
