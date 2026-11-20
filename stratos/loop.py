@@ -86,6 +86,12 @@ def check_answer(task, wt, text, finish=None):
                             ok, out = verify.run_tests(wt, task["tests"])
                             result, detail = ("passed" if ok else "failed"), out
                             if ok:
+                                kept = {}
+                                for p in written:
+                                    if p.endswith(".py"):
+                                        fp = Path(wt, p)
+                                        if fp.exists():
+                                            kept[p] = fp.read_text(encoding="utf-8")
                                 fixed = lint.fix(wt, written)
                                 if fixed:
                                     ok2, out2 = verify.run_tests(wt, task["tests"])
@@ -93,8 +99,11 @@ def check_answer(task, wt, text, finish=None):
                                         result = "passed"
                                         detail = out + "\n(lint removed unused imports in: " + ", ".join(fixed) + ")"
                                     else:
-                                        result = "failed"
-                                        detail = out2
+                                        for p in fixed:
+                                            if p in kept:
+                                                Path(wt, p).write_text(kept[p], encoding="utf-8")
+                                        result = "passed"
+                                        detail = out + "\n(lint fix undone: it broke the tests)"
                     else:
                         ok, out = verify.run_tests(wt, task["tests"])
                         result, detail = ("passed" if ok else "failed"), out
@@ -330,4 +339,3 @@ def run_task(store, gw, task_id, log=print):
             return "done"
     store.update(task_id, status="needs_human")
     return "needs_human"
-
