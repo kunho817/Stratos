@@ -108,16 +108,16 @@ def build_messages(task, diff, files=None, imports=None):
             + imports + "\n\n"
         )
     user = (
-        "Task id: {id}\n"
-        "Title: {title}\n"
-        "Goal: {goal}\n\n"
+        "Task id: " + task_id + "\n"
+        "Title: " + title + "\n"
+        "Goal: " + goal + "\n\n"
         + files_part +
         imports_part +
         "Diff:\n"
         "```diff\n"
-        "{diff}\n"
+        + diff + "\n"
         "```"
-    ).format(id=task_id, title=title, goal=goal, diff=diff)
+    )
     return [
         {"role": "system", "content": REVIEW_SYSTEM},
         {"role": "user", "content": user},
