@@ -109,3 +109,5 @@ LEARNER = {"model": "qwen3.6-35b-a3b-ud-q3_k_m", "effort": "none", "max_tokens":
 # the coder's model writes the module notes of the wiki
 WIKI = {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "none", "max_tokens": 3000}
 
+# REF_WRITER: writes an independent reference implementation from the goal; it failed every known wrong test in the experiment
+REF_WRITER = {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "low", "max_tokens": 12000}
