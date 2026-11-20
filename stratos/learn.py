@@ -4,7 +4,7 @@ import json
 import math
 from pathlib import Path
 
-from stratos import config, lessons, memstore
+from stratos import codemap, config, lessons, memstore
 
 SYSTEM = (
     "A person corrected a task a coding model did. Write ONE general lesson that would help "
@@ -138,7 +138,64 @@ def _cosine(v1, v2):
     return dot / (norm1 * norm2)
 
 
-def learn(gw, tasks, events, lessons_path, state_dir, project, embedder=None):
+def draft_corrections(repo, test_dir="tests"):
+    """Collect corrections from (Claude: ...) notes in test files under repo/test_dir."""
+    base = Path(repo, test_dir)
+    if not base.is_dir():
+        return []
+    out = []
+    files = sorted(
+        (p.relative_to(repo).as_posix(), p)
+        for p in base.rglob("*.py")
+        if p.is_file()
+    )
+    counts = {}
+    for path, f in files:
+        text = f.read_text(encoding="utf-8")
+        syms = codemap.scan_python(text)
+        syms = [s for s in syms if s["kind"] in ("function", "class")]
+        pos = 0
+        while True:
+            idx = text.find("(Claude:", pos)
+            if idx == -1:
+                break
+            line = text[:idx].count("\n") + 1
+            depth = 1
+            j = idx + len("(Claude:")
+            while j < len(text) and depth > 0:
+                if text[j] == "(":
+                    depth += 1
+                elif text[j] == ")":
+                    depth -= 1
+                j += 1
+            note_raw = text[idx + len("(Claude:"):j - 1]
+            lines = note_raw.splitlines()
+            if lines:
+                first = lines[0].strip()
+                rest = []
+                for l in lines[1:]:
+                    l = l.lstrip()
+                    l = l.lstrip("#")
+                    l = l.strip()
+                    rest.append(l)
+                note = " ".join([first] + rest).strip()
+            test = "(module)"
+            for s in syms:
+                if s["line"] <= line <= s["end"]:
+                    test = s["name"]
+                    break
+            key = (path, test)
+            n = counts.get(key, 0) + 1
+            counts[key] = n
+            out.append({
+                "id": f"draft:{path}:{test}:{n}",
+                "text": f"A person fixed a drafted test {path}::{test}: {note}",
+            })
+            pos = idx + 1
+    return out
+
+
+def learn(gw, tasks, events, lessons_path, state_dir, project, embedder=None, repo=None):
     """Process corrections into lessons. Returns counts dict."""
     lessons_path = Path(lessons_path)
     state_dir = Path(state_dir)
@@ -153,6 +210,8 @@ def learn(gw, tasks, events, lessons_path, state_dir, project, embedder=None):
         learned = []
 
     all_corrections = corrections(tasks, events) + plan_corrections(state_dir)
+    if repo is not None:
+        all_corrections = all_corrections + draft_corrections(repo)
     todo = [c for c in all_corrections if c["id"] not in learned]
 
     corrections_count = len(todo)
