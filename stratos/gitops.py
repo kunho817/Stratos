@@ -82,12 +82,6 @@ def commit_diff(worktree):
     return git(worktree, "diff", "--no-color", "HEAD~1", "HEAD")
 
 
-def append_to_commit_message(worktree, text):
-    """Add text to the last commit's message (the review, which comes after the candidate commit)."""
-    msg = git(worktree, "log", "-1", "--format=%B")
-    git(worktree, *BOT, "commit", "-q", "--amend", "-m", f"{msg}\n\n{text}")
-
-
 def finalize_commit_message(worktree, text):
     """Clean a candidate commit's title and append the review (approving the candidate)."""
     msg = git(worktree, "log", "-1", "--format=%B")

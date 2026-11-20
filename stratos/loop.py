@@ -71,9 +71,9 @@ def _lint_fix(wt, written, tests, out):
 def _judge(task, wt, text, finish):
     """Judge one model answer: parse, apply, run the tests; return (result, detail) as soon as a step decides."""
     allowed = task["files"] or None
-    edits = patch.parse_edits(text, allowed)
-    edited = {p for p, _ in edits}
-    files = [f for f in patch.parse_files(text, allowed) if f[0] not in edited]
+    r = patch.read_answer(wt, text, allowed)
+    edits = r["edits"]
+    files = r["whole"]
 
     if not files and not edits:
         result, detail = "no_files", "the answer held no FILE blocks for the task's files"
@@ -100,11 +100,9 @@ def _judge(task, wt, text, finish):
         return "partial_file", "\n".join(partial_lines)
 
     if edits:
-        try:
-            rendered = patch.render_edits(wt, edits)
-        except patch.EditMismatch as e:
-            return "edit_mismatch", str(e) + "\nCopy the SEARCH lines exactly from the file as shown above, or write the whole file."
-        files = rendered + files
+        if r["error"] is not None:
+            return "edit_mismatch", str(r["error"]) + "\nCopy the SEARCH lines exactly from the file as shown above, or write the whole file."
+        files = r["files"]
 
     dropped = patch.dropped_definitions(wt, files, task["goal"])
     if dropped:
@@ -391,3 +389,4 @@ def run_task(store, gw, task_id, log=print):
             return "done"
     store.update(task_id, status="needs_human")
     return "needs_human"
+

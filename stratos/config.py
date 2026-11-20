@@ -30,7 +30,7 @@ ATTEMPT_PLANS = {
     "coder": [("coder", 2), ("coder_hard", 2)],  # Tiel passed only 10 of 56 third attempts; two Swift attempts instead
     "coder_hard": [("coder_hard", 2), ("coder", 1)],
 }
-ATTEMPT_PLAN = ATTEMPT_PLANS["coder"]   # the plan before tasks had roles
+
 
 TEST_TIMEOUT_S = 300
 VERIFY_RUNS = 3          # each with a different PYTHONHASHSEED; all must pass
@@ -63,10 +63,6 @@ PLAN_CRITIQUE = os.environ.get("STRATOS_PLAN_CRITIQUE", "1") != "0"
 PLAN_AS_TEXT = True
 PLAN_CONVERTER = {"model": "qwen3.6-35b-a3b-ud-q4_k_m", "effort": "none", "max_tokens": 8000}
 
-# checks drafted tests before any code is written; the drafts come from the same model, so no switch
-DRAFT_CHECKER = {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 12000}
-# off by default - on fresh drafts it found almost none of the real problems, trials 6-9
-DRAFT_CHECK = os.environ.get("STRATOS_DRAFT_CHECK", "0") != "0"
 
 # TRIAGE (2026-11-18): after a task fails its tests, a quick model decides whether the failing assertion is the test's
 # fault (test_wrong) or the code's (code_wrong), so the retry targets the right file. STRATOS_TRIAGE=0 turns it off.

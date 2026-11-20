@@ -138,17 +138,13 @@ def check(gw, plan_id, task, root, tests, extra=None):
         answers_dir = config.STATE_DIR / "answers"
         answers_dir.mkdir(parents=True, exist_ok=True)
         (answers_dir / f"{plan_id}-{task['key']}-reference.md").write_text(answer, encoding="utf-8")
-        edits = patch.parse_edits(answer, task["files"])
-        edited = {p for p, _ in edits}
-        whole = [f for f in patch.parse_files(answer, task["files"]) if f[0] not in edited]
-        if not edits and not whole:
+        r = patch.read_answer(copy, answer, task["files"])
+        if not r["edits"] and not r["whole"]:
             return {"status": "error", "total": 0, "failing": [], "first_error": "no file in the answer",
                     "files": []}
-        try:
-            rendered = patch.render_edits(copy, edits)
-        except patch.EditMismatch as e:
-            return {"status": "error", "total": 0, "failing": [], "first_error": str(e), "files": []}
-        files = rendered + whole
+        if r["error"] is not None:
+            return {"status": "error", "total": 0, "failing": [], "first_error": str(r["error"]), "files": []}
+        files = r["files"]
         if extra:
             for path, content in extra:
                 dest = Path(copy) / path
