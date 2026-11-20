@@ -49,13 +49,21 @@ def task_memory(task):
 def check_answer(task, wt, text, finish=None):
     """Judge one model answer: parse its FILE blocks, apply them, run the tests; (result, detail)."""
     allowed = task["files"] or None
-    files = patch.parse_files(text, allowed)
-    if not files:
+    edits = patch.parse_edits(text, allowed)
+    edited = {p for p, _ in edits}
+    files = [f for f in patch.parse_files(text, allowed) if f[0] not in edited]
+    if not files and not edits:
         result, detail = "no_files", "the answer held no FILE blocks for the task's files"
         if finish == "tool_calls":
             detail = ("You tried to call a tool, but there are no tools here and you cannot open files. "
                       "Everything you need is in this message: answer with the FILE blocks directly.")
     else:
+        if edits:
+            try:
+                rendered = patch.render_edits(wt, edits)
+            except patch.EditMismatch as e:
+                return "edit_mismatch", str(e) + "\nCopy the SEARCH lines exactly from the file as shown above, or write the whole file."
+            files = rendered + files
         dropped = patch.dropped_definitions(wt, files, task["goal"])
         if dropped:
             result, detail = "dropped_defs", (
