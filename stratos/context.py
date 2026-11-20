@@ -155,7 +155,55 @@ def module_excerpt(root, module, names):
     return "\n\n".join(parts)
 
 
-def related_files(root, files):
+def _abs_modules(root, path):
+    """Find module paths referenced by absolute imports in the given file.
+
+    For every ast.ImportFrom with level 0, uses node.module and node.module + '.' + each imported name.
+    For every ast.Import, uses alias.name.
+    Adds f"{parts[0]}/{parts[1]}.py" when the dotted name has at least two parts and that file exists under root."""
+    p = Path(root, path)
+    if not p.exists():
+        return set()
+    try:
+        tree = ast.parse(p.read_text(encoding="utf-8"))
+    except (SyntaxError, ValueError):
+        return set()
+    found = set()
+
+    def add(parts):
+        if len(parts) >= 2:
+            rel = f"{parts[0]}/{parts[1]}.py"
+            if Path(root, rel).exists():
+                found.add(rel)
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.level == 0 and node.module is not None:
+                add(node.module.split("."))
+                for alias in node.names:
+                    full = node.module + "." + alias.name
+                    add(full.split("."))
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                add(alias.name.split("."))
+    return found
+
+
+def goal_modules(root, goal):
+    """Return sorted list of package module paths that exist under root for dotted names in goal.
+
+    Matches r'\\b([A-Za-z_]\\w*)\\.([A-Za-z_]\\w*)(?:\\.[A-Za-z_]\\w*)*' and builds f'{g1}/{g2}.py'
+    when it exists under root."""
+    results = set()
+    for m in re.finditer(r"\b([A-Za-z_]\w*)\.([A-Za-z_]\w*)(?:\.[A-Za-z_]\w*)*", goal):
+        g1, g2 = m.group(1), m.group(2)
+        rel = f"{g1}/{g2}.py"
+        if Path(root, rel).exists():
+            results.add(rel)
+    return sorted(results)
+
+
+def related_files(root, files, extra=()):
     task_paths = set(files)
     found = set()
     for path in files:
@@ -193,7 +241,54 @@ def related_files(root, files):
                 continue
             if Path(root, rel).exists():
                 found.add(rel)
-    return sorted(found)
+
+    test_dir = config.PROJECT["test_dir"] + "/"
+
+    for path in extra:
+        p = Path(root, path)
+        if not p.exists():
+            continue
+        norm = path.replace("\\", "/")
+        if norm.startswith(test_dir):
+            found |= _abs_modules(root, path)
+        else:
+            # Add the path itself
+            if path not in task_paths:
+                found.add(path)
+            # Old import-following for it
+            try:
+                tree = ast.parse(p.read_text(encoding="utf-8"))
+            except (SyntaxError, ValueError):
+                continue
+            parts = norm.split("/")
+            package_folder = "/".join(parts[:-1])
+            package_name = parts[-2] if len(parts) >= 2 else ""
+            prefix = package_name + "." if package_name else ""
+            names = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    if node.level == 1:
+                        if node.module is None:
+                            names.update(alias.name for alias in node.names)
+                        else:
+                            names.add(node.module.split(".")[0])
+                    elif node.level == 0 and node.module is not None:
+                        if node.module == package_name:
+                            names.update(alias.name for alias in node.names)
+                        elif node.module.startswith(prefix) and len(node.module) > len(prefix):
+                            names.add(node.module[len(prefix):].split(".")[0])
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name.startswith(prefix) and len(alias.name) > len(prefix):
+                            names.add(alias.name[len(prefix):].split(".")[0])
+            for name in names:
+                rel = f"{package_folder}/{name}.py" if package_folder else f"{name}.py"
+                if rel in task_paths:
+                    continue
+                if Path(root, rel).exists():
+                    found.add(rel)
+
+    return sorted(found - set(files))
 
 
 def build_messages(task, root, failure=None, memory=None, before=None):
@@ -202,7 +297,7 @@ def build_messages(task, root, failure=None, memory=None, before=None):
         parts.append(show_file(root, path, "FILE YOU MAY WRITE"))
     for path in task["protected"]:
         parts.append(show_file(root, path, "READ-ONLY (the tests that must pass)"))
-    for path in related_files(root, task["files"]):
+    for path in related_files(root, task["files"], extra=list(task["protected"]) + goal_modules(root, task["goal"])):
         if path in task["files"] or path in task["protected"]:
             continue
         p = Path(root, path)
