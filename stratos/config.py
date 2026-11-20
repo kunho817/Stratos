@@ -76,6 +76,10 @@ TRIAGER = {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 8000, "re
 # run each task's tests on its base before any model call (preflight); refuse impossible tasks early. STRATOS_PREFLIGHT=0 off.
 PREFLIGHT = os.environ.get("STRATOS_PREFLIGHT", "1") != "0"
 
+# ruff on the Python files a model writes: undefined names stop an attempt before the tests, unused imports are
+# removed after they pass. STRATOS_LINT=0 turns it off.
+LINT = os.environ.get("STRATOS_LINT", "1") != "0"
+
 # feed the memory's context packs to the models
 MEMORY = True
 
@@ -104,3 +108,4 @@ WRITABLE_SUFFIXES = set(PROJECT["writable_suffixes"])
 LEARNER = {"model": "qwen3.6-35b-a3b-ud-q3_k_m", "effort": "none", "max_tokens": 600}
 # the coder's model writes the module notes of the wiki
 WIKI = {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "none", "max_tokens": 3000}
+

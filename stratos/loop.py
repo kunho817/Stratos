@@ -5,7 +5,7 @@ A task that still fails is handed to a person (status needs_human). The loop is 
 attempts, committing a candidate when a review is on) and a review phase (judging the candidates)."""
 from pathlib import Path
 
-from . import codemap, config, context, decide, diagnose, embed, gitops, jev, memstore, patch, preflight, recall, review, triage, verify
+from . import codemap, config, context, decide, diagnose, embed, gitops, jev, lint, memstore, patch, preflight, recall, review, triage, verify
 
 CODER_SECTIONS = [
     ("guide", "GENERAL LESSONS (from earlier projects)", 3),
@@ -75,8 +75,29 @@ def check_answer(task, wt, text, finish=None):
                         + "\n".join(errors)
                         + "\nWrite each file completely and check its syntax.")
                 else:
-                    ok, out = verify.run_tests(wt, task["tests"])
-                    result, detail = ("passed" if ok else "failed"), out
+                    if config.LINT:
+                        lint_errors = lint.check(wt, written)
+                        if lint_errors:
+                            result = "lint_error"
+                            detail = ("Your files use names that are not defined:\n"
+                                      + "\n".join(lint_errors)
+                                      + "\nDefine or import every name you use.")
+                        else:
+                            ok, out = verify.run_tests(wt, task["tests"])
+                            result, detail = ("passed" if ok else "failed"), out
+                            if ok:
+                                fixed = lint.fix(wt, written)
+                                if fixed:
+                                    ok2, out2 = verify.run_tests(wt, task["tests"])
+                                    if ok2:
+                                        result = "passed"
+                                        detail = out + "\n(lint removed unused imports in: " + ", ".join(fixed) + ")"
+                                    else:
+                                        result = "failed"
+                                        detail = out2
+                    else:
+                        ok, out = verify.run_tests(wt, task["tests"])
+                        result, detail = ("passed" if ok else "failed"), out
     if finish == "length" and result != "passed":
         detail = ("Your answer was cut off: it reached the length limit. Think briefly and write only the "
                   "files the task needs, completely.\n" + detail)
@@ -309,3 +330,4 @@ def run_task(store, gw, task_id, log=print):
             return "done"
     store.update(task_id, status="needs_human")
     return "needs_human"
+
