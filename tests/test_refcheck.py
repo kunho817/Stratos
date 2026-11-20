@@ -117,7 +117,8 @@ def test_check_interface_when_most_fail(project):
 
 def test_check_error_without_a_file(project):
     r = refcheck.check(GW("I cannot."), "P001", TASK, project, ["tests/test_calc.py"])
-    assert r == {"status": "error", "total": 0, "failing": [], "first_error": "no file in the answer"}
+    # (task refcheck_chain added "files" to every result; Claude updated this old test)
+    assert r == {"status": "error", "total": 0, "failing": [], "first_error": "no file in the answer", "files": []}
 
 
 def test_default_writer():
