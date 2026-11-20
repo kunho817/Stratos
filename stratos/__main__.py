@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 
 from . import addcheck
+from . import cases
 from . import codemap
 from . import config
 from . import dashboard
@@ -164,6 +165,9 @@ def main(argv=None):
     accept = sub.add_parser("accept", help="mark a task done with a person's work in its worktree")
     accept.add_argument("task_id")
     accept.add_argument("--reason", required=True, help="why the work is being accepted")
+    cases_p = sub.add_parser("cases", help="write a test file from plain-call test cases, without a model")
+    cases_p.add_argument("cases_file")
+    cases_p.add_argument("--out", required=True)
     replay_p = sub.add_parser("replay", help="try a model on past tasks; nothing is committed")
     replay_p.add_argument("task_ids", nargs="+")
     replay_p.add_argument("--role", choices=sorted(config.ROLES), default="coder",
@@ -590,6 +594,22 @@ def main(argv=None):
         Telemetry(config.STATE_DIR / "telemetry.jsonl").record("verdict", task=args.task_id,
                                                                result="done_by_human", reason=args.reason)
         print(f"accepted {args.task_id} (commit {sha})")
+        return 0
+    elif args.cmd == "cases":
+        text = Path(args.cases_file).read_text(encoding="utf-8")
+        parsed = cases.parse(text)
+        out = Path(config.REPO, args.out)
+        if out.exists():
+            print(f"{args.out} already exists, not overwritten")
+            return 1
+        if not parsed["plain"]:
+            print("no plain cases")
+            return 1
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(cases.render(parsed), encoding="utf-8")
+        print(f"wrote {args.out}: {len(parsed['plain'])} tests from cases")
+        for line in parsed["other"]:
+            print(f"  not a plain call (write it by hand or give it to the test writer): {line}")
         return 0
     elif args.cmd == "replay":
         tasks = []
