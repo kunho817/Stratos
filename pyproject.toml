@@ -7,3 +7,6 @@ requires-python = ">=3.10"
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-xdist", "ruff"]

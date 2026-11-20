@@ -523,7 +523,7 @@ def _main(argv=None):
         return 0
     elif args.cmd == "push":
         return push.push(config.REPO, Telemetry(config.STATE_DIR / "telemetry.jsonl"),
-                         lambda: verify.run_tests(config.REPO, push.all_tests(config.REPO, config.PROJECT)),
+                         lambda: verify.run_tests(config.REPO, push.all_tests(config.REPO, config.PROJECT), parallel=True),
                          dry_run=args.dry_run)
     elif args.cmd == "clean":
         merged = gitops.git(config.REPO, "branch", "--merged", "HEAD", "--list", "stratos/*")

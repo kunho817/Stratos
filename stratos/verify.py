@@ -2,6 +2,7 @@
 
 The tests run config.VERIFY_RUNS times, each with a different PYTHONHASHSEED, and pass only if every run passes:
 code that depends on set or dict order can pass once by luck (T003's first answer did, 2026-11-16)."""
+import importlib.util
 import os
 import re
 import subprocess
@@ -75,8 +76,11 @@ def summarize_output(out):
     return result_str
 
 
-def run_tests(worktree, tests):
-    cmd = [*config.PROJECT["test_command"], *tests]
+def run_tests(worktree, tests, parallel=False):
+    if parallel and config.PROJECT["test_runner"] == "pytest" and importlib.util.find_spec("xdist") is not None:
+        cmd = [*config.PROJECT["test_command"], "-n", "auto", *tests]
+    else:
+        cmd = [*config.PROJECT["test_command"], *tests]
     out = ""
     for seed in range(1, config.VERIFY_RUNS + 1):
         # UTF-8 both ways: with the Windows default (cp949 here) a test's Korean text crashed the run (T019, 2026-11-17)
