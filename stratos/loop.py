@@ -112,6 +112,7 @@ def write_task(store, gw, task_id, log=print):
     attempt = task.get("attempts", 0)
     last_failed_text = None
     last_failed_detail = None
+    failed_ids = {}
     for role, tries in attempt_plan(task):
         r = config.ROLES[role]
         history = []
@@ -134,6 +135,7 @@ def write_task(store, gw, task_id, log=print):
             if result == "failed":
                 last_failed_text = text
                 last_failed_detail = detail
+                failed_ids.setdefault(r["model"], set()).update(decide._extract_ids(detail))
             gw.telemetry.record("outcome", call_id=call_id, task=task_id, result=result, detail=detail[-500:])
             store.decide(task=task_id, attempt=attempt, role=role, model=r["model"], result=result)
             log(f"  attempt {attempt} ({role}, {r['model']}): {result}")
@@ -184,10 +186,23 @@ def write_task(store, gw, task_id, log=print):
             if d["choice"]:
                 log(f"  attempt {attempt}: same failure again, moving to the cross-check")
                 break
+
+    models = sorted(m for m in failed_ids if failed_ids[m])
+    if len(models) >= 2:
+        consensus = sorted(set.intersection(*(failed_ids[m] for m in models)))
+    else:
+        consensus = []
+
+    if consensus:
+        store.update(task_id, consensus=consensus)
+        gw.telemetry.record("consensus", task=task_id, tests=consensus, models=models)
+        log(f"  consensus: {', '.join(models)} all failed {', '.join(consensus)}")
+
     if config.TRIAGE and last_failed_text is not None:
         code_files = patch.parse_files(last_failed_text, task["files"] or None)
         try:
-            triage_result = triage.triage(gw, task, wt, code_files, last_failed_detail)
+            extra = {"consensus": consensus} if consensus else {}
+            triage_result = triage.triage(gw, task, wt, code_files, last_failed_detail, **extra)
             store.update(task_id, triage=triage_result)
             gw.telemetry.record("triage", task=task_id, verdict=triage_result["verdict"],
                                 test=triage_result["test"], reason=triage_result["reason"])
@@ -292,3 +307,4 @@ def run_task(store, gw, task_id, log=print):
             return "done"
     store.update(task_id, status="needs_human")
     return "needs_human"
+

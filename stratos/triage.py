@@ -27,7 +27,7 @@ _UNCLEAR = {"verdict": "unclear", "test": "", "reason": ""}
 _JSON_OBJ = re.compile(r"\{(?:[^{}]|\([^{}]*\)|\[[^\]]*\])*\}")
 
 
-def build_messages(task, root, code_files, test_output):
+def build_messages(task, root, code_files, test_output, consensus=None):
     """Build the system + user messages for the triage call."""
     lines = []
     lines.append("Goal: " + task["goal"])
@@ -49,6 +49,12 @@ def build_messages(task, root, code_files, test_output):
             lines.append("")
     else:
         lines.append("(none)")
+        lines.append("")
+    if consensus:
+        lines.append("Independent attempts: different models wrote their own code for this task and all failed these same tests:")
+        for tid in consensus:
+            lines.append("- " + tid)
+        lines.append("Code from different models that agrees against a test is a sign the test may be wrong; check those tests first.")
         lines.append("")
     lines.append("Test output:")
     lines.append(test_output)
@@ -79,11 +85,11 @@ def _usable(text):
     return answer["reason"].strip() != ""
 
 
-def triage(gw, task, root, code_files, test_output):
+def triage(gw, task, root, code_files, test_output, consensus=None):
     """Ask the triage model whether the failing assertion is the test's or the code's fault; retry once if unusable."""
     triager = config.TRIAGER
     gw.ensure_model(triager["model"])
-    messages = build_messages(task, root, code_files, test_output)
+    messages = build_messages(task, root, code_files, test_output, consensus=consensus)
     kwargs = dict(
         task=task["id"],
         role="triage",
@@ -106,3 +112,4 @@ def triage(gw, task, root, code_files, test_output):
         _, answer = gw.chat(messages, **kwargs)
         (config.STATE_DIR / "answers" / f"{task['id']}-triage-2.md").write_text(answer, encoding="utf-8")
     return parse(answer)
+
