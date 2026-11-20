@@ -69,6 +69,33 @@ def _fenced_blocks(answer):
     return blocks
 
 
+def _ask_test_writer(gw, plan_id, task, messages, model_cfg, answers_dir, root):
+    key = task["key"]
+    kw = {"task": f"{plan_id}-{key}", "role": "test_writer", "attempt": 1,
+          "model": model_cfg["model"], "effort": model_cfg["effort"],
+          "max_tokens": model_cfg["max_tokens"]}
+    if model_cfg.get("reasoning_budget") is not None:
+        kw["reasoning_budget"] = model_cfg["reasoning_budget"]
+    call_id, answer = gw.chat(messages, **kw)
+    answer_path = answers_dir / f"{plan_id}-{key}-tests.md"
+    answer_path.write_text(answer, encoding="utf-8")
+    files = patch.parse_files(answer, allowed=task["tests"])
+    new_tests = [t for t in task["tests"] if not Path(root, t).exists()]
+    if len(new_tests) == 1 and not files and not _has_file_marker(answer):
+        inner = _strip_lone_fence(answer)
+        if inner is not None:
+            files = [(new_tests[0], inner)]
+        else:
+            blocks = _fenced_blocks(answer)
+            if len(blocks) >= 2:
+                files = [(new_tests[0], max(blocks, key=len))]
+            else:
+                first_line = answer.splitlines()[0] if answer else ""
+                if not first_line.lstrip().startswith("```"):
+                    files = [(new_tests[0], answer)]
+    return files
+
+
 def old_tests(cmap, task):
     files = cmap.get("files")
     imports = cmap.get("imports")
@@ -251,53 +278,12 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                     old = old_tests(cmap, task)
                     messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old)
                     messages[1]["content"] += "\n\nCASES (write one test for each, with exactly these values):\n" + "\n".join(lines)
-                    kw = {"task": f"{plan_id}-{key}", "role": "test_writer", "attempt": 1,
-                          "model": model_cfg["model"], "effort": model_cfg["effort"],
-                          "max_tokens": model_cfg["max_tokens"]}
-                    if model_cfg.get("reasoning_budget") is not None:
-                        kw["reasoning_budget"] = model_cfg["reasoning_budget"]
-                    call_id, answer = gw.chat(messages, **kw)
-                    answer_path = answers_dir / f"{plan_id}-{key}-tests.md"
-                    answer_path.write_text(answer, encoding="utf-8")
-                    files = patch.parse_files(answer, allowed=task["tests"])
-                    new_tests = [t for t in task["tests"] if not Path(root, t).exists()]
-                    if len(new_tests) == 1 and not files and not _has_file_marker(answer):
-                        inner = _strip_lone_fence(answer)
-                        if inner is not None:
-                            files = [(new_tests[0], inner)]
-                        else:
-                            blocks = _fenced_blocks(answer)
-                            if len(blocks) >= 2:
-                                files = [(new_tests[0], max(blocks, key=len))]
-                            else:
-                                first_line = answer.splitlines()[0] if answer else ""
-                                if not first_line.lstrip().startswith("```"):
-                                    files = [(new_tests[0], answer)]
+                    files = _ask_test_writer(gw, plan_id, task, messages, model_cfg, answers_dir, root)
             else:
                 old = old_tests(cmap, task)
                 messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old)
-                kw = {"task": f"{plan_id}-{key}", "role": "test_writer", "attempt": 1,
-                      "model": model_cfg["model"], "effort": model_cfg["effort"],
-                      "max_tokens": model_cfg["max_tokens"]}
-                if model_cfg.get("reasoning_budget") is not None:
-                    kw["reasoning_budget"] = model_cfg["reasoning_budget"]
-                call_id, answer = gw.chat(messages, **kw)
-                answer_path = answers_dir / f"{plan_id}-{key}-tests.md"
-                answer_path.write_text(answer, encoding="utf-8")
-                files = patch.parse_files(answer, allowed=task["tests"])
-                new_tests = [t for t in task["tests"] if not Path(root, t).exists()]
-                if len(new_tests) == 1 and not files and not _has_file_marker(answer):
-                    inner = _strip_lone_fence(answer)
-                    if inner is not None:
-                        files = [(new_tests[0], inner)]
-                    else:
-                        blocks = _fenced_blocks(answer)
-                        if len(blocks) >= 2:
-                            files = [(new_tests[0], max(blocks, key=len))]
-                        else:
-                            first_line = answer.splitlines()[0] if answer else ""
-                            if not first_line.lstrip().startswith("```"):
-                                files = [(new_tests[0], answer)]
+                files = _ask_test_writer(gw, plan_id, task, messages, model_cfg, answers_dir, root)
+
             written = {}
             for fpath, fcontent in files:
                 written[fpath] = fcontent
