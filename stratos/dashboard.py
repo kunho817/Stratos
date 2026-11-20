@@ -2,10 +2,15 @@
 
 KEEP, PAGE = Path(__file__).parent / "dashboard.html", default_repos, project, metrics, snapshot, make_server."""
 import json
+import mimetypes
 import os
+import shlex
+import subprocess
 import sys
+import tempfile
 import threading
 import time
+import tomllib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -75,6 +80,53 @@ def watch_code(folder):
                 os.execv(sys.executable, [sys.executable, "-m", "stratos"] + sys.argv[1:])
 
     threading.Thread(target=_loop, daemon=True).start()
+
+
+def try_config(repo):
+    repo = Path(repo)
+    toml_path = repo / "stratos.toml"
+    try:
+        data = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    tbl = data.get("try")
+    if not isinstance(tbl, dict):
+        return None
+    if tbl.get("kind") in ("cli", "static"):
+        return tbl
+    return None
+
+
+def run_try(repo, text, args=""):
+    repo = Path(repo)
+    cfg = try_config(repo)
+    if cfg is None:
+        raise ValueError("not a cli project")
+    if cfg.get("kind") != "cli":
+        raise ValueError("not a cli project")
+    input_name = cfg.get("input_name", "input.txt")
+    command = cfg["command"]
+    with tempfile.TemporaryDirectory() as td:
+        file_path = str(Path(td) / input_name)
+        Path(file_path).write_text(text, encoding="utf-8")
+        cmd = [str(item).replace("{file}", file_path) for item in command]
+        if args:
+            cmd.extend(shlex.split(args))
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(repo)
+        try:
+            r = subprocess.run(cmd, cwd=str(repo), env=env,
+                               capture_output=True, text=True,
+                               encoding="utf-8", errors="replace",
+                               timeout=10, shell=False)
+            code = r.returncode
+            stdout = r.stdout[:20000]
+            stderr = r.stderr[:20000]
+        except subprocess.TimeoutExpired:
+            code = -1
+            stdout = ""
+            stderr = "timed out after 10 s"
+    return {"code": code, "stdout": stdout, "stderr": stderr}
 
 
 def project(repo):
@@ -168,6 +220,9 @@ def project(repo):
         "switch_seconds": round(switch_seconds, 1),
     }
 
+    cfg = try_config(repo)
+    try_kind = cfg["kind"] if cfg else None
+
     return {
         "name": repo.name,
         "path": str(repo),
@@ -178,6 +233,7 @@ def project(repo):
         "current": current,
         "stats": stats,
         "efficiency": report.efficiency(all_events),
+        "try": try_kind,
     }
 
 
@@ -249,6 +305,86 @@ def make_server(repos, port, metrics=None, home=None):
                     self.send_header("Content-Type", "application/json; charset=utf-8")
                     self.end_headers()
                     self.wfile.write(body)
+            elif self.path.startswith("/try/"):
+                parts = self.path.split("/", 3)
+                if len(parts) < 4:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                name = parts[2]
+                subpath = parts[3]
+                found = None
+                for r in repos_for():
+                    if Path(r).name == name:
+                        found = r
+                        break
+                if found is None:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                repo = Path(found)
+                cfg = try_config(repo)
+                if cfg is None or cfg.get("kind") != "static":
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                file = (repo / subpath).resolve()
+                repo_resolved = repo.resolve()
+                if not str(file).startswith(str(repo_resolved)):
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                if not file.is_file():
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                ctype = mimetypes.guess_type(str(file))[0] or "application/octet-stream"
+                data = file.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def do_POST(self):
+            parsed = urllib.parse.urlparse(self.path)
+            if parsed.path == "/api/try":
+                qs = parsed.query
+                params = urllib.parse.parse_qs(qs)
+                name = params.get("project", [None])[0]
+                hdr = self.headers.get("X-Stratos", "")
+                if hdr != "1":
+                    self.send_response(403)
+                    self.end_headers()
+                    return
+                found = None
+                for r in repos_for():
+                    if Path(r).name == name:
+                        found = r
+                        break
+                if found is None:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                repo = Path(found)
+                cfg = try_config(repo)
+                if cfg is None or cfg.get("kind") != "cli":
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+                length = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(length)
+                body = json.loads(raw)
+                result = run_try(repo, body.get("text", ""), body.get("args", ""))
+                resp = json.dumps(result).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(resp)))
+                self.end_headers()
+                self.wfile.write(resp)
             else:
                 self.send_response(404)
                 self.end_headers()
