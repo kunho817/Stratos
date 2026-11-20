@@ -68,7 +68,7 @@ def env(tmp_path, monkeypatch):
     results = {"a": {"status": "flagged", "total": 3, "failing": ["tests/test_a.py::test_x"], "first_error": ""},
                "b": {"status": "interface", "total": 4, "failing": ["t1", "t2", "t3"], "first_error": "ImportError: x"}}
 
-    def fake_check(gw, plan_id, t, root, tests):
+    def fake_check(gw, plan_id, t, root, tests, extra=None):  # extra: task refcheck_chain (Claude updated the fake)
         calls.append((t["key"], tests))
         return dict(results[t["key"]])
     monkeypatch.setattr(refcheck, "check", fake_check)
