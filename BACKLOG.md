@@ -528,6 +528,14 @@ repo: the user decides).
   and triage named each one. add's old-test warning lists dozens of files for config.py/loop.py tasks, so the one
   that mattered was missed: show only the tests that call the changed names (code map), cap the list, skip tasks
   in After. Not done: table-driven test cases (refcheck gives their main gain on normal test files).
+  **P8 built (T189-T190, 824 tests, 2026-11-20): edit blocks** (user: whole-file rewrites overflow and break working
+  code). Experiment (scratchpad edit_eval.py, 10 past tasks on 580-680 line files, one run each): whole files 7/10
+  (Tiel 0/3: two cut at its 6000-token limit), SEARCH/REPLACE blocks 8/10 with 0 SEARCH mismatches, ~6.6x fewer
+  tokens (97k -> 14.7k), ~3.3x faster (1180 s -> 356 s). Now the coder answers existing files with SEARCH/REPLACE
+  blocks and new ones whole; patch.render_edits applies them in memory and the result goes through the same
+  checks (dropped definitions, protected files, syntax, lint, tests); a SEARCH found 0 or 2+ times gives
+  "edit_mismatch" with the closest line. Nit: an edit_mismatch skips the cut-off note. Next: measure on a
+  trial round that changes existing code; the reviewer's diffs should shrink too.
 17. **Differential draft check** (trial 8): for a task whose rules can be computed (simulate, scoring, parsing), have
    a second model write a small independent reference implementation from the goal alone, run the drafted tests
    against it, and flag the tests that fail on it (the test or the reference is wrong - a person decides). Claude's
