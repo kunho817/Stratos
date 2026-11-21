@@ -76,3 +76,4 @@ lines; a person reads them before they are committed.
 - [plan, code] When a goal specifies a context manager, explicitly state that setup code must execute before the yield and teardown in a finally block. (Stratos: reset:T236:1)
 - [plan, tests] When a task changes function signatures or structure, identify all tests that inspect the old implementation (e.g., via inspect.getsource) and update them to match the new structure. (Stratos: reset:T239:1)
 - [plan, code] When a goal requires annotating a variable, explicitly state the type hint to prevent the model from adding unrelated error handling logic. (Stratos: reset:T239:2)
+- [tests, assertions] When a function returns a list, assert on the list structure directly instead of splitting a string representation. (Stratos: reset:T248:1)

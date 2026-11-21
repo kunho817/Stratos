@@ -43,6 +43,17 @@ Go + C# follow-ups. Memory packs and Jev stay on hold.
   puts it in), then with false claims (" < " inside " <= ", digits in a1.b2) and one right edge case; Claude
   accepted attempt 23 with that fix. P22 first: a review issue must quote the line it is about, and a
   candidate that passes the tests is blocked only by a high issue whose quote is in the diff.
+  **P22 done (T243-T248 + Claude's harness fixes, 1014 tests):** a review issue blocks only when its "quote" is a
+  line of the diff or the whole changed files (others go into the commit message "not counted"); an unparsed
+  review is asked once more, then the task is done but `status` shows [unreviewed]; the second review call is
+  guarded like the first. steps.py times tests/check/lint/refcheck/mutation/draft_check and `report
+  --efficiency` splits "other" by them (no step events yet: the timing was merged after the runs - look after
+  the next trial). Claude's fixes on the way: the reviewer sees the test docstring the goal names
+  (review.spec_text); a writer call the server refuses (T245's 8 files made a 125k-token prompt, over Swift's
+  131k) ends only that task instead of run-all; `add --after` must name an existing task (T245 waited on
+  itself); a refused push names its failing tests (the one-time push failure did not come back in 18 runs,
+  idle or two suites at once). Lessons for Claude: keep a task's files small enough for the prompt (8 files was
+  too many; split by module), and a task whose tests share a file with later tasks lists test ids, not the file.
   addcheck's "uses <name>" is noisy for common names (check, main: 30+ lines) - rank or drop names defined in
   many modules.
 
