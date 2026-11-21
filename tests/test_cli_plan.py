@@ -147,3 +147,13 @@ def test_plan_add_refuses_unknown_and_added_plans(env, capsys):
     assert cli.main(["plan-add", pid]) == 1
     assert f"plan {pid} was already added" in capsys.readouterr().err
     assert len(Store(config.STATE_DIR).tasks()) == 2
+
+
+def test_plan_add_keeps_a_search_output(env, capsys):
+    """(Claude, 2026-11-21, Lantern) a plan task's "output" (a search task, P16) reaches the stored task."""
+    tasks = plan.parse_plan(json.dumps(GOOD))
+    tasks[0]["output"] = "data/levels.json"
+    pid = plan.save_plan(config.STATE_DIR, "Make it fly.", tasks)
+    assert cli.main(["plan-add", pid]) == 0
+    store = Store(config.STATE_DIR)
+    assert store.get("T001")["output"] == "data/levels.json" and "output" not in store.get("T002")

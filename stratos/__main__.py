@@ -381,7 +381,7 @@ def _main(argv=None):
                 if test not in prot:
                     prot.append(test)
             task = add_one(store, t["title"], t["goal"], t["files"], prot,
-                           t["tests"], t.get("role"), after_ids)
+                           t["tests"], t.get("role"), after_ids, t.get("output"))   # a search task (P16)
             key_to_id[t["key"]] = task["id"]
         plan_mod.mark_added(config.STATE_DIR, args.plan_id, key_to_id)
         Telemetry(config.STATE_DIR / "telemetry.jsonl").record("plan", plan=args.plan_id,
