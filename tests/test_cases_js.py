@@ -62,3 +62,13 @@ def test_the_js_file_runs(tmp_path):
     r = subprocess.run([node, "--test", "--test-reporter=tap", "tests/m.test.js"], cwd=tmp_path, capture_output=True,
                        text=True, encoding="utf-8")
     assert "# pass 2" in r.stdout and "# fail 1" in r.stdout, r.stdout
+
+
+def test_cli_picks_javascript_for_a_js_path(tmp_path, monkeypatch, capsys):
+    from stratos import __main__ as cli
+    from stratos import config
+    monkeypatch.setattr(config, "REPO", tmp_path)
+    src = tmp_path / "c.txt"
+    src.write_text("src.m.f(1) == 2\n", encoding="utf-8")
+    assert cli.main(["cases", str(src), "--out", "tests/m.test.js"]) == 0
+    assert (tmp_path / "tests" / "m.test.js").read_text(encoding="utf-8").startswith("// Tests written by Stratos")
