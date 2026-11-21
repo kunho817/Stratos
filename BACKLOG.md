@@ -10,6 +10,17 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
 
 ## Open (top first)
 
+**Next theme (user, 2026-11-21): perception - research and design in a NEW session.** The local models (even the
+vision ones) perceive the world far worse than frontier models. Start: a spatial occupancy map ("HeightMap") of a
+screen - count per cell how many things occupy it, so text overlap (TowerDefense) and overflow are found by
+arithmetic, not by eye; later: 3D map perception, and page changes over an animation (web design). The user runs the
+research/discussion in a new session (context); Claude's first notes: geometry from a headless browser (DOM boxes,
+text rects; Playwright with the installed Edge) or a canvas shim (fillText/measureText), layers (background/text),
+violations as test failures and retry feedback, a downsampled ASCII map for the model, an annotated screenshot for
+the vision model; pitfalls: intended overlaps, hidden elements, states, viewports. Also from the research: mutation
+testing for drafted tests (P21 candidate), several candidates + test selection, property tests in cases; constrained
+decoding is out (PolyStrata's engine has no grammar decoder).
+
 **Work order 4 (user, 2026-11-21, after P16): GCM - the user updates Git; other languages approved, engines not
 yet; do the open items from trial 15; consider LSP.**
 - P17 from trial 15: (a) cases for node:test projects (cases.py writes pytest only; JS drafts flipped board columns
