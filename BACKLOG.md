@@ -16,6 +16,12 @@ yet; do the open items from trial 15; consider LSP.**
   in 7 of 15 tests); (b) a search task runs the tests of the code its generator calls before the generator (10 of
   14 right generators failed on a wrong solver); (c) review quality in `report`: blocks later overruled by a person
   (accept, or the next try approved with no change asked), per reviewer model - to watch Tiel reviewing its own code.
+  **P17 built (T227-T230, 923 tests, 2026-11-21).** cases -> node:test files for JS projects (`stratos cases` by
+  the --out suffix, plan-tests by the project language); search failures count for consensus as "(the generator)"
+  and triage is told to suspect the code the generator calls (the planned "run the callee's tests first" would not
+  have caught Lantern: the solver's own tests passed - they were weak); `report --reviews`: per reviewer model,
+  reviews / blocks / blocks a person overruled (Stratos: Qwen3.6 250/40/4; Pantry 22/9/8 - T015's three repeats;
+  Tiel so far: Lantern 7/2/1).
 - P18 LSP: one diagnostics layer for every language - a small JSON-RPC client (stratos/lsp.py) that starts the
   project's language server (stratos.toml "lsp_command"), opens the files a task wrote, collects
   textDocument/publishDiagnostics and blocks on errors before the tests (like lint today, but types, imports and
