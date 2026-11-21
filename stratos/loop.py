@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.error
 from pathlib import Path
 
 from . import checker, codemap, config, context, decide, diagnose, embed, gitops, jev, lint, memstore, patch, preflight, recall, review, triage, verify
@@ -252,13 +253,24 @@ def write_task(store, gw, task_id, log=print):
                 log(f"  model switch to {r['model']}: {switch:.1f} s")
             budget = r.get("reasoning_budget")
             extra = {"before": before} if before else {}
-            if budget is not None:
+            kw = {"reasoning_budget": budget} if budget is not None else {}
+            try:
                 call_id, text = gw.chat(context.build_messages(task, wt, failure, memory=memory, **extra), task=task_id, role=role,
                                         attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"],
-                                        reasoning_budget=budget)
-            else:
-                call_id, text = gw.chat(context.build_messages(task, wt, failure, memory=memory, **extra), task=task_id, role=role,
-                                        attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"])
+                                        **kw)
+            except urllib.error.HTTPError as e:
+                # (Claude, 2026-11-21, T245) the server refused the call (a prompt over the context window): only
+                # this task ends - the same prompt would be refused again
+                try:
+                    message = e.read().decode("utf-8", "replace")
+                except Exception:
+                    message = ""
+                message = f"HTTP {e.code}: {message or e.reason}"[:500]
+                gw.telemetry.record("outcome", call_id=None, task=task_id, result="call_error", detail=message)
+                store.decide(task=task_id, attempt=attempt, role=role, model=r["model"], result="call_error")
+                store.update(task_id, status="needs_human", call_error=message, attempts=attempt)
+                log(f"  attempt {attempt} ({role}, {r['model']}): call_error - {message[:200]}")
+                return "needs_human"
             save_answer(task_id, attempt, text)
             result, detail = check_answer(task, wt, text, getattr(gw, "last_finish", None))
             if result in ("failed", "search_failed"):

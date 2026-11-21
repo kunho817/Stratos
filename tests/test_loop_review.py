@@ -454,3 +454,33 @@ def test_a_failed_review_call_leaves_the_candidate_waiting(env):
     gw2 = FlakyReviewer(tel, {"coder": [], "reviewer": [APPROVE]})
     assert loop.run_all(store, gw2, ["T001"], log=quiet) == {"T001": "done"}
     assert [c["role"] for c in gw2.calls] == ["reviewer"] and len(rec["commits"]) == 2
+
+
+# ---- (Claude, 2026-11-21, T245) the server refused a writer call: "request exceeds the context window: prompt
+# (125463 tokens) + max tokens (24000)" (HTTP 400) and the exception ended run-all - the other tasks never ran.
+# A writer call that fails with an HTTP error now ends only that task: outcome and decision "call_error" (the
+# detail is the server's message), the task needs_human with store field call_error = that message, and
+# write_task returns "needs_human"; the batch goes on. Asking again with the same prompt would fail the same way.
+import io  # noqa: E402
+import urllib.error  # noqa: E402
+
+
+class RefusingGateway(FakeGateway):
+    def chat(self, messages, **kw):
+        if kw["role"] != "reviewer" and kw["task"] == "T001":
+            self.calls.append({"role": kw["role"], "task": kw["task"]})
+            body = b'{"error": "request exceeds the context window: prompt (125463 tokens)"}'
+            raise urllib.error.HTTPError("http://127.0.0.1:8080/v1/chat/completions", 400, "Bad Request", {},
+                                         io.BytesIO(body))
+        return super().chat(messages, **kw)
+
+
+def test_a_refused_writer_call_ends_only_that_task(env):
+    store, tel, rec, _ = env
+    gw = RefusingGateway(tel, {"coder": [WRITER], "reviewer": [APPROVE]})
+    final = loop.run_all(store, gw, ["T001", "T002"], log=quiet)
+    assert final == {"T001": "needs_human", "T002": "done"}
+    assert "exceeds the context window" in store.get("T001")["call_error"]
+    errs = [e for e in outcomes(env) if e["result"] == "call_error"]
+    assert len(errs) == 1 and "exceeds the context window" in errs[0]["detail"]
+    assert len([c for c in gw.calls if c["task"] == "T001"]) == 1      # not asked again with the same prompt
