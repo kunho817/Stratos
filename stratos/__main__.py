@@ -53,7 +53,7 @@ from . import verify
 from . import wiki
 from .gateway import Gateway
 from .loop import run_all, run_task
-from .report import decision_accuracy, diagnosis_ab, efficiency, escalation_accuracy, format_efficiency, plans_summary, replay_summary, summarize
+from .report import decision_accuracy, diagnosis_ab, efficiency, escalation_accuracy, format_efficiency, format_reviews, plans_summary, replay_summary, review_quality, summarize
 from .scheduler import plan as scheduler_plan
 from .state import Store
 from .telemetry import Telemetry
@@ -169,6 +169,7 @@ def _main(argv=None):
     report_p.add_argument("--replay", action="store_true", help="summarize the replay runs instead")
     report_p.add_argument("--plans", action="store_true", help="summarize plan files and their test drafts")
     report_p.add_argument("--efficiency", action="store_true", help="where the tokens and the time go")
+    report_p.add_argument("--reviews", action="store_true", help="blocks a person overruled")
     push_p = sub.add_parser("push", help="push the finished work to origin when it is safe")
     push_p.add_argument("--dry-run", action="store_true")
     sub.add_parser("clean", help="remove worktree and branch of merged, done tasks")
@@ -460,6 +461,11 @@ def _main(argv=None):
         if args.efficiency:
             events = Telemetry(config.STATE_DIR / "telemetry.jsonl").load()
             for line in format_efficiency(efficiency(events)):
+                print(line)
+            return 0
+        if args.reviews:
+            events = Telemetry(config.STATE_DIR / "telemetry.jsonl").load()
+            for line in format_reviews(review_quality(events)):
                 print(line)
             return 0
         if args.plans:

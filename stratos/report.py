@@ -580,3 +580,57 @@ def format_efficiency(e):
         task_str = tt["task"] if tt["task"] is not None else "-"
         lines.append(f"    {task_str}: {tt['completion_tokens']} tokens, {tt['seconds']:.0f} s, {tt['calls']} calls")
     return lines
+
+
+def review_quality(events):
+    models = {}
+    for event in events:
+        if event.get("kind") == "call":
+            models[event["call_id"]] = event.get("model")
+
+    by_model = {}
+    first_order = []
+    open_blocks = {}
+
+    def get_model(call_id):
+        return models.get(call_id, "?")
+
+    def ensure(model):
+        if model not in by_model:
+            by_model[model] = {"reviews": 0, "blocks": 0, "overruled": 0}
+            first_order.append(model)
+
+    for event in events:
+        kind = event.get("kind")
+        if kind == "outcome":
+            result = event.get("result")
+            if result in ("review_approve", "review_changes"):
+                model = get_model(event.get("call_id"))
+                ensure(model)
+                by_model[model]["reviews"] += 1
+                task = event.get("task")
+                if result == "review_changes":
+                    by_model[model]["blocks"] += 1
+                    open_blocks.setdefault(task, []).append(model)
+                elif result == "review_approve":
+                    open_blocks[task] = []
+        elif kind == "verdict":
+            if event.get("result") == "done_by_human":
+                task = event.get("task")
+                for model in open_blocks.get(task, []):
+                    ensure(model)
+                    by_model[model]["overruled"] += 1
+                open_blocks[task] = []
+
+    result = {}
+    for model in first_order:
+        result[model] = by_model[model]
+    return result
+
+
+def format_reviews(q):
+    lines = []
+    for model in q:
+        d = q[model]
+        lines.append(f"{model}: {d['reviews']} reviews, {d['blocks']} blocks, {d['overruled']} overruled by a person")
+    return lines
