@@ -118,6 +118,15 @@ REF_WRITER = {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 24000,
 # REF_CHECK: run the reference check after drafts in plan-tests; STRATOS_REF_CHECK=0 turns it off
 REF_CHECK = os.environ.get("STRATOS_REF_CHECK", "1") != "0"
 
+# mutation score: mutate the reference implementation, run the tests, count mutants killed
+MUTATION = True
+# number of mutants to generate from the reference
+MUTANTS = 12
+# ratio below which the tests are considered weak
+MUTATION_WEAK = 0.6
+# per-mutant test timeout in seconds
+MUTANT_TIMEOUT_S = 30
+
 # run-all learns from new corrections and updates the wiki of changed files
 AUTO_LEARN = True
 AUTO_WIKI = True

@@ -1,12 +1,13 @@
 """refcheck: an independent reference implementation checks drafted tests."""
 
+import math
 import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
-from stratos import config, decide, langs, patch, verify
+from stratos import config, decide, langs, mutate, patch, verify
 
 SYSTEM = (
     "You write the source files of one task of a project from its goal alone "
@@ -193,7 +194,65 @@ def check(gw, plan_id, task, root, tests, extra=None):
             if "Error" in line or "assert" in line:
                 first_error = line.strip()[:200]
                 break
-        return {"status": judge(total, failing), "total": total, "failing": failing,
-                "first_error": first_error, "files": files}
+        result = {"status": judge(total, failing), "total": total, "failing": failing,
+                  "first_error": first_error, "files": files}
+        if result["status"] == "agree" and config.MUTATION:
+            result["mutation"] = mutation(copy, files, tests)
+        return result
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def mutation(copy, files, tests, limit=None):
+    if limit is None:
+        limit = config.MUTANTS
+    if not files:
+        return {"total": 0, "killed": 0, "survivors": []}
+    per_file = max(1, math.ceil(limit / len(files)))
+    all_mutants = []
+    orig = {path: content for path, content in files}
+    for path, content in files:
+        for m in mutate.mutants(content, per_file):
+            all_mutants.append((path, m))
+    all_mutants = all_mutants[:limit]
+
+    total = 0
+    killed = 0
+    survivors = []
+
+    for path, m in all_mutants:
+        dest = Path(copy) / path
+        dest.write_text(m["source"], encoding="utf-8")
+        try:
+            if path.endswith((".py", ".js")):
+                if verify.syntax_errors(copy, [path]):
+                    continue
+            try:
+                with verify.dotnet_scope(copy, tests):
+                    r = subprocess.run(
+                        verify.test_cmd(tests),
+                        cwd=str(copy),
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        timeout=config.MUTANT_TIMEOUT_S,
+                        env=langs.child_env(),
+                    )
+            except subprocess.TimeoutExpired:
+                total += 1
+                killed += 1
+                continue
+            out = r.stdout + r.stderr
+            t, failing = count_tests(out)
+            if t == 0:
+                continue
+            total += 1
+            if failing or r.returncode != 0:
+                killed += 1
+            else:
+                survivors.append(f"{path}:{m['line']}: {m['old'].strip()} -> {m['new'].strip()}")
+        finally:
+            dest.write_text(orig[path], encoding="utf-8")
+
+    return {"total": total, "killed": killed, "survivors": survivors}

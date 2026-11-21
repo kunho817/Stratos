@@ -235,6 +235,18 @@ def risky_patterns(text):
     return [label for label, _ in RISKY_LABELS if label in found]
 
 
+def mutation_lines(key, mutation):
+    if mutation is None or mutation["total"] == 0:
+        return []
+    killed = mutation["killed"]
+    total = mutation["total"]
+    lines = [f"{key}: the tests caught {killed} of {total} small bugs put into the reference"]
+    if killed / total < config.MUTATION_WEAK:
+        survivors = mutation["survivors"][:5]
+        lines.append(f"{key}: weak tests - these bugs went unnoticed: " + "; ".join(survivors))
+    return lines
+
+
 def draft_tests(gw, plan_id, root, state_dir, log=print):
     p = plan.load_plan(state_dir, plan_id)
     model_cfg = config.PLANNER
@@ -370,10 +382,14 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                 log(f"{key}: the reference implementation crashed ({r['first_error']}) - this says nothing about the tests")
             elif r["status"] == "agree":
                 log(f"{key}: reference implementation passes all {r['total']} tests")
+                for line in mutation_lines(key, r.get("mutation")):
+                    log(line)
             elif r["status"] == "error":
                 log(f"{key}: reference check: {r['first_error']}")
             gw.telemetry.record("ref_check", plan=plan_id, key=key, status=r["status"],
-                                total=r["total"], failing=r["failing"])
+                                total=r["total"], failing=r["failing"],
+                                mutation_total=(r.get("mutation") or {}).get("total"),
+                                mutation_killed=(r.get("mutation") or {}).get("killed"))
             for entry in task_entries[key]:
                 entry["refcheck"] = r
 
