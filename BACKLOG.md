@@ -10,6 +10,22 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
 
 ## Open (top first)
 
+**Work order 4 (user, 2026-11-21, after P16): GCM - the user updates Git; other languages approved, engines not
+yet; do the open items from trial 15; consider LSP.**
+- P17 from trial 15: (a) cases for node:test projects (cases.py writes pytest only; JS drafts flipped board columns
+  in 7 of 15 tests); (b) a search task runs the tests of the code its generator calls before the generator (10 of
+  14 right generators failed on a wrong solver); (c) review quality in `report`: blocks later overruled by a person
+  (accept, or the next try approved with no change asked), per reviewer model - to watch Tiel reviewing its own code.
+- P18 LSP: one diagnostics layer for every language - a small JSON-RPC client (stratos/lsp.py) that starts the
+  project's language server (stratos.toml "lsp_command"), opens the files a task wrote, collects
+  textDocument/publishDiagnostics and blocks on errors before the tests (like lint today, but types, imports and
+  undefined names in any language). Python: pyright (pip), JS: typescript-language-server with checkJs (npm),
+  Go: gopls (installed), C#: csharp-ls (dotnet tool), Rust: rust-analyzer (rustup). Measure on past failed
+  attempts what it would have caught.
+- P19 a new language: C# first (dotnet 8 is installed; the path to Unity later): a project layout with a .csproj
+  and an xUnit test project, `dotnet test` output parsed into failing test ids, the coder prompts for C#, LSP via
+  csharp-ls; then a trial project in C#. Go next if C# goes well (fast tests, gopls already here).
+
 **Work order 3 (user, 2026-11-20, after trial 11; reordered the same day): everything still to do, in order.
 Each P ends with push + a trial. Replaces the rest of work order 2.**
 - P10 context: only what is needed (user: "only the needed parts, so the models' memory of a long context fades
