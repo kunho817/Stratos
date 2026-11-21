@@ -30,6 +30,21 @@ Go + C# follow-ups. Memory packs and Jev stay on hold.
   before add (addcheck warned "uses main" generically; it cannot see getsource), `&& tail` hid a test failure
   again. Left for later: report.py split (636 lines of functions, not a chain - low value), test cleanup step
   2 (40 FakeGateway variants in 38 files -> one scripted fake).
+  **P21 done (T240-T242, 985 tests):** stratos/mutate.py (small bugs by rule: spaced comparisons, ==/!=, +/-,
+  and/or, &&/||, true/false, integer+1; strings, comments, docstrings left alone; 12 spread evenly), refcheck
+  scores an "agree" draft on them (non-building mutants not counted, a timeout counts as caught) and plan-tests
+  logs "caught k of n" plus "weak tests" below 60%; addcheck names old tests that read a changed file's source
+  text. Measured on finished trial code: Lantern board 12/12, solver 11/12 (the survivor only loops longer - an
+  equivalent mutant), the placeholder example.test.js 0/12 (the control); Settle Split 6/6, Transfers 7/12 -
+  **the tie-break (equal balances by name) is untested**, a real gap the 75 passing tests hid. Cost: 3-4 s per
+  py/js file, ~110 s per C# file (a build per mutant).
+  **The reviewer is now the worst judge.** T240: 6 answers that passed the tests were rejected - first because
+  the reviewer saw only the goal sentence, not the test docstring the goal points to (fixed: review.spec_text
+  puts it in), then with false claims (" < " inside " <= ", digits in a1.b2) and one right edge case; Claude
+  accepted attempt 23 with that fix. P22 first: a review issue must quote the line it is about, and a
+  candidate that passes the tests is blocked only by a high issue whose quote is in the diff.
+  addcheck's "uses <name>" is noisy for common names (check, main: 30+ lines) - rank or drop names defined in
+  many modules.
 
 **Next theme (user, 2026-11-21): perception - research and design in a NEW session.** The local models (even the
 vision ones) perceive the world far worse than frontier models. Start: a spatial occupancy map ("HeightMap") of a
