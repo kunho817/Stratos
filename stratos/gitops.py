@@ -63,7 +63,15 @@ def remove_worktree(repo, root, task_id, delete_branch=True):
         if path.is_dir() and not any(path.iterdir()):
             path.rmdir()   # an earlier remove was cut short (Windows held the folder): git already let go of it
         else:
-            git(repo, "worktree", "remove", "--force", str(path))
+            try:
+                git(repo, "worktree", "remove", "--force", str(path))
+            except RuntimeError:
+                # (Claude, 2026-11-21) a shell with its cwd in the folder: git emptied it and let go of it but
+                # cannot delete the folder itself - the empty folder is as good as gone (worktree add takes it)
+                if path.is_dir() and not any(path.iterdir()):
+                    pass
+                else:
+                    raise
     git(repo, "worktree", "prune", "-v")
     if delete_branch:
         branch = f"stratos/{task_id}"
