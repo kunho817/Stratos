@@ -449,13 +449,22 @@ def efficiency(events):
     model_seconds = round(model_seconds, 1)
     switch_seconds = round(switch_seconds, 1)
     active_seconds = round(active_seconds, 1)
-    other_seconds = round(max(0, active_seconds - model_seconds - switch_seconds), 1)
+
+    step_seconds = {}
+    for event in events:
+        if event.get("kind") == "step":
+            step_seconds[event["name"]] = step_seconds.get(event["name"], 0.0) + (event.get("seconds") or 0)
+    step_seconds = {name: round(sec, 1) for name, sec in sorted(step_seconds.items())}
+
+    step_sum = sum(step_seconds.values())
+    other_seconds = round(max(0, active_seconds - model_seconds - switch_seconds - step_sum), 1)
 
     time_info = {
         "model_seconds": model_seconds,
         "switch_seconds": switch_seconds,
         "active_seconds": active_seconds,
         "other_seconds": other_seconds,
+        "steps": step_seconds,
     }
 
     # first_try
@@ -567,7 +576,12 @@ def format_efficiency(e):
         b = e["by_cause"][cause]
         lines.append(f"    {cause}: {b['calls']} calls, {b['completion_tokens']} tokens, {b['seconds']:.0f} s")
     t = e["time"]
-    lines.append(f"  time: model {t['model_seconds']:.0f} s, switches {t['switch_seconds']:.0f} s, other {t['other_seconds']:.0f} s of {t['active_seconds']:.0f} s active")
+    if t["steps"]:
+        lines.append(f"  time: model {t['model_seconds']:.0f} s, switches {t['switch_seconds']:.0f} s, "
+                     + ", ".join(f"{name} {sec:.0f} s" for name, sec in t["steps"].items())
+                     + f", other {t['other_seconds']:.0f} s of {t['active_seconds']:.0f} s active")
+    else:
+        lines.append(f"  time: model {t['model_seconds']:.0f} s, switches {t['switch_seconds']:.0f} s, other {t['other_seconds']:.0f} s of {t['active_seconds']:.0f} s active")
     ft = e["first_try"]
     first_try_line = f"  first try: {ft['passed']}/{ft['tasks']} tasks"
     first_try_line += "".join(f", {role} {p}/{n}" for role, (p, n) in sorted(ft["by_role"].items()))

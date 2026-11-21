@@ -11,7 +11,7 @@ import sys
 import urllib.error
 from pathlib import Path
 
-from . import checker, codemap, config, context, decide, diagnose, embed, gitops, jev, lint, memstore, patch, preflight, recall, review, triage, verify
+from . import checker, codemap, config, context, decide, diagnose, embed, gitops, jev, lint, memstore, patch, preflight, recall, review, steps, triage, verify
 
 SEARCH_TIMEOUT_S = 60
 
@@ -215,6 +215,7 @@ def check_answer(task, wt, text, finish=None):
 
 def write_task(store, gw, task_id, log=print):
     """Run the task's attempts until the tests pass, without a review; commit a candidate when a review is on."""
+    steps.use(gw.telemetry, task_id)
     task = store.get(task_id)
     memory = task_memory(task)
     bases = gitops.dependency_bases(config.REPO, task.get("after", []))
