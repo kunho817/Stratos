@@ -28,6 +28,16 @@ yet; do the open items from trial 15; consider LSP.**
   undefined names in any language). Python: pyright (pip), JS: typescript-language-server with checkJs (npm),
   Go: gopls (installed), C#: csharp-ls (dotnet tool), Rust: rust-analyzer (rustup). Measure on past failed
   attempts what it would have caught.
+  **P18 built (T231-T232, 931 tests, 2026-11-21) - LSP engines as command-line checkers.** The LSP conversation
+  itself (JSON-RPC, open/close, configuration requests) gave no diagnostics in 8 s and hung; the same engines as
+  CLIs answer in ~1-4 s (pyright: 42 Stratos files in 3.7 s, 17 errors). checker.py runs stratos.toml's
+  check_command ({files} placeholder) and reads both error forms (file:line:col - error: msg / file(line,col): error
+  X: msg - pyright, gcc, tsc, dotnet); loop._judge blocks on errors the answer adds (compared without line numbers,
+  like lint) as "check_error", before lint and the search generator; Python projects get pyright by default when it
+  sits in the venv. Of 440 failed attempts ~80 were static-visible kinds (types, attributes, imports, names); the
+  checker matters most for compiled languages (C#: the build is the check). Also: the syntax check now treats a
+  SyntaxWarning (invalid escape) as an error - Tiel's checker.py had "\s" in a plain docstring (49 warnings in the
+  suite). Claude's slip: a heredoc ate backslashes in a test again (rule 14 says not to).
 - P19 a new language: C# first (dotnet 8 is installed; the path to Unity later): a project layout with a .csproj
   and an xUnit test project, `dotnet test` output parsed into failing test ids, the coder prompts for C#, LSP via
   csharp-ls; then a trial project in C#. Go next if C# goes well (fast tests, gopls already here).
