@@ -16,7 +16,7 @@ loop.write_task calls steps.use(gw.telemetry, task_id) first; plantests.draft_te
   steps.use(gw.telemetry, plan_id) first.
 report.efficiency(events)["time"]["steps"]: {name: seconds summed over the "step" events, rounded to 1 decimal},
   keys sorted; "other_seconds" = max(0, active - model - switch - the sum of the steps), rounded to 1 decimal.
-report.format_efficiency's time line, when steps is not empty:
+report.format_efficiency (a list of lines) - its time line, when steps is not empty:
   f"  time: model {m:.0f} s, switches {s:.0f} s, " + ", ".join(f"{name} {sec:.0f} s") + f", other {o:.0f} s of
   {a:.0f} s active"; with no steps it is the line it was."""
 import inspect
@@ -93,6 +93,6 @@ def test_report_breaks_down_the_other_time():   # part C
     assert list(t["steps"]) == ["check", "tests"]
     assert t["active_seconds"] == 300.0
     assert t["other_seconds"] == round(300.0 - t["model_seconds"] - t["switch_seconds"] - 55.04, 1)
-    line = next(ln for ln in report.format_efficiency(report.efficiency(EVENTS)).splitlines() if "time:" in ln)
+    line = next(ln for ln in report.format_efficiency(report.efficiency(EVENTS)) if "time:" in ln)   # a list of lines
     assert line == (f"  time: model {t['model_seconds']:.0f} s, switches {t['switch_seconds']:.0f} s, check 5 s, "
                     f"tests 50 s, other {t['other_seconds']:.0f} s of 300 s active")
