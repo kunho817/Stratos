@@ -142,6 +142,26 @@ Each P ends with push + a trial. Replaces the rest of work order 2.**
   --output PATH` - the model writes a generator (.py/.js/.mjs, the task's first file), the harness runs it (60 s),
   writes its stdout to PATH, then lint and tests; a failing or slow generator is "search_failed". Claude's slip: a
   test-list glob (tests/test_loop_*.py) pulled the new file's other task's tests into T226.
+  **Trial 15: Lantern, a 4x4 lights-out web puzzle (D:\Strata\Trials\Lantern, JS, 2026-11-21) - after P16, the
+  first search task.** Waste 35.9% (the generator), first try 5/7; 56 tests; levels made by the generator.
+  - Claude's reference caught an impossible goal before any model ran: a 4x4 board needs at most 7 presses (4096
+    solvable boards: 1/16/120/560/1387/1440/540/32 by fewest presses), so "levels needing 2-11 presses" (Claude's
+    goal and the planner's) could never be met -> [2,2,3,3,4,4,5,5,6,7].
+  - The main lesson: 14 generator answers failed as search_failed / timeouts and triage blamed the generator, but 10
+    of them were right - T002's solver called most solvable boards unsolvable and never gave 6 or 7 (it passed
+    Claude's hand-written solver tests, which only reached 4 presses). An exhaustive test (counts over all 65536
+    boards) caught it; T006 fixed the solver on the first try. A search task depends on the code it calls: when its
+    generator fails or loops, check the callee first (idea: run the generator's callee tests before it, or a
+    property test per rule-heavy function).
+  - Then 3 right generators failed a drafted test that looked for "Math.random" in comments ("no Math.random");
+    consensus named it. Then the new reviewer (Tiel) blocked a right generator for not drawing press-set sizes
+    1-8 (a hint in the goal) - its first false block; accepted by hand.
+  - Harness fixes on the way: plan-add dropped a plan task's output; parse_files dropped a draft whose header opens
+    a bare fence (``` / FILE: x / content); a failing generator's stderr keeps both ends (node puts the error
+    first); its output is written as printed (write_text made \r\n on Windows).
+  - The test writer flipped the wrong columns in 7 of 15 board tests ("#.#." for a corner press) - refcheck flagged
+    all 7; Claude rewrote board/solver tests and made the same slip once (his reference caught it). Cases for
+    node tests (cases.py is pytest only) would help JS projects.
 - P16 also: replay is slow for experiments (user, 2026-11-21: "why so long?") - 23 tasks took ~15 min, of which
   ~8 min model time; the rest is a new worktree per task, the tests run 3 times (VERIFY_RUNS, needed for real tasks
   but not for a replay) and, with --memory, a new Embedder per task. Decided (user + Claude, 2026-11-21): not now -
