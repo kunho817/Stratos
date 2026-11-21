@@ -175,6 +175,8 @@ def build_messages(task, root, code_files, test_output, consensus=None):
         for tid in consensus:
             lines.append("- " + tid)
         lines.append("Code from different models that agrees against a test is a sign the test may be wrong; check those tests first.")
+        if "(the generator)" in consensus:
+            lines.append("Generators written by different models all failed: the code they call (the task's protected source files) may be wrong - check it before blaming the generator.")
         lines.append("")
     lines.append("Test output:")
     lines.append(test_output)
