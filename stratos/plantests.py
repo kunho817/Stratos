@@ -272,7 +272,7 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
             if lines:
                 parsed = cases.parse("\n".join(lines))
                 if not parsed["other"]:
-                    files = [(task["tests"][0], cases.render(parsed))]
+                    files = [(task["tests"][0], cases.render(parsed, language="javascript" if config.PROJECT["language"] == "javascript" else "python"))]
                     log(f"{task['tests'][0]}: written from {len(parsed['plain'])} cases (no model)")
                 else:
                     old = old_tests(cmap, task)

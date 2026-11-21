@@ -630,8 +630,9 @@ def _main(argv=None):
         if not parsed["plain"]:
             print("no plain cases")
             return 1
+        language = "javascript" if args.out.endswith((".js", ".mjs")) else "python"
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(cases.render(parsed), encoding="utf-8")
+        out.write_text(cases.render(parsed, language=language), encoding="utf-8")
         print(f"wrote {args.out}: {len(parsed['plain'])} tests from cases")
         for line in parsed["other"]:
             print(f"  not a plain call (write it by hand or give it to the test writer): {line}")
