@@ -165,3 +165,18 @@ def test_allowlisted_lines_are_skipped():
     these tests would otherwise stop every push of Stratos itself)."""
     line = "+KEY = 'sk-abcdefghijklmnopqrstuvwxyz'  # pragma: allowlist secret"
     assert push.secret_hits(line) == []
+
+
+def test_a_refusal_names_the_failing_tests(repos):
+    """(Claude, 2026-11-21) a push was once refused with only "tests failed" and the failure never came back in 18
+    runs: the refusal now names what failed (decide._extract_ids of the output, at most 5), so a flaky test can
+    be found later."""
+    origin, work = repos
+    git(work, "remote", "add", "origin", str(origin))
+    git(work, "push", "-q", "origin", "main")
+    (work / "c.txt").write_text("x\n", encoding="utf-8")
+    git(work, "add", "-A")
+    git(work, "commit", "-qm", "three")
+    out = "FAILED tests/test_a.py::test_x - AssertionError\nFAILED tests/test_b.py::test_y\n2 failed, 5 passed"
+    ok, msgs, _ = push.check(work, lambda: (False, out))
+    assert msgs == ["tests failed: tests/test_a.py::test_x, tests/test_b.py::test_y"]

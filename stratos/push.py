@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 
+from stratos import decide
 from stratos.gitops import git
 
 SECRET_PATTERNS = [
@@ -100,7 +101,9 @@ def check(repo, run_tests):
 
     passed, output = run_tests()
     if not passed:
-        messages.append("tests failed")
+        # (Claude, 2026-11-21) name what failed: a refusal that said only "tests failed" never came back
+        failed = decide._extract_ids(output or "")[:5]
+        messages.append("tests failed: " + ", ".join(failed) if failed else "tests failed")
 
     ok = len(messages) == 0
     return (ok, messages, info)
