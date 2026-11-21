@@ -20,8 +20,9 @@ from stratos.telemetry import Telemetry
 
 WRITER = "FILE: pkg/a.py\n```python\nX = 1\n```\n"
 APPROVE = '```json\n{"verdict": "approve", "issues": []}\n```'
+# P22: an issue blocks only when its quote is a line of the diff (the fake diff adds "X = 1")
 BLOCK = ('```json\n{"verdict": "changes", "issues": [{"severity": "medium", "file": "pkg/a.py", '
-         '"problem": "condition is always true"}]}\n```')
+         '"problem": "condition is always true", "quote": "X = 1"}]}\n```')
 LOW = '```json\n{"verdict": "changes", "issues": [{"severity": "low", "file": "pkg/a.py", "problem": "long line"}]}\n```'
 # a reviewer model other than the coders, so the batching (write all, then review all) shows in the switches;
 # the real reviewer is Tiel since task reviewer_tiel (Claude updated this test)
@@ -142,7 +143,9 @@ def test_low_issues_do_not_block_and_go_into_the_commit_message(env):
 
 
 def test_unparsed_review_does_not_block(env):
-    gw = gateway(env, {"coder": [WRITER], "reviewer": ["I cannot review this."]})
+    # P22: the reviewer is asked once more; a second unparsed answer still does not block, but the task is marked
+    # as not reviewed (tests/test_review_evidence.py)
+    gw = gateway(env, {"coder": [WRITER], "reviewer": ["I cannot review this.", "Still no JSON."]})
     assert loop.run_task(env[0], gw, "T001", log=quiet) == "done"
 
 

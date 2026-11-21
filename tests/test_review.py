@@ -1,7 +1,8 @@
 """Tests for task T006: stratos/review.py, the parts of the review step that need no model.
 
 build_messages(task, diff) -> chat messages asking a reviewer model for a JSON verdict on the diff
-parse(text)                -> {"verdict": "approve" | "changes" | "unparsed", "issues": [{severity, file, problem}]}
+parse(text)                -> {"verdict": "approve" | "changes" | "unparsed", "issues": [{severity, file, problem, quote}]}
+                              (quote: the reviewer's copy of the line the issue is about, "" when none; P22)
 is_blocking(review)        -> True when any issue is "high" or "medium"
 format_issues(review)      -> the issues as lines for the next attempt's prompt
 """
@@ -29,7 +30,7 @@ def test_parse_a_json_block():
     text = 'Looks mostly fine.\n```json\n{"verdict": "changes", "issues": [{"severity": "Medium", "file": "stratos/x.py", "problem": "condition is always true"}]}\n```'
     r = review.parse(text)
     assert r["verdict"] == "changes"
-    assert r["issues"] == [{"severity": "medium", "file": "stratos/x.py", "problem": "condition is always true"}]
+    assert r["issues"] == [{"severity": "medium", "file": "stratos/x.py", "problem": "condition is always true", "quote": ""}]
 
 
 def test_parse_bare_json_and_approve():
@@ -41,7 +42,7 @@ def test_parse_bare_json_with_nested_issues():
     text = 'My review: {"verdict": "changes", "issues": [{"severity": "high", "file": "a.py", "problem": "crashes"}]} done.'
     r = review.parse(text)
     assert r["verdict"] == "changes"
-    assert r["issues"] == [{"severity": "high", "file": "a.py", "problem": "crashes"}]
+    assert r["issues"] == [{"severity": "high", "file": "a.py", "problem": "crashes", "quote": ""}]
 
 
 def test_system_prompt_shows_valid_json():
@@ -53,7 +54,7 @@ def test_system_prompt_shows_valid_json():
 def test_parse_accepts_a_python_style_dict():
     assert review.parse("{'verdict': 'approve', 'issues': []}") == {"verdict": "approve", "issues": []}
     text = "```json\n{'verdict': 'changes', 'issues': [{'severity': 'high', 'file': 'a.py', 'problem': 'crash'}]}\n```"
-    assert review.parse(text)["issues"] == [{"severity": "high", "file": "a.py", "problem": "crash"}]
+    assert review.parse(text)["issues"] == [{"severity": "high", "file": "a.py", "problem": "crash", "quote": ""}]
 
 
 def test_module_imports_are_at_the_top():
@@ -63,7 +64,7 @@ def test_module_imports_are_at_the_top():
 
 def test_parse_normalizes_bad_fields():
     r = review.parse('```json\n{"verdict": "changes", "issues": [{"severity": "critical", "problem": "x"}, "not an issue"]}\n```')
-    assert r["issues"] == [{"severity": "medium", "file": "", "problem": "x"}]   # unknown severity -> medium
+    assert r["issues"] == [{"severity": "medium", "file": "", "problem": "x", "quote": ""}]   # unknown severity -> medium
 
 
 def test_parse_garbage():
