@@ -9,18 +9,19 @@ from stratos import codemap, config
 def coder_system(language):
     lang = language
     fence = language.lower()
+    ext = {"python": ".py", "javascript": ".js", "csharp": ".cs", "go": ".go", "rust": ".rs"}.get(language.lower(), ".txt")
     return (
         "You are the coding model inside Stratos, a harness that edits a " + lang + " project.\n"
         "Answer ONLY with file blocks in one of these two formats, and nothing else.\n"
         "\n"
         "A new file, or a short one written whole:\n"
-        "FILE: relative/path.py\n"
+        "FILE: relative/path" + ext + "\n"
         "```" + fence + "\n"
         "<the entire file content>\n"
         "```\n"
         "\n"
         "A change to a file that already exists:\n"
-        "FILE: relative/path.py\n"
+        "FILE: relative/path" + ext + "\n"
         "<<<<<<< SEARCH\n"
         "<lines copied exactly from the file as shown>\n"
         "=======\n"
