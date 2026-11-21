@@ -4,6 +4,7 @@ before the tasks run."""
 import ast
 import re
 import subprocess
+import urllib.error
 from pathlib import Path
 
 from . import codemap, config, context, decide, embed, lint, memstore, plan, patch, recall, refcheck
@@ -345,7 +346,15 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
             else:
                 old = old_tests(cmap, task)
                 messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old)
-                files = _ask_test_writer(gw, plan_id, task, messages, model_cfg, answers_dir, root)
+                try:
+                    files = _ask_test_writer(gw, plan_id, task, messages, model_cfg, answers_dir, root)
+                except urllib.error.HTTPError as e:
+                    detail = e.read().decode("utf-8", errors="replace")[:500]
+                    for tpath in task["tests"]:
+                        results.append({"key": key, "file": tpath, "status": "call_error", "detail": detail})
+                    task_written[key] = []
+                    task_entries[key] = []
+                    continue
 
             written = {}
             for fpath, fcontent in files:
