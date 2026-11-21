@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import warnings
+from pathlib import Path
 
 from . import config
 
@@ -78,14 +79,18 @@ def summarize_output(out):
 
 
 def run_tests(worktree, tests, parallel=False):
-    if parallel and config.PROJECT["test_runner"] == "pytest" and importlib.util.find_spec("xdist") is not None:
+    if config.PROJECT["test_runner"] == "dotnet":
+        cmd = [*config.PROJECT["test_command"], "--filter", "|".join(
+            f"FullyQualifiedName~{Path(t.split('::')[0]).stem}" for t in tests)]
+    elif parallel and config.PROJECT["test_runner"] == "pytest" and importlib.util.find_spec("xdist") is not None:
         cmd = [*config.PROJECT["test_command"], "-n", "auto", *tests]
     else:
         cmd = [*config.PROJECT["test_command"], *tests]
     out = ""
     for seed in range(1, config.VERIFY_RUNS + 1):
         # UTF-8 both ways: with the Windows default (cp949 here) a test's Korean text crashed the run (T019, 2026-11-17)
-        env = {**os.environ, "PYTHONHASHSEED": str(seed), "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+        env = {**os.environ, "PYTHONHASHSEED": str(seed), "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1",
+               "DOTNET_CLI_UI_LANGUAGE": "en"}
         try:
             r = subprocess.run(cmd, cwd=worktree, capture_output=True, text=True, encoding="utf-8", errors="replace",
                                timeout=config.TEST_TIMEOUT_S, env=env)
