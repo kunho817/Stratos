@@ -158,6 +158,10 @@ class PlanFormatError(PlanError):
     pass
 
 
+class PlanNotFound(KeyError):
+    pass
+
+
 _FIELD_RE = re.compile(
     r'^\s*[-*#\s]*\**\s*(Key|Title|Goal|Files|Tests|Protected|After|Role)\**\s*:\**\s*(.*)$'
 )
@@ -440,8 +444,13 @@ def load_plan(state_dir, pid):
     state_dir = Path(state_dir)
     path = state_dir / "plans" / f"{pid}.json"
     if not path.exists():
-        raise KeyError(pid)
-    return json.loads(path.read_text(encoding="utf-8"))
+        raise PlanNotFound(pid)
+    p = json.loads(path.read_text(encoding="utf-8"))
+    for t in p.get("tasks", []):
+        t.setdefault("protected", [])
+        t.setdefault("after", [])
+        t.setdefault("role", "coder")
+    return p
 
 
 def save_critique(state_dir, plan_id, problems):
