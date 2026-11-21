@@ -133,6 +133,15 @@ Each P ends with push + a trial. Replaces the rest of work order 2.**
   rules were right, Swift fixes its own failures far better than Tiel does. Jev stays in shadow (records only); new
   uses need code and tests, which Jev may not get (summaries only), so none now. Revisit when there is a use that
   summaries can serve.
+  **P16 built (T224-T226, 912 tests, 2026-11-21).** Switch time by cause (712 switches, 15,155 s): review 7,972 s
+  (53%), between the coders 4,249 s, diagnosis 1,502 s, planning/tests/triage/learn/wiki 1,362 s. The 10 known
+  review cases (--context, 2 runs): Tiel 9/10 and 9/10 = Qwen3.6 9/10 and 9/10, Swift 8 and 7 -> the reviewer is
+  Tiel (no switch after Tiel writes). Risk to watch: Tiel reviews its own code (the old reason for a separate
+  reviewer was "it does not share their blind spots"); count review false blocks and missed bugs in the next trials.
+  Diagnosis stays on Qwen Q4 (25 min in all; a fair check would cost a 40-minute experiment). Search tasks: `add
+  --output PATH` - the model writes a generator (.py/.js/.mjs, the task's first file), the harness runs it (60 s),
+  writes its stdout to PATH, then lint and tests; a failing or slow generator is "search_failed". Claude's slip: a
+  test-list glob (tests/test_loop_*.py) pulled the new file's other task's tests into T226.
 - P16 also: replay is slow for experiments (user, 2026-11-21: "why so long?") - 23 tasks took ~15 min, of which
   ~8 min model time; the rest is a new worktree per task, the tests run 3 times (VERIFY_RUNS, needed for real tasks
   but not for a replay) and, with --memory, a new Embedder per task. Decided (user + Claude, 2026-11-21): not now -
