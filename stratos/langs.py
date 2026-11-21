@@ -35,6 +35,8 @@ class Runner:
         yield
 
     def missing_import(self, output):
+        # a draft that names what is not written yet is "import_error", not "error": Python's missing module, and
+        # (Claude, Settle) C#'s missing name/type/namespace (CS0103/CS0246/CS0234)
         if "ModuleNotFoundError" in output or "ImportError" in output:
             return True
         return re.search(r"error CS0(103|246|234)\b", output) is not None
@@ -52,17 +54,23 @@ class NodeTest(Runner):
 
 
 class Dotnet(Runner):
+    """(Claude, 2026-11-21, Settle) C#: the seven harness bugs of trial 16 came from here."""
+
     def test_cmd(self, tests, parallel=False):
+        # dotnet test takes a class filter, not file paths: a test file is its test class (SplitTests.cs)
         filter_ = "|".join(f"FullyQualifiedName~{Path(t.split('::')[0]).stem}" for t in tests)
         return [*self.project["test_command"], "--filter", filter_]
 
     def with_paths(self, cmd, paths):
+        # `dotnet build <file>.cs` reads the .cs as a project file (MSB4025): build the project as given
         if "{files}" in cmd:
             return super().with_paths(cmd, paths)
         return list(cmd)
 
     @contextlib.contextmanager
     def scope(self, root, tests):
+        # a .NET test project builds as one unit: later tasks' drafts (types not written yet) broke every build, so
+        # during a run only these test files compile
         test_dir = self.project.get("test_dir", "tests")
         targets = Path(root) / test_dir / "Directory.Build.targets"
         lines = [
@@ -101,6 +109,8 @@ def runner(project=None):
 
 
 def child_env(**extra):
+    # UTF-8 both ways: with the Windows default (cp949 here) a test's Korean text crashed a run (T019, 2026-11-17);
+    # dotnet speaks Korean on this machine unless told otherwise, and its messages are parsed
     env = dict(os.environ)
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
