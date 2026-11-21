@@ -110,7 +110,27 @@ def whole_files(root, paths, max_lines=300):
     return "\n\n".join(blocks), short
 
 
-def build_messages(task, diff, files=None, imports=None, whole=None):
+def spec_text(root, task):
+    """(Claude, 2026-11-21, T240) the docstrings of the task's test files that the goal points to: goals say "as the
+    docstring of tests/test_x.py describes", and a reviewer that saw only the goal sentence rejected three right
+    answers for rules written there."""
+    goal = task.get("goal", "")
+    seen, parts = set(), []
+    for t in task.get("tests", []):
+        path = t.split("::", 1)[0]
+        if path in seen or path not in goal:
+            continue
+        seen.add(path)
+        try:
+            doc = ast.get_docstring(ast.parse(Path(root, path).read_text(encoding="utf-8")))
+        except (OSError, SyntaxError, ValueError):
+            continue
+        if doc:
+            parts.append(f"SPEC FROM {path} (the goal points to it; it is part of the goal):\n{doc}\n\n")
+    return "".join(parts)
+
+
+def build_messages(task, diff, files=None, imports=None, whole=None, spec=""):
     task_id = task.get("id", "")
     title = task.get("title", "")
     goal = task.get("goal", "")
@@ -133,7 +153,8 @@ def build_messages(task, diff, files=None, imports=None, whole=None):
         "Task id: " + task_id + "\n"
         "Title: " + title + "\n"
         "Goal: " + goal + "\n\n"
-        + files_part +
+        + (spec or "") +
+        files_part +
         imports_part +
         whole_part +
         "Diff:\n"

@@ -132,3 +132,37 @@ def test_small_repeated_calls_are_low():
     assert "a repeated call that costs a fixed small amount is low unless the goal is about speed" in \
         review.REVIEW_SYSTEM
     assert "needless repeated work" not in review.REVIEW_SYSTEM
+
+
+# ---- spec from the goal's test docstring (Claude, 2026-11-21, T240) ----
+# Goals say "exactly as the docstring of tests/test_x.py describes"; the reviewer saw only the goal sentence and
+# rejected three right answers of T240 for rules that were in that docstring. review.spec_text(root, task) ->
+# "" or, for each test file of task["tests"] (the part before "::", in order, once) whose path is in the goal and
+# whose module docstring Python can read (ast.get_docstring), f"SPEC FROM {path} (the goal points to it; it is
+# part of the goal):\n{doc}\n\n" joined. build_messages(task, diff, ..., spec="") puts it right after the goal
+# line (a blank line between), and the loop passes spec=review.spec_text(wt, task).
+def test_spec_text_reads_the_docstrings_the_goal_names(tmp_path):
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_a.py").write_text('"""Rule A: keep it."""\nX = 1\n', encoding="utf-8")
+    (tmp_path / "tests" / "test_b.py").write_text('"""Rule B."""\n', encoding="utf-8")
+    (tmp_path / "tests" / "test_c.py").write_text("X = 1\n", encoding="utf-8")
+    task = {"goal": "as tests/test_a.py and tests/test_c.py describe", "tests": [
+        "tests/test_a.py::test_x", "tests/test_a.py", "tests/test_b.py", "tests/test_c.py", "tests/test_gone.py"]}
+    assert review.spec_text(tmp_path, task) == (
+        "SPEC FROM tests/test_a.py (the goal points to it; it is part of the goal):\nRule A: keep it.\n\n")
+    assert review.spec_text(tmp_path, {"goal": "g", "tests": ["tests/test_a.py"]}) == ""
+
+
+def test_build_messages_puts_the_spec_after_the_goal():
+    msgs = review.build_messages({"id": "T1", "title": "t", "goal": "G"}, "DIFF", spec="SPEC FROM x:\nR\n\n")
+    user = msgs[1]["content"]
+    assert "Goal: G\n\nSPEC FROM x:\nR\n\n" in user
+    assert user.index("SPEC FROM") < user.index("Diff:")
+    assert "SPEC FROM" not in review.build_messages({"goal": "G"}, "D")[1]["content"]
+
+
+def test_the_loop_passes_the_spec():
+    import inspect
+
+    from stratos import loop
+    assert "spec=review.spec_text(wt, task)" in inspect.getsource(loop)
