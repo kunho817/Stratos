@@ -14,7 +14,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from stratos import config
+from stratos import config, langs
 
 _COLON = re.compile(r"^\s*(?P<file>.+?):(?P<line>\d+)(?::\d+)?\s*-?\s*error\s*:?\s*(?P<msg>.+)$")
 _PAREN = re.compile(r"^\s*(?P<file>.+?)\((?P<line>\d+),\d+\)\s*:\s*error\s+(?P<msg>.+)$")
@@ -44,17 +44,11 @@ def check(root, paths):
     cmd = config.PROJECT.get("check_command")
     if not cmd or not paths:
         return []
-    if "{files}" in cmd:
-        cmd = [item for x in cmd for item in (paths if x == "{files}" else [x])]
-    elif config.PROJECT.get("test_runner") == "dotnet":
-        # (Claude, 2026-11-21, Settle) dotnet build takes a project, not .cs files (MSB4025): build it as given
-        cmd = list(cmd)
-    else:
-        cmd = list(cmd) + list(paths)
+    cmd = langs.runner().with_paths(cmd, paths)
     try:
         r = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True,
                            encoding="utf-8", errors="replace", timeout=120,
-                           env={**os.environ, "DOTNET_CLI_UI_LANGUAGE": "en"})
+                           env=langs.child_env())
     except (subprocess.TimeoutExpired, OSError):
         return []
     return parse(r.stdout + r.stderr, root, paths)

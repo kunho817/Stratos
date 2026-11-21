@@ -3,14 +3,12 @@
 The tests run config.VERIFY_RUNS times, each with a different PYTHONHASHSEED, and pass only if every run passes:
 code that depends on set or dict order can pass once by luck (T003's first answer did, 2026-11-16)."""
 import contextlib
-import importlib.util
 import os
 import re
 import subprocess
 import warnings
-from pathlib import Path
 
-from . import config
+from stratos import config, langs
 
 
 def summarize_output(out):
@@ -80,39 +78,15 @@ def summarize_output(out):
 
 
 def test_cmd(tests):
-    """The command that runs these tests: dotnet takes a class filter instead of file paths (P19)."""
-    if config.PROJECT.get("test_runner") == "dotnet":
-        return [*config.PROJECT["test_command"], "--filter", "|".join(
-            f"FullyQualifiedName~{Path(t.split('::')[0]).stem}" for t in tests)]
-    return [*config.PROJECT["test_command"], *tests]
+    return langs.runner().test_cmd(tests)
 
 
 @contextlib.contextmanager
 def dotnet_scope(root, tests):
     """(Claude, 2026-11-21, Settle) a .NET test project builds as one unit: compile only these test files, so the
-    drafts of later tasks (types not written yet) do not break the build. Writes <test_dir>/Directory.Build.targets
-    for the run and removes it after."""
-    if config.PROJECT.get("test_runner") != "dotnet":
+    drafts of later tasks (types not written yet) do not break the build."""
+    with langs.runner().scope(root, tests):
         yield
-        return
-    test_dir = config.PROJECT.get("test_dir", "tests")
-    target = Path(root, test_dir, "Directory.Build.targets")
-    lines = ['<Project>', '  <ItemGroup>', '    <Compile Remove="$(MSBuildProjectDirectory)/**/*Tests.cs" />']
-    for t in tests:
-        rel = t.split("::")[0].replace("\\", "/")
-        if rel.startswith(test_dir + "/"):
-            rel = rel[len(test_dir) + 1:]
-        lines.append(f'    <Compile Include="$(MSBuildThisFileDirectory){rel}" />')
-    lines += ['  </ItemGroup>', '</Project>', '']
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("\n".join(lines), encoding="utf-8")
-    try:
-        yield
-    finally:
-        try:
-            target.unlink()
-        except OSError:
-            pass
 
 
 def run_tests(worktree, tests, parallel=False):
@@ -121,17 +95,10 @@ def run_tests(worktree, tests, parallel=False):
 
 
 def _run_tests(worktree, tests, parallel=False):
-    if config.PROJECT.get("test_runner") == "dotnet":
-        cmd = test_cmd(tests)
-    elif parallel and config.PROJECT.get("test_runner") == "pytest" and importlib.util.find_spec("xdist") is not None:
-        cmd = [*config.PROJECT["test_command"], "-n", "auto", *tests]
-    else:
-        cmd = [*config.PROJECT["test_command"], *tests]
+    cmd = langs.runner().test_cmd(tests, parallel=parallel)
     out = ""
     for seed in range(1, config.VERIFY_RUNS + 1):
-        # UTF-8 both ways: with the Windows default (cp949 here) a test's Korean text crashed the run (T019, 2026-11-17)
-        env = {**os.environ, "PYTHONHASHSEED": str(seed), "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1",
-               "DOTNET_CLI_UI_LANGUAGE": "en"}
+        env = langs.child_env(PYTHONHASHSEED=str(seed))
         try:
             r = subprocess.run(cmd, cwd=worktree, capture_output=True, text=True, encoding="utf-8", errors="replace",
                                timeout=config.TEST_TIMEOUT_S, env=env)

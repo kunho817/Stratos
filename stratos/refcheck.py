@@ -1,13 +1,12 @@
 """refcheck: an independent reference implementation checks drafted tests."""
 
-import os
 import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
-from stratos import config, decide, patch, verify
+from stratos import config, decide, langs, patch, verify
 
 SYSTEM = (
     "You write the source files of one task of a project from its goal alone "
@@ -92,7 +91,7 @@ def count_tests(output):
         total = len(tap)
         failing = [name.strip() for ok, name in tap if ok == "not ok"]
         return (total, failing)
-    totals = re.findall(r"Total(?: tests)?:\s*(\d+)", output)   # "Total: 4"; with verbosity=normal "Total tests: 4"
+    totals = re.findall(r"Total(?: tests)?:\s*(\d+)", output)
     if totals:
         return (int(totals[-1]), decide._extract_ids(output))
     lines = output.splitlines()
@@ -163,9 +162,9 @@ def check(gw, plan_id, task, root, tests, extra=None):
         if errors:
             return {"status": "error", "total": 0, "failing": [],
                     "first_error": "the reference does not compile: " + errors[0], "files": []}
-        cmd = verify.test_cmd(tests)   # (Claude, Settle) dotnet needs a class filter, not file paths
+        cmd = verify.test_cmd(tests)
         try:
-            with verify.dotnet_scope(copy, tests):   # C#: only these test files compile (later drafts would not build)
+            with verify.dotnet_scope(copy, tests):
                 r = subprocess.run(
                     cmd,
                     cwd=str(copy),
@@ -174,7 +173,7 @@ def check(gw, plan_id, task, root, tests, extra=None):
                     encoding="utf-8",
                     errors="replace",
                     timeout=config.TEST_TIMEOUT_S,
-                    env={**os.environ, "DOTNET_CLI_UI_LANGUAGE": "en", "PYTHONIOENCODING": "utf-8"},
+                    env=langs.child_env(),
                 )
         except subprocess.TimeoutExpired:
             return {"status": "error", "total": 0, "failing": [], "first_error": "tests timed out",
@@ -182,10 +181,9 @@ def check(gw, plan_id, task, root, tests, extra=None):
         out = r.stdout + r.stderr
         total, failing = count_tests(out)
         if total == 0 and not failing:
-            # (Claude, Settle) nothing ran (a wrong command, a build error before the tests): not an "agree"
             first = next((ln.strip()[:200] for ln in out.splitlines() if "rror" in ln), out.strip()[-200:])
             return {"status": "error", "total": 0, "failing": [], "first_error": "no test ran: " + first,
-                    "files": []}   # a reference that ran nothing is not passed on to later tasks
+                    "files": []}
         crash = crash_line(out, [p for p, _ in files])
         if crash:
             return {"status": "crashed", "total": total, "failing": failing,
@@ -199,4 +197,3 @@ def check(gw, plan_id, task, root, tests, extra=None):
                 "first_error": first_error, "files": files}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-

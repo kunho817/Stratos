@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import codemap, config, context, decide, embed, lint, memstore, plan, patch, recall, refcheck
 from . import cases
+from stratos import langs
 
 
 def system_prompt(language, test_runner):
@@ -178,24 +179,20 @@ def check_draft(root, path):
             ast.parse(p.read_text(encoding="utf-8"))
         except SyntaxError as e:
             return ("syntax_error", str(e))
-    if config.PROJECT.get("test_runner") == "dotnet":
-        cmd = list(config.PROJECT["draft_check_command"])
-    else:
-        cmd = config.PROJECT["draft_check_command"] + [path]
+    cmd = langs.runner().with_paths(config.PROJECT["draft_check_command"], [path])
     try:
         result = subprocess.run(
             cmd,
             cwd=str(root), capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=120,
+            env=langs.child_env(),
         )
     except subprocess.TimeoutExpired:
         return ("error", "draft check timed out")
     if result.returncode == 0:
         return ("collected", "")
     output = result.stdout + result.stderr
-    # (Claude, 2026-11-21, Settle) C#: a draft that names types not written yet does not build (CS0103/CS0246/CS0234)
-    if ("ModuleNotFoundError" in output or "ImportError" in output
-            or re.search(r"error CS0(103|246|234)\b", output)):
+    if langs.runner().missing_import(output):
         return ("import_error", output[-2000:])
     return ("error", output[-2000:])
 
