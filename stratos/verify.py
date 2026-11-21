@@ -78,10 +78,17 @@ def summarize_output(out):
     return result_str
 
 
+def test_cmd(tests):
+    """The command that runs these tests: dotnet takes a class filter instead of file paths (P19)."""
+    if config.PROJECT.get("test_runner") == "dotnet":
+        return [*config.PROJECT["test_command"], "--filter", "|".join(
+            f"FullyQualifiedName~{Path(t.split('::')[0]).stem}" for t in tests)]
+    return [*config.PROJECT["test_command"], *tests]
+
+
 def run_tests(worktree, tests, parallel=False):
     if config.PROJECT.get("test_runner") == "dotnet":
-        cmd = [*config.PROJECT["test_command"], "--filter", "|".join(
-            f"FullyQualifiedName~{Path(t.split('::')[0]).stem}" for t in tests)]
+        cmd = test_cmd(tests)
     elif parallel and config.PROJECT.get("test_runner") == "pytest" and importlib.util.find_spec("xdist") is not None:
         cmd = [*config.PROJECT["test_command"], "-n", "auto", *tests]
     else:

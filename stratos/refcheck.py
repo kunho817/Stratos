@@ -1,5 +1,6 @@
 """refcheck: an independent reference implementation checks drafted tests."""
 
+import os
 import re
 import shutil
 import subprocess
@@ -162,7 +163,7 @@ def check(gw, plan_id, task, root, tests, extra=None):
         if errors:
             return {"status": "error", "total": 0, "failing": [],
                     "first_error": "the reference does not compile: " + errors[0], "files": []}
-        cmd = config.PROJECT["test_command"] + tests
+        cmd = verify.test_cmd(tests)   # (Claude, Settle) dotnet needs a class filter, not file paths
         try:
             r = subprocess.run(
                 cmd,
@@ -172,12 +173,18 @@ def check(gw, plan_id, task, root, tests, extra=None):
                 encoding="utf-8",
                 errors="replace",
                 timeout=config.TEST_TIMEOUT_S,
+                env={**os.environ, "DOTNET_CLI_UI_LANGUAGE": "en", "PYTHONIOENCODING": "utf-8"},
             )
         except subprocess.TimeoutExpired:
             return {"status": "error", "total": 0, "failing": [], "first_error": "tests timed out",
                     "files": []}
         out = r.stdout + r.stderr
         total, failing = count_tests(out)
+        if total == 0 and not failing:
+            # (Claude, Settle) nothing ran (a wrong command, a build error before the tests): not an "agree"
+            first = next((ln.strip()[:200] for ln in out.splitlines() if "rror" in ln), out.strip()[-200:])
+            return {"status": "error", "total": 0, "failing": [], "first_error": "no test ran: " + first,
+                    "files": files}
         crash = crash_line(out, [p for p, _ in files])
         if crash:
             return {"status": "crashed", "total": total, "failing": failing,

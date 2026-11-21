@@ -63,6 +63,29 @@ def test_a_draft_naming_missing_types_is_an_import_error(tmp_path, monkeypatch):
     assert plantests.check_draft(tmp_path, "SplitTests.cs")[0] == "import_error"
 
 
+def test_refcheck_with_no_test_run_is_an_error(tmp_path, monkeypatch):
+    """(Claude, 2026-11-21, Settle) refcheck gave "agree" for 0 of 0 tests when the command could not run any test."""
+    from stratos import refcheck
+
+    class GW:
+        def ensure_model(self, model):
+            return 0.0
+
+        def chat(self, messages, **kw):
+            return "c", "FILE: pkg/a.py\n```python\nX = 1\n```\n"
+    root = tmp_path / "r"
+    (root / "pkg").mkdir(parents=True)
+    (root / "tests").mkdir()
+    (root / "tests" / "test_none.py").write_text("X = 1\n", encoding="utf-8")
+    monkeypatch.setattr(config, "STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(config, "PROJECT", {**config.PROJECT, "source_dirs": ["pkg"], "test_runner": "pytest",
+                                            "test_command": ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"]})
+    monkeypatch.setattr(config, "REF_WRITER", {"model": "m", "effort": "low", "max_tokens": 9})
+    r = refcheck.check(GW(), "P1", {"key": "a", "goal": "g", "files": ["pkg/a.py"], "tests": []}, root,
+                       ["tests/test_none.py"])
+    assert r["status"] == "error" and r["first_error"].startswith("no test ran")
+
+
 def test_refcheck_skips_build_output(tmp_path, monkeypatch):
     """(Claude, 2026-11-21, Settle) refcheck read src/**/bin/*.dll as text and failed on the bytes."""
     from stratos import refcheck
