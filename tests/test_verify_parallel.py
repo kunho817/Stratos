@@ -44,6 +44,6 @@ def test_push_runs_in_parallel_and_pyproject_lists_dev_tools():
     import inspect
 
     from stratos import __main__ as cli
-    assert "parallel=True" in inspect.getsource(cli._main)
+    assert "parallel=True" in inspect.getsource(cli)   # the module: T239 moved the commands out of _main
     text = (Path(__file__).parent.parent / "pyproject.toml").read_text(encoding="utf-8")
     assert "[project.optional-dependencies]" in text and '"pytest-xdist"' in text and '"ruff"' in text

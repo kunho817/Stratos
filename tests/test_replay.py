@@ -179,6 +179,6 @@ def test_cli_flag():
     import inspect
 
     from stratos import __main__ as cli
-    src = inspect.getsource(cli._main)
+    src = inspect.getsource(cli)   # the module: T239 moved the commands out of _main
     assert '"--memory"' in src and "memory=args.memory" in src
     assert "memory=False" in str(inspect.signature(replay.replay))

@@ -83,7 +83,7 @@ def test_run_all_calls_it():
     import inspect
 
     from stratos import __main__ as cli
-    src = inspect.getsource(cli._main)
+    src = inspect.getsource(cli)   # the module: T239 moved the commands out of _main
     assert "upkeep.after_run(gw, store, " in src and "refresh=refresh_memory" in src
 
 
