@@ -77,3 +77,15 @@ def test_a_missing_goal_file_is_an_error(state, tmp_path):
     with pytest.raises(SystemExit):
         add("--goal-file", str(tmp_path / "nope.txt"))
     assert state.tasks() == []
+
+
+def test_after_must_name_an_existing_task(state, capsys):
+    """(Claude, 2026-11-21) `add ... --after T245` while the new task itself became T245: it waited on itself and
+    would never run. An --after id that is not a task yet is an argparse error, and nothing is added."""
+    assert add("--goal", "g") == 0                                  # T001
+    with pytest.raises(SystemExit):
+        add("--goal", "g", "--after", "T002")                       # would be T002 itself
+    assert "--after T002: no such task" in capsys.readouterr().err
+    assert [t["id"] for t in state.tasks()] == ["T001"]
+    assert add("--goal", "g", "--after", "T001") == 0
+    assert state.get("T002")["after"] == ["T001"]

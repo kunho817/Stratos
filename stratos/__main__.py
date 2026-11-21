@@ -249,6 +249,11 @@ def cmd_add(args, store, parser: argparse.ArgumentParser):
             parser.error(f"cannot read goal file {args.goal_file!r}: {e}")
     else:
         goal = args.goal
+    known = {o["id"] for o in store.tasks()}
+    for dep in split(args.after):
+        if dep not in known:
+            # (Claude, 2026-11-21) "--after T245" for a task that became T245 itself: it would wait forever
+            parser.error(f"--after {dep}: no such task")
     role = args.role
     t = add_one(store, args.title, goal, split(args.files), split(args.protected), split(args.tests),
                 role, split(args.after), args.output)

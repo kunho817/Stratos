@@ -98,7 +98,8 @@ def test_run_all_reports_tasks_left_waiting(state, monkeypatch, capsys):
 
 
 def test_run_all_reports_blocked_tasks(state, monkeypatch, capsys):
-    add("--after", "T009")               # unknown dependency
+    add()
+    state.update("T001", after=["T009"])   # unknown dependency (add refuses one now; the store can still hold it)
     add()
     calls = []
     use_fakes(monkeypatch, calls=calls)
