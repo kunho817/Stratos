@@ -8,7 +8,7 @@ from pathlib import Path
 
 from . import codemap, config, context, decide, embed, lint, memstore, plan, patch, recall, refcheck
 from . import cases
-from stratos import langs
+from stratos import langs, steps
 
 
 def system_prompt(language, test_runner):
@@ -181,12 +181,13 @@ def check_draft(root, path):
             return ("syntax_error", str(e))
     cmd = langs.runner().with_paths(config.PROJECT["draft_check_command"], [path])
     try:
-        result = subprocess.run(
-            cmd,
-            cwd=str(root), capture_output=True, text=True,
-            encoding="utf-8", errors="replace", timeout=120,
-            env=langs.child_env(),
-        )
+        with steps.timed("draft_check"):
+            result = subprocess.run(
+                cmd,
+                cwd=str(root), capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=120,
+                env=langs.child_env(),
+            )
     except subprocess.TimeoutExpired:
         return ("error", "draft check timed out")
     if result.returncode == 0:
@@ -248,6 +249,7 @@ def mutation_lines(key, mutation):
 
 
 def draft_tests(gw, plan_id, root, state_dir, log=print):
+    steps.use(gw.telemetry, plan_id)
     p = plan.load_plan(state_dir, plan_id)
     model_cfg = config.PLANNER
     gw.ensure_model(model_cfg["model"])

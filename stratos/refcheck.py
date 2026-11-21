@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from stratos import config, decide, langs, mutate, patch, verify
+from stratos import config, decide, langs, mutate, patch, steps, verify
 
 SYSTEM = (
     "You write the source files of one task of a project from its goal alone "
@@ -166,16 +166,17 @@ def check(gw, plan_id, task, root, tests, extra=None):
         cmd = verify.test_cmd(tests)
         try:
             with verify.dotnet_scope(copy, tests):
-                r = subprocess.run(
-                    cmd,
-                    cwd=str(copy),
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=config.TEST_TIMEOUT_S,
-                    env=langs.child_env(),
-                )
+                with steps.timed("refcheck"):
+                    r = subprocess.run(
+                        cmd,
+                        cwd=str(copy),
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        timeout=config.TEST_TIMEOUT_S,
+                        env=langs.child_env(),
+                    )
         except subprocess.TimeoutExpired:
             return {"status": "error", "total": 0, "failing": [], "first_error": "tests timed out",
                     "files": []}
@@ -220,39 +221,40 @@ def mutation(copy, files, tests, limit=None):
     killed = 0
     survivors = []
 
-    for path, m in all_mutants:
-        dest = Path(copy) / path
-        dest.write_text(m["source"], encoding="utf-8")
-        try:
-            if path.endswith((".py", ".js")):
-                if verify.syntax_errors(copy, [path]):
-                    continue
+    with steps.timed("mutation"):
+        for path, m in all_mutants:
+            dest = Path(copy) / path
+            dest.write_text(m["source"], encoding="utf-8")
             try:
-                with verify.dotnet_scope(copy, tests):
-                    r = subprocess.run(
-                        verify.test_cmd(tests),
-                        cwd=str(copy),
-                        capture_output=True,
-                        text=True,
-                        encoding="utf-8",
-                        errors="replace",
-                        timeout=config.MUTANT_TIMEOUT_S,
-                        env=langs.child_env(),
-                    )
-            except subprocess.TimeoutExpired:
+                if path.endswith((".py", ".js")):
+                    if verify.syntax_errors(copy, [path]):
+                        continue
+                try:
+                    with verify.dotnet_scope(copy, tests):
+                        r = subprocess.run(
+                            verify.test_cmd(tests),
+                            cwd=str(copy),
+                            capture_output=True,
+                            text=True,
+                            encoding="utf-8",
+                            errors="replace",
+                            timeout=config.MUTANT_TIMEOUT_S,
+                            env=langs.child_env(),
+                        )
+                except subprocess.TimeoutExpired:
+                    total += 1
+                    killed += 1
+                    continue
+                out = r.stdout + r.stderr
+                t, failing = count_tests(out)
+                if t == 0:
+                    continue
                 total += 1
-                killed += 1
-                continue
-            out = r.stdout + r.stderr
-            t, failing = count_tests(out)
-            if t == 0:
-                continue
-            total += 1
-            if failing or r.returncode != 0:
-                killed += 1
-            else:
-                survivors.append(f"{path}:{m['line']}: {m['old'].strip()} -> {m['new'].strip()}")
-        finally:
-            dest.write_text(orig[path], encoding="utf-8")
+                if failing or r.returncode != 0:
+                    killed += 1
+                else:
+                    survivors.append(f"{path}:{m['line']}: {m['old'].strip()} -> {m['new'].strip()}")
+            finally:
+                dest.write_text(orig[path], encoding="utf-8")
 
     return {"total": total, "killed": killed, "survivors": survivors}
