@@ -1,4 +1,4 @@
-"""Run a static checker and read its errors.
+r"""Run a static checker and read its errors.
 
 checker.parse(output, root, paths) -> sorted unique lines f"{path}:{line}: {message}" for the errors in `paths`:
 an output line is an error when it matches either

@@ -6,6 +6,7 @@ import importlib.util
 import os
 import re
 import subprocess
+import warnings
 
 from . import config
 
@@ -146,7 +147,13 @@ def syntax_errors(root, paths):
             with open(full, "r", encoding="utf-8", errors="replace") as f:
                 source = f.read()
             try:
-                compile(source, path, "exec")
+                # (Claude, 2026-11-21) a SyntaxWarning (an invalid escape such as "\s" in a plain string - Tiel's
+                # checker.py docstring) is an error here: Python is turning it into one
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error", SyntaxWarning)
+                    compile(source, path, "exec")
+            except SyntaxWarning as e:
+                messages.append(f"{path}: line {e.lineno}: {e.msg}")
             except SyntaxError as e:
                 messages.append(f"{path}: line {e.lineno}: {e.msg}")
             except ValueError as e:

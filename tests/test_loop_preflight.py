@@ -159,3 +159,11 @@ def test_syntax_error_is_retried(env):
     assert result == "done"
     assert "Your files do not compile" in gw.calls[1][-1]["content"]
     assert any("syntax_error" in line for line in lines)
+
+
+def test_an_invalid_escape_is_a_syntax_error(tmp_path):
+    r"""(Claude, 2026-11-21) Tiel's checker.py had "\s" in a plain docstring - a SyntaxWarning now, an error later."""
+    from stratos import verify
+    (tmp_path / "a.py").write_text('X = "\\\\s is fine"\nY = "\\s is not"\n', encoding="utf-8")
+    (errs,) = verify.syntax_errors(tmp_path, ["a.py"])
+    assert errs.startswith("a.py: line 2: ") and "escape" in errs
