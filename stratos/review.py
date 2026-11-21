@@ -15,7 +15,7 @@ from stratos import config
 REVIEW_SYSTEM = (
     "You review the diff against the task. "
     "Answer ONLY with a JSON object, optionally inside a json code block, "
-    "of the form {\"verdict\": \"approve\" or \"changes\", \"issues\": [{\"severity\": \"high\" | \"medium\" | \"low\", \"file\": \"path\", \"problem\": \"one sentence\"}]} "
+    "of the form {\"verdict\": \"approve\" or \"changes\", \"issues\": [{\"severity\": \"high\" | \"medium\" | \"low\", \"file\": \"path\", \"problem\": \"one sentence\", \"quote\": \"the exact changed line\"}]} "
     "(real JSON uses double quotes). "
     "Check every changed line against the goal. "
     "high = wrong behaviour, a bug or a security problem; "
@@ -27,7 +27,8 @@ REVIEW_SYSTEM = (
     "describes) is ALWAYS medium, even when it looks small or harmless, never low; "
     "a repeated call that costs a fixed small amount is low unless the goal is about speed; "
     "low = style only, in lines the goal asked to change. "
-    "Use approve when there are no high or medium issues."
+    "Use approve when there are no high or medium issues. "
+    "An issue whose quote is not a line of the diff or of the whole changed files does not count."
 )
 
 
@@ -256,26 +257,68 @@ def parse(text):
         file = "" if file is None else str(file)
         problem = item.get("problem")
         problem = "" if problem is None else str(problem)
-        issues.append({"severity": severity, "file": file, "problem": problem})
+        quote = item.get("quote")
+        quote = quote if isinstance(quote, str) else ""
+        issues.append({"severity": severity, "file": file, "problem": problem, "quote": quote})
     return {"verdict": verdict, "issues": issues}
 
 
-def is_blocking(review):
-    for issue in review.get("issues", []) or []:
-        severity = issue.get("severity")
-        if isinstance(severity, str) and severity.lower() in ("high", "medium"):
+REVIEW_AGAIN = "Your answer was not the JSON object asked for. Answer again with only that JSON object."
+
+
+def _collapse(text):
+    return " ".join(text.split())
+
+
+def grounded(issue, diff, whole=""):
+    quote = issue.get("quote", "")
+    if not isinstance(quote, str):
+        quote = ""
+    if quote.startswith("+") or quote.startswith("-"):
+        quote = quote[1:]
+    q = _collapse(quote)
+    if len(q) < 3:
+        return False
+    code_lines = []
+    for line in diff.splitlines():
+        if line.startswith("diff ") or line.startswith("+++ ") or line.startswith("--- ") or line.startswith("@@ "):
+            continue
+        if line.startswith("+") or line.startswith("-") or line.startswith(" "):
+            line = line[1:]
+        code_lines.append(line)
+    joined = _collapse(" ".join(code_lines))
+    if q in joined:
+        return True
+    if whole:
+        joined_whole = _collapse(whole)
+        if q in joined_whole:
             return True
     return False
 
 
-def format_issues(review):
+def is_blocking(review, diff=None, whole=""):
+    for issue in review.get("issues", []) or []:
+        severity = issue.get("severity")
+        if isinstance(severity, str) and severity.lower() in ("high", "medium"):
+            if diff is None:
+                return True
+            if grounded(issue, diff, whole):
+                return True
+    return False
+
+
+def format_issues(review, diff=None, whole=""):
     lines = []
     for issue in review.get("issues", []) or []:
         severity = issue.get("severity", "")
         file = issue.get("file", "") or ""
         problem = issue.get("problem", "") or ""
+        suffix = ""
+        if diff is not None and isinstance(severity, str) and severity.lower() in ("high", "medium"):
+            if not grounded(issue, diff, whole):
+                suffix = " (not counted: its quote is not in the diff)"
         if file:
-            lines.append("- [{0}] {1}: {2}".format(severity, file, problem))
+            lines.append("- [{0}] {1}: {2}{3}".format(severity, file, problem, suffix))
         else:
-            lines.append("- [{0}] {1}".format(severity, problem))
+            lines.append("- [{0}] {1}{2}".format(severity, problem, suffix))
     return "\n".join(lines)

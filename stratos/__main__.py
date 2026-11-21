@@ -788,7 +788,10 @@ def cmd_status(args, store, parser: argparse.ArgumentParser):
         triage = ""
         if t.get("status") == "needs_human" and isinstance(t.get("triage"), dict):
             triage = f" [triage: {t['triage'].get('verdict')}]"
-        print(f"{t['id']}  {t['status']:<12} {t['title']}{extra}{mark}{triage}")
+        unreviewed = ""
+        if t.get("status") == "done" and t.get("review") == "unparsed":
+            unreviewed = " [unreviewed]"
+        print(f"{t['id']}  {t['status']:<12} {t['title']}{extra}{mark}{triage}{unreviewed}")
         if t.get("status") in ("todo", "needs_human") and t.get("created") is not None:
             for path in gitops.changed_since(config.REPO, t["tests"], t["created"]):
                 print(f"  warning: {path} changed after {t['id']} was added")

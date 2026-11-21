@@ -362,10 +362,11 @@ def review_tasks(store, gw, task_ids, log=print):
         paths = review.changed_paths(diff_text)
         whole, short = review.whole_files(wt, paths)
         imports_text = review.import_lines(wt, [p for p in paths if p not in short])
+        msgs = review.build_messages(task, diff_text, files=review.project_files(wt),
+                                     imports=imports_text, whole=whole,
+                                     spec=review.spec_text(wt, task))
         try:
-            rv_call, rv_text = gw.chat(review.build_messages(task, diff_text, files=review.project_files(wt),
-                                       imports=imports_text, whole=whole,
-                                       spec=review.spec_text(wt, task)), task=task_id, role="reviewer",
+            rv_call, rv_text = gw.chat(msgs, task=task_id, role="reviewer",
                                        attempt=attempt, model=rv_role["model"], effort=rv_role["effort"],
                                        max_tokens=rv_role["max_tokens"])
         except Exception as e:   # a timed-out reviewer (T052) must not stop the batch; the candidate waits for the next run
@@ -376,22 +377,33 @@ def review_tasks(store, gw, task_ids, log=print):
             continue
         save_answer(task_id, f"{attempt}-review", rv_text)
         rv = review.parse(rv_text)
+        if rv["verdict"] == "unparsed":
+            msgs2 = msgs + [{"role": "assistant", "content": rv_text},
+                            {"role": "user", "content": review.REVIEW_AGAIN}]
+            rv_call2, rv_text = gw.chat(msgs2, task=task_id, role="reviewer",
+                                         attempt=attempt, model=rv_role["model"], effort=rv_role["effort"],
+                                         max_tokens=rv_role["max_tokens"])
+            save_answer(task_id, f"{attempt}-review2", rv_text)
+            rv = review.parse(rv_text)
         verdict = rv["verdict"]
         gw.telemetry.record("outcome", call_id=rv_call, task=task_id, result="review_" + verdict,
-                            detail=review.format_issues(rv)[-500:])
+                            detail=review.format_issues(rv, diff=diff_text, whole=whole or "")[-500:])
         store.decide(task=task_id, attempt=attempt, role="reviewer", model=rv_role["model"],
                      result="review_" + verdict, issues=len(rv["issues"]))
-        if review.is_blocking(rv):
+        if review.is_blocking(rv, diff=diff_text, whole=whole or ""):
             gitops.undo_last_commit(wt)
             store.update(task_id, status="todo", commit=None,
                          review_feedback="The tests passed, but a code review found problems. Fix them:\n"
-                                         + review.format_issues(rv))
+                                         + review.format_issues(rv, diff=diff_text, whole=whole or ""))
             result = "rejected"
         else:
-            rv_msg = f"Review: {verdict}"
-            issues = review.format_issues(rv)
-            if issues:
-                rv_msg += "\n" + issues
+            if verdict == "unparsed":
+                rv_msg = "Review: unparsed (not reviewed - check by hand)"
+            else:
+                rv_msg = f"Review: {verdict}"
+                issues = review.format_issues(rv, diff=diff_text, whole=whole or "")
+                if issues:
+                    rv_msg += "\n" + issues
             gitops.finalize_commit_message(wt, rv_msg)
             store.update(task_id, status="done", review=verdict)
             result = "done"
