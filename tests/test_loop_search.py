@@ -29,6 +29,14 @@ def test_the_generator_output_becomes_the_data_file(tmp_path, monkeypatch):
     assert json.loads((tmp_path / "data" / "squares.json").read_text(encoding="utf-8")) == [0, 1, 4, 9]
 
 
+def test_the_output_is_written_as_printed(tmp_path, monkeypatch):
+    """(Claude, 2026-11-21, Lantern) on Windows write_text turned the printed "\\n" into "\\r\\n", so the saved file
+    differed from the generator's own output."""
+    monkeypatch.setattr(verify, "run_tests", lambda w, tests: (True, "1 passed"))
+    assert loop.check_answer(TASK, tmp_path, GEN)[0] == "passed"
+    assert (tmp_path / "data" / "squares.json").read_bytes() == b"[0, 1, 4, 9]\n"
+
+
 def test_a_failing_generator(tmp_path, monkeypatch):
     runs = []
     monkeypatch.setattr(verify, "run_tests", lambda w, tests: runs.append(1) or (True, ""))

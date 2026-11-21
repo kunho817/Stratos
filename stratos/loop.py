@@ -152,7 +152,7 @@ def _judge(task, wt, text, finish):
             return "search_failed", f"The generator {script} failed (exit {r.returncode}):\n" + err
         out_path = Path(wt, task["output"])
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(r.stdout, encoding="utf-8")
+        out_path.write_text(r.stdout, encoding="utf-8", newline="")   # as printed: no \r\n on Windows (Lantern)
 
     if config.LINT:
         lint_errors = lint.check(wt, written)
