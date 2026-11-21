@@ -2,7 +2,8 @@
 langs.runner() and langs.child_env() instead of testing config.PROJECT["test_runner"] themselves.
 
 - In stratos/verify.py, checker.py, plantests.py and refcheck.py no code (comments and docstrings aside) names a
-  runner: no string literal contains "dotnet" or "DOTNET_CLI_UI_LANGUAGE", and none of them reads "test_runner".
+  runner: no string literal contains "dotnet" or "DOTNET_CLI_UI_LANGUAGE". (Reading "test_runner" is fine where
+  only its text is used: plantests names it in the test writer's prompt. Claude's first test forbade that too.)
 - verify.test_cmd(tests) -> langs.runner().test_cmd(tests); verify.dotnet_scope(root, tests) ->
   langs.runner().scope(root, tests) (both names stay: other modules and tests use them).
 - verify.run_tests(worktree, tests, parallel) runs langs.runner().test_cmd(tests, parallel=parallel) inside
@@ -42,7 +43,6 @@ def test_no_runner_names_left():
     for name in ("verify.py", "checker.py", "plantests.py", "refcheck.py"):
         strings = code_strings(name)
         assert not [s for s in strings if "dotnet" in s or "DOTNET_CLI_UI_LANGUAGE" in s], name
-        assert not [s for s in strings if s.strip("\"'") == "test_runner"], name
 
 
 class Recorder(langs.Runner):
