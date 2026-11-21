@@ -23,7 +23,9 @@ APPROVE = '```json\n{"verdict": "approve", "issues": []}\n```'
 BLOCK = ('```json\n{"verdict": "changes", "issues": [{"severity": "medium", "file": "pkg/a.py", '
          '"problem": "condition is always true"}]}\n```')
 LOW = '```json\n{"verdict": "changes", "issues": [{"severity": "low", "file": "pkg/a.py", "problem": "long line"}]}\n```'
-REVIEWER = config.ROLES["reviewer"]["model"]
+# a reviewer model other than the coders, so the batching (write all, then review all) shows in the switches;
+# the real reviewer is Tiel since task reviewer_tiel (Claude updated this test)
+REVIEWER = "reviewer-model"
 
 
 class FakeGateway:
@@ -53,6 +55,7 @@ def env(tmp_path, monkeypatch):
     state = tmp_path / "state"
     monkeypatch.setattr(config, "STATE_DIR", state)
     monkeypatch.setattr(config, "REVIEW", True)
+    monkeypatch.setattr(config, "ROLES", {**config.ROLES, "reviewer": {**config.ROLES["reviewer"], "model": REVIEWER}})
     monkeypatch.setattr(config, "REVIEW_ROUNDS", 3)
     rec = {"commits": [], "discards": 0, "undos": 0, "appended": [], "finalized": [], "tests_ok": True, "bases": {}}
 
