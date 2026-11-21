@@ -193,7 +193,9 @@ def check_draft(root, path):
     if result.returncode == 0:
         return ("collected", "")
     output = result.stdout + result.stderr
-    if "ModuleNotFoundError" in output or "ImportError" in output:
+    # (Claude, 2026-11-21, Settle) C#: a draft that names types not written yet does not build (CS0103/CS0246/CS0234)
+    if ("ModuleNotFoundError" in output or "ImportError" in output
+            or re.search(r"error CS0(103|246|234)\b", output)):
         return ("import_error", output[-2000:])
     return ("error", output[-2000:])
 

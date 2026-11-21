@@ -42,9 +42,10 @@ def build_messages(task, root):
         for f in dir_path.rglob("*"):
             if not f.is_file():
                 continue
-            if "__pycache__" in f.parts:
+            if "__pycache__" in f.parts or "bin" in f.parts or "obj" in f.parts:
                 continue
-            if f.suffix == ".pyc":
+            # (Claude, 2026-11-21, Settle) only source files the project writes - C#'s bin/obj hold .dll files
+            if f.suffix not in config.PROJECT.get("writable_suffixes", [f.suffix]):
                 continue
             rel = str(Path(f).relative_to(root)).replace("\\", "/")
             if rel in task_files_set:
@@ -123,7 +124,7 @@ def check(gw, plan_id, task, root, tests, extra=None):
             root,
             copy,
             ignore=shutil.ignore_patterns(".git", ".stratos", "node_modules", "__pycache__",
-                                          ".venv", "venv", "*-wt"),
+                                          ".venv", "venv", "*-wt", "bin", "obj"),
         )
         cfg = config.REF_WRITER
         gw.ensure_model(cfg["model"])

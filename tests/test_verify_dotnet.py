@@ -48,3 +48,27 @@ def test_check_draft_runs_the_build_without_a_path(tmp_path, monkeypatch):
     (tmp_path / "tests" / "BoardTests.cs").write_text("class BoardTests {}", encoding="utf-8")
     assert plantests.check_draft(tmp_path, "tests/BoardTests.cs")[0] == "collected"
     assert seen == [["dotnet", "build", "--nologo"]]
+
+
+def test_a_draft_naming_missing_types_is_an_import_error(tmp_path, monkeypatch):
+    """(Claude, 2026-11-21, Settle) a C# draft does not build before its types exist - like Python's ImportError."""
+    class Fail:
+        returncode = 1
+        stdout = "T.cs(3,9): error CS0103: The name 'Split' does not exist in the current context [x.csproj]"
+        stderr = ""
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: Fail())
+    monkeypatch.setattr(config, "PROJECT", {**config.PROJECT, "test_runner": "dotnet",
+                                            "draft_check_command": ["dotnet", "build"]})
+    (tmp_path / "SplitTests.cs").write_text("x", encoding="utf-8")
+    assert plantests.check_draft(tmp_path, "SplitTests.cs")[0] == "import_error"
+
+
+def test_refcheck_skips_build_output(tmp_path, monkeypatch):
+    """(Claude, 2026-11-21, Settle) refcheck read src/**/bin/*.dll as text and failed on the bytes."""
+    from stratos import refcheck
+    (tmp_path / "src" / "A" / "bin").mkdir(parents=True)
+    (tmp_path / "src" / "A" / "bin" / "A.dll").write_bytes(b"MZ\x90\x00\xff")
+    (tmp_path / "src" / "A" / "Money.cs").write_text("class Money {}", encoding="utf-8")
+    monkeypatch.setattr(config, "PROJECT", {**config.PROJECT, "source_dirs": ["src"], "writable_suffixes": [".cs"]})
+    user = refcheck.build_messages({"key": "k", "goal": "g", "files": ["src/A/Split.cs"], "tests": []}, tmp_path)[1]["content"]
+    assert "EXISTING FILE src/A/Money.cs" in user and "A.dll" not in user
