@@ -38,6 +38,21 @@ yet; do the open items from trial 15; consider LSP.**
   checker matters most for compiled languages (C#: the build is the check). Also: the syntax check now treats a
   SyntaxWarning (invalid escape) as an error - Tiel's checker.py had "\s" in a plain docstring (49 warnings in the
   suite). Claude's slip: a heredoc ate backslashes in a test again (rule 14 says not to).
+  **P19 built + trial 16: Settle, a C# expense splitter (D:\Strata\Trials\Settle, .NET 8, 2026-11-21).** Built:
+  dotnet test ids ("Failed <name> [..]") and totals ("Total: N" / "Total tests: N"), the coder prompt's example
+  path uses the language's extension, tests run as a class filter (FullyQualifiedName~<file stem>) with
+  DOTNET_CLI_UI_LANGUAGE=en, drafts checked by `dotnet build`. Settle: 5 tasks done, 75 tests, the CLI's text and
+  JSON output right by hand (cent rounding, greedy transfers); first try 2/5, 2.6 attempts, waste 12.9%. Found and
+  fixed while running it (all harness, all C#-specific):
+  - a .NET test project builds as one unit: later tasks' drafts (types not written yet) broke every build, so no
+    test could run -> during a run, <test_dir>/Directory.Build.targets compiles only the task's test files;
+  - refcheck read bin/obj .dll files as text; it ran `dotnet test <file>.cs`; it called 0 of 0 tests "agree"
+    (now an error, and such a reference is not passed on); a draft naming missing types is import_error, not error;
+  - the checker appended .cs paths to `dotnet build` (MSB4025: every attempt failed) and spoke Korean;
+  - test_runner read with get (old test fakes without it; Claude had grepped away addcheck's warning about them).
+  The checker earned its place on C#: it stopped a build with a stray ``` before the tests. The test writer
+  forgot `using Settle.Cli;` (triage named it). Next for C#: a refcheck/reference that is C#-aware (Swift's C#
+  references often did not compile), cases for xUnit.
 - P19 a new language: C# first (dotnet 8 is installed; the path to Unity later): a project layout with a .csproj
   and an xUnit test project, `dotnet test` output parsed into failing test ids, the coder prompts for C#, LSP via
   csharp-ls; then a trial project in C#. Go next if C# goes well (fast tests, gopls already here).
