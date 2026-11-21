@@ -22,6 +22,7 @@ def _default_settings():
         "test_suffixes": [".py"],
         "draft_check_command": [sys.executable, "-m", "pytest", "--collect-only", "-q"],
         "example_test": "tests/test_diagnose.py",
+        "check_command": None,
     }
 
 
@@ -52,5 +53,12 @@ def load_settings(repo):
                 settings[key] = _replace_python_first_element(value)
             else:
                 settings[key] = value
+
+    # When check_command is not set (missing in both default and stratos.toml) and the project is Python,
+    # use pyright if it sits next to sys.executable.
+    if settings.get("check_command") is None and settings.get("language") == "python":
+        exe = Path(sys.executable).with_name("pyright.exe" if sys.platform == "win32" else "pyright")
+        if exe.exists():
+            settings["check_command"] = [str(exe), "{files}"]
 
     return settings

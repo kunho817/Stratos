@@ -77,6 +77,10 @@ PREFLIGHT = os.environ.get("STRATOS_PREFLIGHT", "1") != "0"
 # removed after they pass. STRATOS_LINT=0 turns it off.
 LINT = os.environ.get("STRATOS_LINT", "1") != "0"
 
+# pyright (or the project's check_command) on the Python files a model writes: new checker errors stop the
+# attempt before the tests run.
+CHECK = True
+
 # feed the memory's context packs to the models
 MEMORY = True
 

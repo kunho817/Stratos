@@ -10,7 +10,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import codemap, config, context, decide, diagnose, embed, gitops, jev, lint, memstore, patch, preflight, recall, review, triage, verify
+from . import checker, codemap, config, context, decide, diagnose, embed, gitops, jev, lint, memstore, patch, preflight, recall, review, triage, verify
 
 SEARCH_TIMEOUT_S = 60
 
@@ -120,6 +120,11 @@ def _judge(task, wt, text, finish):
     if config.LINT:
         base = lint.check(wt, [p for p, _ in files if Path(wt, p).exists()])
 
+    base_check = []
+    if config.CHECK:
+        base_paths = [p for p, _ in files if Path(wt, p).exists()]
+        base_check = checker.check(wt, base_paths)
+
     try:
         written = patch.apply_files(wt, files, task["protected"], allowed)
     except patch.PatchRefused as e:
@@ -131,6 +136,23 @@ def _judge(task, wt, text, finish):
             "Your files do not compile:\n"
             + "\n".join(errors)
             + "\nCheck the syntax of every file you write; for an existing file, change only the lines you need with SEARCH/REPLACE edit blocks.")
+
+    if config.CHECK:
+        check_errors = checker.check(wt, written)
+        base_stripped = collections.Counter(
+            re.sub(r":\d+: ", ": ", line, count=1) for line in base_check
+        )
+        kept = []
+        for line in check_errors:
+            stripped = re.sub(r":\d+: ", ": ", line, count=1)
+            if base_stripped[stripped] > 0:
+                base_stripped[stripped] -= 1
+            else:
+                kept.append(line)
+        if kept:
+            return "check_error", ("The checker found errors in your files:\n"
+                                   + "\n".join(kept)
+                                   + "\nFix them; the tests did not run.")
 
     if task.get("output"):
         script = task["files"][0]
