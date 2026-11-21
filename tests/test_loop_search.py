@@ -38,6 +38,15 @@ def test_a_failing_generator(tmp_path, monkeypatch):
     assert not (tmp_path / "data" / "squares.json").exists()
 
 
+def test_a_long_error_keeps_both_ends(tmp_path, monkeypatch):
+    """(Claude, 2026-11-21, Lantern) node prints the error line first and a long stack after it; keep both."""
+    long = ("FILE: tools/gen.py\n```python\nimport sys\nprint('TypeError: row.split is not a function', file=sys.stderr)\n"
+            "print('x' * 3000, file=sys.stderr)\nprint('Node.js v24', file=sys.stderr)\nsys.exit(1)\n```\n")
+    result, detail = loop.check_answer(TASK, tmp_path, long)
+    assert result == "search_failed" and "row.split is not a function" in detail and detail.rstrip().endswith("v24")
+    assert "\n...\n" in detail
+
+
 def test_a_slow_generator(tmp_path, monkeypatch):
     monkeypatch.setattr(loop, "SEARCH_TIMEOUT_S", 1)
     result, detail = loop.check_answer(TASK, tmp_path, SLOW)

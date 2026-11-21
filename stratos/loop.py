@@ -147,7 +147,9 @@ def _judge(task, wt, text, finish):
         except subprocess.TimeoutExpired:
             return "search_failed", f"The generator {script} ran longer than {SEARCH_TIMEOUT_S} s."
         if r.returncode != 0:
-            return "search_failed", f"The generator {script} failed (exit {r.returncode}):\n" + r.stderr[-2000:]
+            # (Claude, 2026-11-21, Lantern) the error line is at the top of a node stack trace: keep both ends
+            err = r.stderr if len(r.stderr) <= 2000 else r.stderr[:800] + "\n...\n" + r.stderr[-1200:]
+            return "search_failed", f"The generator {script} failed (exit {r.returncode}):\n" + err
         out_path = Path(wt, task["output"])
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(r.stdout, encoding="utf-8")
