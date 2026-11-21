@@ -380,9 +380,16 @@ def review_tasks(store, gw, task_ids, log=print):
         if rv["verdict"] == "unparsed":
             msgs2 = msgs + [{"role": "assistant", "content": rv_text},
                             {"role": "user", "content": review.REVIEW_AGAIN}]
-            rv_call2, rv_text = gw.chat(msgs2, task=task_id, role="reviewer",
+            try:
+                rv_call, rv_text = gw.chat(msgs2, task=task_id, role="reviewer",
                                          attempt=attempt, model=rv_role["model"], effort=rv_role["effort"],
                                          max_tokens=rv_role["max_tokens"])
+            except Exception as e:
+                store.decide(task=task_id, attempt=attempt, role="reviewer", model=rv_role["model"],
+                             result="review_error", detail=str(e)[:300])
+                log(f"  task {task_id}: review call failed ({e}); it stays awaiting_review")
+                results[task_id] = "review_error"
+                continue
             save_answer(task_id, f"{attempt}-review2", rv_text)
             rv = review.parse(rv_text)
         verdict = rv["verdict"]
