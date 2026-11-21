@@ -96,10 +96,19 @@ def _header_inside_fence(lines, ok):
     """Move a header written as the first line inside a fence (```python / FILE: x.py) in front of the fence:
     Flint wrote T012's files that way."""
     out = list(lines)
+    fences_before = 0   # counted on the original lines: an even count before a bare ``` makes it an opening fence
     for i in range(len(out) - 1):
+        is_fence = lines[i].lstrip().startswith("```")
         m = HEADER_RE.match(out[i + 1])
-        if out[i].lstrip().startswith("```") and out[i].strip() != "```" and m and (ok is None or _norm(m.group(1)) in ok):
-            out[i], out[i + 1] = out[i + 1], out[i]
+        if is_fence and m and (ok is None or _norm(m.group(1)) in ok):
+            if out[i].strip() != "```":
+                out[i], out[i + 1] = out[i + 1], out[i]
+            elif fences_before % 2 == 0 and i + 2 < len(out) and not out[i + 2].lstrip().startswith("```"):
+                # (Claude, 2026-11-21, Lantern) a bare opening fence, the header, then the content with no fence of
+                # its own: ``` / FILE: x / content / ```
+                out[i], out[i + 1] = out[i + 1], out[i]
+        if is_fence:
+            fences_before += 1
     return out
 
 

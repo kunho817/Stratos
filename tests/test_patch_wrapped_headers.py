@@ -16,6 +16,17 @@ def test_wrapped_headers():
                                          ("tests/test_b.py", "def test_b():\n    assert 2\n")]
 
 
+def test_header_as_the_first_line_of_the_fence():
+    """(Claude, 2026-11-21, Lantern solver drafts) ``` / FILE: x / content / ``` - the header is the fence's first line
+    and the content follows it with no fence of its own; the whole draft was dropped as "missing"."""
+    text = "```\nFILE: tests/solver.test.js\nimport x from 'y';\ntest('a', () => {});\n```\n"
+    assert patch.parse_files(text, ["tests/solver.test.js"]) == [
+        ("tests/solver.test.js", "import x from 'y';\ntest('a', () => {});\n")]
+    two = text + "```js\nFILE: tests/b.test.js\nconst b = 1;\n```\n"
+    assert [p for p, _ in patch.parse_files(two)] == ["tests/solver.test.js", "tests/b.test.js"]
+    assert patch.parse_files(two)[0][1] == "import x from 'y';\ntest('a', () => {});\n"
+
+
 def test_a_fence_inside_the_content_still_counts():
     text = ("FILE: tests/test_a.py\n```python\nDOC = '''\n```\n'''\n```\nFILE: tests/test_b.py\n```python\nX = 1\n```\n")
     assert patch.parse_files(text)[0] == ("tests/test_a.py", "DOC = '''\n```\n'''\n")
