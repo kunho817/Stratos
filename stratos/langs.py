@@ -6,6 +6,7 @@ so C# (and the others) bring their bugs to one place.
 import contextlib
 import importlib.util
 import os
+import re
 from pathlib import Path
 
 from stratos import config
@@ -36,7 +37,6 @@ class Runner:
     def missing_import(self, output):
         if "ModuleNotFoundError" in output or "ImportError" in output:
             return True
-        import re
         return re.search(r"error CS0(103|246|234)\b", output) is not None
 
 
@@ -57,15 +57,9 @@ class Dotnet(Runner):
         return [*self.project["test_command"], "--filter", filter_]
 
     def with_paths(self, cmd, paths):
-        out = []
-        for item in cmd:
-            if item == "{files}":
-                out.extend(paths)
-            else:
-                out.append(item)
-        if "{files}" not in cmd:
-            return list(cmd)
-        return out
+        if "{files}" in cmd:
+            return super().with_paths(cmd, paths)
+        return list(cmd)
 
     @contextlib.contextmanager
     def scope(self, root, tests):
@@ -89,7 +83,8 @@ class Dotnet(Runner):
         try:
             yield
         finally:
-            targets.unlink()
+            with contextlib.suppress(OSError):
+                targets.unlink(missing_ok=True)
 
 
 def runner(project=None):
