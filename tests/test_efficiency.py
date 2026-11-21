@@ -77,7 +77,8 @@ def test_by_cause_and_waste():
 def test_time():
     t = report.efficiency(EVENTS)["time"]
     # sessions: 1000..1301 (301 s) and 3000..3101 (101 s)
-    assert t == {"model_seconds": 222.0, "switch_seconds": 20.0, "active_seconds": 402.0, "other_seconds": 160.0}
+    assert t == {"model_seconds": 222.0, "switch_seconds": 20.0, "active_seconds": 402.0, "other_seconds": 160.0,
+                 "steps": {}}   # T244: no "step" events here (tests/test_steps.py)
 
 
 def test_first_try_attempts_and_top():

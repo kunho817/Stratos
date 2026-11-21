@@ -126,3 +126,30 @@ def test_twice_unparsed_is_done_but_marked(env, capsys):  # noqa: F811
     out = capsys.readouterr().out
     line = next(ln for ln in out.splitlines() if ln.startswith("T001"))
     assert line.endswith(" [unreviewed]")
+
+
+# ---- T245 (Claude, reading T243's diff): the second review call is guarded like the first, and the outcome is
+# recorded with the call id of the answer that was used.
+# - a second call that raises: the same handling as a first call that raises (decision "review_error", the
+#   candidate stays awaiting_review, the batch goes on);
+# - the "outcome" telemetry event of the review carries the call_id of the answer it parsed (the second call's id
+#   when the reviewer was asked again).
+from test_loop_review import FlakyReviewer  # noqa: E402
+
+
+def test_a_failed_second_review_call_leaves_the_candidate_waiting(env):  # noqa: F811
+    store, tel, rec, _ = env
+    gw = FlakyReviewer(tel, {"coder": [WRITER, WRITER], "reviewer": ["no json", TimeoutError("timed out"),
+                                                                    APPROVE]})
+    final = loop.run_all(store, gw, ["T001", "T002"], log=quiet)
+    assert final == {"T001": "awaiting_review", "T002": "done"}
+
+
+def test_the_outcome_names_the_call_that_was_parsed(env):  # noqa: F811
+    store, tel, rec, _ = env
+    gw = FakeGateway(tel, {"coder": [WRITER], "reviewer": ["no json", APPROVE]})
+    loop.run_task(store, gw, "T001", log=quiet)
+    calls = [e for e in tel.load() if e["kind"] == "call" and e["role"] == "reviewer"]
+    review_outcomes = [e for e in tel.load() if e["kind"] == "outcome" and e["result"].startswith("review_")]
+    assert len(calls) == 2 and len(review_outcomes) == 1
+    assert review_outcomes[0]["call_id"] == calls[1]["call_id"]
