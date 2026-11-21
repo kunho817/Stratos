@@ -285,6 +285,12 @@ def write_task(store, gw, task_id, log=print):
             store.decide(task=task_id, attempt=attempt, role=role, model=r["model"], result=result)
             log(f"  attempt {attempt} ({role}, {r['model']}): {result}")
             if result == "passed":
+                if not gitops.diff(wt):
+                    gw.telemetry.record("outcome", call_id=call_id, task=task_id, result="no_change", detail=detail[-500:])
+                    store.decide(task=task_id, attempt=attempt, role=role, model=r["model"], result="no_change")
+                    store.update(task_id, status="done", note="no change: the tests already passed", attempts=attempt, model=r["model"])
+                    log(f"  attempt {attempt} ({role}, {r['model']}): no change: the tests already passed")
+                    return "done"
                 written_by = f"Written by {r['model']} (attempt {attempt}); tests: {' '.join(task['tests'])}"
                 if config.REVIEW:
                     sha = gitops.commit_all(wt, f"{task_id}: {task['title']} (candidate, awaiting review)\n\n{written_by}")
