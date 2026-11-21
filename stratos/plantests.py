@@ -423,7 +423,10 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
     if config.REF_CHECK:
         for i, task in enumerate(p["tasks"]):
             key = task["key"]
-            paths = task_written.get(key, [])
+            paths = list(task_written.get(key, []))
+            for entry in task_entries.get(key, []):
+                if entry["status"] == "exists":
+                    paths.append(entry["file"])
             if not paths:
                 continue
             try:

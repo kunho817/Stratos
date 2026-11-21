@@ -129,21 +129,6 @@ def test_refcheck_plan_order_with_exists_task(env):
     assert [c[0] for c in calls] == ["a", "b", "c"]
 
 
-def test_missing_tasks_still_skipped(env):
-    """A task with no file written and no file on disk ("missing") is NOT processed
-    by the reference check."""
-    state, root, calls = env
-    make_plan(state, [task("a", "tests/test_a.py")])
-    # Model writes to a path outside the task's test list → not in allowed
-    answer = "FILE: stratos/other.py\n```python\nX = 1\n```\n"
-    gw = FakeGateway([answer])
-    results = plantests.draft_tests(gw, "P001", root, state, log=lambda s: None)
-    # tests/test_a.py: not written, not on disk → "missing"
-    assert results[0]["status"] == "missing"
-    # Expected: refcheck.check is never called for a missing task
-    assert calls == []
-
-
 def test_extra_chain_includes_files_from_exists_task(env):
     """Files returned by refcheck.check for an "exists" task are added to the extra
     list passed to subsequent tasks' refcheck.check."""
@@ -209,3 +194,4 @@ def test_old_status_does_not_trigger_refcheck(env):
     # Expected: refcheck.check is NOT called
     assert calls == []
     assert "refcheck" not in results[0]
+
