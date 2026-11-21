@@ -125,6 +125,14 @@ Each P ends with push + a trial. Replaces the rest of work order 2.**
 - P15 Jev: a fair test first - replay both branches (keep/switch model, rules' role vs Jev's role) on past tasks
   with the replay tool, so "Jev was right" is not decided by the rules' own choices; adopt it per decision where
   it wins; new uses to try: which drafts a person should read first, whether a failure is test_wrong (triage).
+  **P15 result (2026-11-21, scratchpad jev_eval.py) - Jev ON HOLD (user).** Of 470 paired escalation decisions the
+  two disagreed on 305, always "rules keep the model, Jev switches" (Jev switches 78% of the time, median confidence
+  0.63; the rules keep 86%). Fair test at 24 such Stratos points: the failing answer re-checked at the task's base to
+  rebuild the failure text (5 now pass - tests fixed later - left out), then one try with the same model and one with
+  the other: after a Tiel failure keep 2/10, switch 2/10; after a Swift failure keep 6/9, switch to Tiel 2/9 - the
+  rules were right, Swift fixes its own failures far better than Tiel does. Jev stays in shadow (records only); new
+  uses need code and tests, which Jev may not get (summaries only), so none now. Revisit when there is a use that
+  summaries can serve.
 - P16 also: replay is slow for experiments (user, 2026-11-21: "why so long?") - 23 tasks took ~15 min, of which
   ~8 min model time; the rest is a new worktree per task, the tests run 3 times (VERIFY_RUNS, needed for real tasks
   but not for a replay) and, with --memory, a new Embedder per task. Decided (user + Claude, 2026-11-21): not now -
