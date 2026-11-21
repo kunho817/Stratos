@@ -2,6 +2,7 @@
 
 The tests run config.VERIFY_RUNS times, each with a different PYTHONHASHSEED, and pass only if every run passes:
 code that depends on set or dict order can pass once by luck (T003's first answer did, 2026-11-16)."""
+import contextlib
 import importlib.util
 import os
 import re
@@ -86,7 +87,40 @@ def test_cmd(tests):
     return [*config.PROJECT["test_command"], *tests]
 
 
+@contextlib.contextmanager
+def dotnet_scope(root, tests):
+    """(Claude, 2026-11-21, Settle) a .NET test project builds as one unit: compile only these test files, so the
+    drafts of later tasks (types not written yet) do not break the build. Writes <test_dir>/Directory.Build.targets
+    for the run and removes it after."""
+    if config.PROJECT.get("test_runner") != "dotnet":
+        yield
+        return
+    test_dir = config.PROJECT.get("test_dir", "tests")
+    target = Path(root, test_dir, "Directory.Build.targets")
+    lines = ['<Project>', '  <ItemGroup>', '    <Compile Remove="$(MSBuildProjectDirectory)/**/*Tests.cs" />']
+    for t in tests:
+        rel = t.split("::")[0].replace("\\", "/")
+        if rel.startswith(test_dir + "/"):
+            rel = rel[len(test_dir) + 1:]
+        lines.append(f'    <Compile Include="$(MSBuildThisFileDirectory){rel}" />')
+    lines += ['  </ItemGroup>', '</Project>', '']
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("\n".join(lines), encoding="utf-8")
+    try:
+        yield
+    finally:
+        try:
+            target.unlink()
+        except OSError:
+            pass
+
+
 def run_tests(worktree, tests, parallel=False):
+    with dotnet_scope(worktree, tests):
+        return _run_tests(worktree, tests, parallel)
+
+
+def _run_tests(worktree, tests, parallel=False):
     if config.PROJECT.get("test_runner") == "dotnet":
         cmd = test_cmd(tests)
     elif parallel and config.PROJECT.get("test_runner") == "pytest" and importlib.util.find_spec("xdist") is not None:

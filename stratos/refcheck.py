@@ -165,16 +165,17 @@ def check(gw, plan_id, task, root, tests, extra=None):
                     "first_error": "the reference does not compile: " + errors[0], "files": []}
         cmd = verify.test_cmd(tests)   # (Claude, Settle) dotnet needs a class filter, not file paths
         try:
-            r = subprocess.run(
-                cmd,
-                cwd=str(copy),
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=config.TEST_TIMEOUT_S,
-                env={**os.environ, "DOTNET_CLI_UI_LANGUAGE": "en", "PYTHONIOENCODING": "utf-8"},
-            )
+            with verify.dotnet_scope(copy, tests):   # C#: only these test files compile (later drafts would not build)
+                r = subprocess.run(
+                    cmd,
+                    cwd=str(copy),
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=config.TEST_TIMEOUT_S,
+                    env={**os.environ, "DOTNET_CLI_UI_LANGUAGE": "en", "PYTHONIOENCODING": "utf-8"},
+                )
         except subprocess.TimeoutExpired:
             return {"status": "error", "total": 0, "failing": [], "first_error": "tests timed out",
                     "files": []}
