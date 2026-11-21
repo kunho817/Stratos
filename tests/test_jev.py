@@ -31,10 +31,13 @@ import json
 
 from stratos import jev
 
+
 ROLE_ANSWER = {"model": "jev-1.14.0",
                "answers": {"role": {"type": "choice", "choice": "coder", "confidence": 0.9,
                                     "probabilities": {"coder": 0.95, "coder_hard": 0.05}}},
                "usage": {"input_tokens": 385, "output_tokens": 50}}
+
+
 TASK = {"id": "T900", "files": ["stratos/a.py"], "goal": "Add a helper that counts words."}
 
 
@@ -141,3 +144,20 @@ def test_choose_role_none_on_failure_or_malformed_answer():
     assert jev.choose_role(TASK, key="k", post=FakePost((401, b"{}")), sleep=no_sleep) is None
     broken = {"model": "jev-1.14.0", "answers": {}, "usage": {"input_tokens": 1}}
     assert jev.choose_role(TASK, key="k", post=FakePost(ok(broken)), sleep=no_sleep) is None
+
+
+# ---- was test_jev_prompt.py ----
+# Tests for task T033: the role question asks about the LOCAL coding models (T032's said "Choose the Jev model",
+# which is not what is being chosen), and role_request reads the task plainly.
+
+
+def test_the_question_is_about_the_local_coding_models():
+    _, questions = jev.role_request({"goal": "g", "files": ["stratos/a.py"]})
+    text = questions["role"]["instructions"]
+    assert "local coding model" in text.lower()
+    assert "jev" not in text.lower()
+
+
+def test_a_task_without_files():
+    state, _ = jev.role_request({"goal": "g"})
+    assert state == {"goal": "g", "files": [], "file_count": 0}

@@ -10,6 +10,13 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
 
 ## Open (top first)
 
+**Work order 5 (user, 2026-11-21, "진행"): first a cleanup of Stratos's own tests (user: "tidy what can be tidied"):
+189 files, 16,150 lines, 944 tests; 29 different FakeGateway classes, 9 FakeTelemetry, 15 inline `git init`s, 36
+files with 1-2 tests (one file per task). Then P20 language adapters (one place per language for test command,
+output reading, syntax/build check, scoping; split __main__ and report), P21 test strength (mutation score for
+drafts, stale-test finder), P22 judging (reviewer's false blocks, the flaky push test, "other" time measured), P23
+Go + C# follow-ups. Memory packs and Jev stay on hold.
+
 **Next theme (user, 2026-11-21): perception - research and design in a NEW session.** The local models (even the
 vision ones) perceive the world far worse than frontier models. Start: a spatial occupancy map ("HeightMap") of a
 screen - count per cell how many things occupy it, so text overlap (TowerDefense) and overflow are found by

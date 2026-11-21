@@ -7,7 +7,10 @@ format_issues(review)      -> the issues as lines for the next attempt's prompt
 """
 from stratos import review
 
+
 TASK = {"id": "T009", "title": "add a thing", "goal": "Add the thing to stratos/x.py."}
+
+
 DIFF = "diff --git a/stratos/x.py b/stratos/x.py\n+def thing():\n+    return 1\n"
 
 
@@ -83,3 +86,49 @@ def test_format_issues():
                                           {"severity": "low", "file": "", "problem": "long line"}]}
     assert review.format_issues(r) == "- [high] stratos/x.py: returns None\n- [low] long line"
     assert review.format_issues({"verdict": "approve", "issues": []}) == ""
+
+
+# ---- was test_review_scope.py ----
+# Tests for task T038: the reviewer is told that changes the goal did not ask for and code that is never used are
+# medium issues (they block). Before this, the reviewer saw T029's reworded prompt and T034's renamed variable but rated
+# them low, and let T035's unused dict pass. Replaying those diffs with this wording (2026-11-17): 6/6 caught, and 0 of
+# 6 runs on clean diffs blocked.
+
+
+def test_every_line_is_checked_against_the_goal():
+    assert "Check every changed line against the goal." in review.REVIEW_SYSTEM
+
+
+def test_unrequested_changes_are_always_medium():
+    s = review.REVIEW_SYSTEM
+    assert "a change the goal did not ask for" in s
+    assert "is ALWAYS medium, even when it looks small or harmless, never low" in s
+
+
+def test_unused_code_is_medium():
+    assert "code that is never used (an unused variable, import or function)" in review.REVIEW_SYSTEM
+
+
+def test_low_is_style_in_requested_lines():
+    assert "low = style only, in lines the goal asked to change." in review.REVIEW_SYSTEM
+
+
+# ---- was test_review_severity.py ----
+# Tests for task review_severity (P2, 2026-11-20, BACKLOG item 14): the reviewer rated "simulate() is called twice"
+# on Lumen's 40-cell board as medium, which sent a passing T004 back: 4 more attempts and 2 model switches for a nit.
+# Repeated work blocks only when it grows with the input (Orbit's drawTrail stroked a growing path after every point:
+# n^2 per frame). REVIEW_SYSTEM keeps everything else (tests/test_review_scope.py) and changes only this:
+# - the medium list no longer says "needless repeated work"; it says "work that grows with the input inside a loop
+#   (for example redrawing everything once per item)";
+# - it adds: "a repeated call that costs a fixed small amount is low unless the goal is about speed".
+
+
+def test_growing_work_is_medium():
+    assert "work that grows with the input inside a loop (for example redrawing everything once per item)" in \
+        review.REVIEW_SYSTEM
+
+
+def test_small_repeated_calls_are_low():
+    assert "a repeated call that costs a fixed small amount is low unless the goal is about speed" in \
+        review.REVIEW_SYSTEM
+    assert "needless repeated work" not in review.REVIEW_SYSTEM

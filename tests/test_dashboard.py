@@ -37,6 +37,9 @@ stratos/dashboard.html next to the module, read on every request); GET "/api/sta
 default_repos(config.STRATOS_HOME); server = dashboard.make_server(repos, port, metrics=<a function calling
 dashboard.metrics(config.BASE_URL)>); prints f"dashboard: http://127.0.0.1:{port}/" and calls server.serve_forever()."""
 import json
+import re
+import shutil
+import subprocess
 import threading
 import time
 import urllib.error
@@ -45,8 +48,7 @@ from pathlib import Path
 
 import pytest
 
-from stratos import __main__ as cli
-from stratos import config, dashboard
+from stratos import __main__ as cli, config, dashboard
 from stratos.state import Store
 from stratos.telemetry import Telemetry
 
@@ -229,3 +231,118 @@ def test_current_is_only_the_newest_start(tmp_path, monkeypatch):
     now = __import__("time").time()
     monkeypatch.setattr(dashboard.time, "time", lambda: now + 1801)
     assert dashboard.project(repo)["current"] is None
+
+
+# ---- was test_dashboard_live.py ----
+# Tests for task dashboard_live (P12, 2026-11-20, user: "only progress is dull - stream what it does, show the terminal
+# log"). The gateway streams each answer into .stratos/live/ (task gateway_stream); the run log is .stratos/run.log
+# (task runlog). The dashboard serves them.
+#
+# dashboard.live(repo) -> {"call": <the JSON of .stratos/live/current.json, or None>, "text": the last 8000 characters
+# of .stratos/live/current.txt ("" when missing), "log": the last 200 lines of .stratos/run.log joined with "\n"
+# ("" when missing)}.
+# make_server(repos, port, metrics=None, home=None): when repos is None the project list is
+# default_repos(home) again on every request (a new trial shows up without a restart). GET /api/live?project=<name>
+# answers live(<the repo with that name>) as JSON (404 for an unknown name). The page is read from disk on every
+# request (as before), so a changed dashboard.html needs no restart.
+# dashboard.code_stamp(folder) -> the newest modification time of the *.py and *.html files in the folder (the
+# stratos package); `stratos dashboard` restarts itself (os.execv with the same arguments) when it grows.
+
+
+def make_repo(root, name, live=True):
+    repo = root / name
+    (repo / ".stratos" / "live").mkdir(parents=True)
+    (repo / ".stratos" / "tasks.json").write_text("[]", encoding="utf-8")
+    (repo / ".stratos" / "telemetry.jsonl").write_text("", encoding="utf-8")
+    if live:
+        (repo / ".stratos" / "live" / "current.json").write_text(
+            json.dumps({"call_id": "c1", "task": "T1", "role": "coder", "model": "m", "started": 1.0}),
+            encoding="utf-8")
+        (repo / ".stratos" / "live" / "current.txt").write_text("x" * 9000 + "END", encoding="utf-8")
+        (repo / ".stratos" / "run.log").write_text("".join(f"l{i}\n" for i in range(300)), encoding="utf-8")
+    return repo
+
+
+def test_live(tmp_path):
+    repo = make_repo(tmp_path, "Stratos")
+    got = dashboard.live(repo)
+    assert got["call"]["task"] == "T1"
+    assert len(got["text"]) == 8000 and got["text"].endswith("END")
+    lines = got["log"].split("\n")
+    assert len(lines) == 200 and lines[0] == "l100" and lines[-1] == "l299"
+    empty = dashboard.live(make_repo(tmp_path, "Other", live=False))
+    assert empty == {"call": None, "text": "", "log": ""}
+
+
+def test_code_stamp(tmp_path):
+    (tmp_path / "a.py").write_text("x", encoding="utf-8")
+    first = dashboard.code_stamp(tmp_path)
+    time.sleep(0.05)
+    (tmp_path / "page.html").write_text("y", encoding="utf-8")
+    assert dashboard.code_stamp(tmp_path) > first
+
+
+def test_server_live_and_new_projects(tmp_path):
+    home = tmp_path / "Stratos"
+    make_repo(tmp_path, "Stratos")
+    (tmp_path / "Trials").mkdir()
+    server = dashboard.make_server(None, 0, home=home)
+    port = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        def get(path):
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5) as r:
+                return json.loads(r.read().decode("utf-8"))
+        assert get("/api/live?project=Stratos")["call"]["role"] == "coder"
+        assert [p["name"] for p in get("/api/state")["projects"]] == ["Stratos"]
+        make_repo(tmp_path / "Trials", "Newgame", live=False)
+        assert sorted(p["name"] for p in get("/api/state")["projects"]) == ["Newgame", "Stratos"]
+        try:
+            get("/api/live?project=Nope")
+            raise AssertionError("expected 404")
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+# ---- was test_dashboard_page.py ----
+# Tests for task dashboard_page (P12, 2026-11-20, user: "something worth watching - stream what it does, show the
+# terminal log, let me try what was built"). stratos/dashboard.html gets, next to its panels:
+#
+# - a project picker <select id="projectPick"> (options = the project names of /api/state; default the most recently
+#   updated; the choice is kept across polls) - every panel shows the picked project instead of projects[0];
+# - <section id="stream">: what the model is writing now - polls fetch("/api/live?project=" + encodeURIComponent(name))
+#   every 700 ms, shows call.task / call.role / call.model / call.attempt in its title, the text in a monospace <pre>
+#   that keeps scrolled to the bottom, the part before the line "--- answer ---" (the thinking) dimmed; a finished call
+#   (call.finished set) is labelled as finished;
+# - <section id="terminal">: the run log (live.log) as a dark terminal-like <pre>, scrolled to the bottom, lines with
+#   "passed" or ": done" green, "failed", "error" or "needs_human" red, "model switch" dimmed;
+# - <section id="try">: for a project whose "try" is "cli" a <textarea id="tryText">, an <input id="tryArgs">, a button
+#   that POSTs JSON {"text", "args"} to "/api/try?project=" + name with the header "X-Stratos": "1" and shows code,
+#   stdout and stderr; for "static" an <iframe> of "/try/" + name + "/index.html" and a link to open it; otherwise a
+#   line saying the project has no [try] table in its stratos.toml.
+# All text through esc() (no raw HTML from the server). The page stays one file with inline CSS and JS.
+
+
+PAGE = Path(dashboard.__file__).parent / "dashboard.html"
+
+
+def test_page_has_the_new_panels():
+    html = PAGE.read_text(encoding="utf-8")
+    for needle in ('id="projectPick"', 'id="stream"', 'id="terminal"', 'id="try"', 'id="tryText"', 'id="tryArgs"',
+                   "/api/live?project=", "/api/try?project=", '"X-Stratos"', "--- answer ---", "/try/"):
+        assert needle in html, needle
+
+
+def test_script_compiles():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is not installed")
+    html = PAGE.read_text(encoding="utf-8")
+    scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
+    assert scripts
+    r = subprocess.run([node, "--check", "-"], input="\n".join(scripts), capture_output=True, text=True,
+                       encoding="utf-8")
+    assert r.returncode == 0, r.stderr

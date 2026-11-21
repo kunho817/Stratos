@@ -41,7 +41,8 @@ import json
 
 import pytest
 
-from stratos import codemap, config, wiki
+from stratos import codemap, config, loop, memindex, memstore, recall, wiki
+
 
 CMAP = {"test_dir": "tests", "files": {
     "src/a.py": [{"name": "load", "kind": "function", "signature": "def load(p)", "uses": [], "line": 1, "end": 2},
@@ -50,6 +51,8 @@ CMAP = {"test_dir": "tests", "files": {
     "tests/test_a.py": [{"name": "test_load", "kind": "function", "signature": "def test_load()", "uses": ["load"],
                          "line": 1, "end": 2}],
 }}
+
+
 PAGE = "## Purpose\nLoads things.\n\n## Data shapes\n-\n\n## Used by\n-\n\n## Invariants\n-\n\n## Traps\n-"
 
 
@@ -197,3 +200,151 @@ def test_chunks(repo):
     assert chunks[0] == {"id": "wiki:src/a.py", "kind": "wiki", "source": "src/a.py",
                          "title": "notes: src/a.py", "text": text}
     assert [c["id"] for c in chunks[1:]] == ["wiki:overview"]
+
+
+# ---- was test_wiki_memory.py ----
+# Tests for task wiki_memory: the wiki pages go into memory and into the packs (memory M4).
+#
+# memindex.index_project(root, store, embedder=None, settings=None, lessons_path=None, state_dir=None): state_dir None
+# -> Path(root) / ".stratos". The chunks of wiki.chunks(state_dir, cmap) (through the wiki module, with the cmap it
+# built) are added to the other chunks, and store.remove_except("wiki", <their ids>) is counted in "removed" like the
+# other kinds. memindex.refresh(repo, state_dir, embedder) calls index_project(repo, store, embedder, state_dir=state_dir).
+#
+# recall.SECTIONS gets ("wiki", "MODULE NOTES (written by a model from the code; check the code)", 3) right after the
+# "lesson" section; recall.CUT["wiki"] = 2000.
+# loop.CODER_SECTIONS gets ("wiki", "MODULE NOTES (written by a model from the code; check the code)", 2) right after
+# the "lesson" section (before "code").
+
+
+SETTINGS = {"source_dirs": ["src"], "test_dir": "tests"}
+
+
+HEADING = "MODULE NOTES (written by a model from the code; check the code)"
+
+
+def project(tmp_path):
+    root = tmp_path / "repo"
+    (root / "src").mkdir(parents=True)
+    (root / "tests").mkdir()
+    (root / "src" / "a.py").write_text("def f(x):\n    return x\n", encoding="utf-8")
+    return root
+
+
+def test_index_project_adds_wiki_pages(tmp_path):
+    root = project(tmp_path)
+    pages = root / ".stratos" / "wiki"
+    pages.mkdir(parents=True)
+    (pages / "src__a.py.md").write_text("# src/a.py\n\n## Purpose\nIdentity.\n", encoding="utf-8")
+    store = memstore.Store(tmp_path / "memory.db")
+    try:
+        counts = memindex.index_project(root, store, settings=SETTINGS, lessons_path=tmp_path / "none.md")
+        assert counts["chunks"] == 2
+        chunk = store.get("wiki:src/a.py")
+        assert chunk["kind"] == "wiki" and chunk["title"] == "notes: src/a.py" and "Identity." in chunk["text"]
+        (pages / "src__a.py.md").unlink()
+        counts = memindex.index_project(root, store, settings=SETTINGS, lessons_path=tmp_path / "none.md")
+        assert counts["removed"] == 1 and store.get("wiki:src/a.py") is None
+    finally:
+        store.close()
+
+
+def test_index_project_uses_the_state_dir_given(tmp_path, monkeypatch):
+    root = project(tmp_path)
+    seen = []
+    monkeypatch.setattr(wiki, "chunks", lambda state_dir, cmap: seen.append((state_dir, sorted(cmap["files"]))) or [])
+    store = memstore.Store(tmp_path / "memory.db")
+    try:
+        memindex.index_project(root, store, settings=SETTINGS, lessons_path=tmp_path / "none.md")
+        memindex.index_project(root, store, settings=SETTINGS, lessons_path=tmp_path / "none.md",
+                               state_dir=tmp_path / "elsewhere")
+    finally:
+        store.close()
+    assert seen == [(root / ".stratos", ["src/a.py"]), (tmp_path / "elsewhere", ["src/a.py"])]
+
+
+def test_refresh_passes_its_state_dir(tmp_path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(memindex, "index_history", lambda *a: {"chunks": 0, "changed": 0, "removed": 0})
+    monkeypatch.setattr(memindex, "index_project", lambda repo, store, embedder, **kw: seen.append(kw) or {})
+    memindex.refresh(tmp_path / "repo", tmp_path / "state", None)
+    assert seen == [{"state_dir": tmp_path / "state"}]
+
+
+def test_sections():
+    kinds = [s[0] for s in recall.SECTIONS]
+    assert kinds.index("wiki") == kinds.index("lesson") + 1
+    assert ("wiki", HEADING, 3) in recall.SECTIONS
+    assert recall.CUT["wiki"] == 2000
+    assert loop.CODER_SECTIONS == [("guide", "GENERAL LESSONS (from earlier projects)", 3),
+                                   ("lesson", "LESSONS FROM PEOPLE'S CORRECTIONS", 3), ("wiki", HEADING, 2),
+                                   ("code", "RELEVANT CODE", 5)]
+
+
+# ---- was test_wiki_overview.py ----
+# Tests for task wiki_overview (P3, 2026-11-20, BACKLOG M4 "next: an overview page"): one page that lists every
+# module with its purpose and what it imports, written without a model from the code map and the module pages.
+#
+# wiki.overview(cmap, state_dir) -> text:
+#   "# Project overview
+#
+# " then one line per code path of the code map (the paths wiki writes pages for, in their
+#   order): f"- {path}: {purpose}" where purpose is the first bullet line under "## Purpose" of the path's page with
+#   the leading "- " cut off, or "(no page yet)" when the page does not exist or has no such line; then, when the
+#   code map's imports for the path are not empty, f" (imports: {', '.join(imports)})".
+# wiki.build(...) writes overview(cmap, state_dir) to state_dir/wiki/overview.md at the end of every build (also when
+# no page changed), with no model call for it.
+# wiki.chunks(state_dir, cmap) also returns, when overview.md exists, a chunk {"id": "wiki:overview", "kind": "wiki",
+# "source": "overview", "title": "project overview", "text": <its text>} after the module chunks.
+
+
+def cmap():
+    return {"test_dir": "tests",
+            "files": {"pantry/cli.py": [{"name": "main"}], "pantry/units.py": [{"name": "convert"}],
+                      "tests/test_units.py": [{"name": "test_a"}]},
+            "imports": {"pantry/cli.py": ["units", "recipe"], "pantry/units.py": [], "tests/test_units.py": ["units"]}}
+
+
+def write_page(state, path, purpose_lines):
+    d = state / "wiki"
+    d.mkdir(parents=True, exist_ok=True)
+    body = "\n".join(purpose_lines)
+    (d / wiki.page_name(path)).write_text(f"# {path}\n\n## Purpose\n{body}\n\n## Data shapes\n- x\n", encoding="utf-8")
+
+
+def test_overview_lines(tmp_path):
+    write_page(tmp_path, "pantry/units.py", ["- Converts amounts between units.", "- Second line."])
+    text = wiki.overview(cmap(), tmp_path)
+    assert text.startswith("# Project overview\n\n")
+    lines = text.strip().splitlines()[2:]
+    paths = wiki._code_paths(cmap())
+    assert len(lines) == len(paths)
+    assert "- pantry/units.py: Converts amounts between units." in lines
+    assert "- pantry/cli.py: (no page yet) (imports: units, recipe)" in lines
+
+
+def test_build_writes_the_overview_without_a_model(tmp_path, monkeypatch):
+    calls = []
+
+    class GW:
+        def ensure_model(self, model):
+            calls.append(model)
+
+        def chat(self, messages, **kw):
+            calls.append("chat")
+            raise AssertionError("no page should be written here")
+    root = tmp_path / "repo"
+    root.mkdir()
+    state = tmp_path / "state"
+    wiki.build(GW(), root, state, {"test_dir": "tests", "files": {}, "imports": {}}, log=lambda s: None)
+    assert (state / "wiki" / "overview.md").read_text(encoding="utf-8").startswith("# Project overview")
+    assert calls == []
+
+
+def test_chunks_include_the_overview(tmp_path):
+    write_page(tmp_path, "pantry/units.py", ["- Converts."])
+    (tmp_path / "wiki" / "overview.md").write_text("# Project overview\n\n- pantry/units.py: Converts.\n",
+                                                   encoding="utf-8")
+    chunks = wiki.chunks(tmp_path, cmap())
+    assert chunks[-1] == {"id": "wiki:overview", "kind": "wiki", "source": "overview", "title": "project overview",
+                          "text": "# Project overview\n\n- pantry/units.py: Converts.\n"}
+    assert [c["id"] for c in chunks[:-1]] == ["wiki:pantry/units.py"]
