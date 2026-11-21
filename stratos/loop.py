@@ -4,10 +4,15 @@ Attempts follow the task's role's plan: the role's model a few times, then one c
 A task that still fails is handed to a person (status needs_human). The loop is split into a write phase (the
 attempts, committing a candidate when a review is on) and a review phase (judging the candidates)."""
 import collections
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 from . import codemap, config, context, decide, diagnose, embed, gitops, jev, lint, memstore, patch, preflight, recall, review, triage, verify
+
+SEARCH_TIMEOUT_S = 60
 
 CODER_SECTIONS = [
     ("guide", "GENERAL LESSONS (from earlier projects)", 3),
@@ -126,6 +131,26 @@ def _judge(task, wt, text, finish):
             "Your files do not compile:\n"
             + "\n".join(errors)
             + "\nCheck the syntax of every file you write; for an existing file, change only the lines you need with SEARCH/REPLACE edit blocks.")
+
+    if task.get("output"):
+        script = task["files"][0]
+        if script.endswith(".py"):
+            cmd = [sys.executable, script]
+        elif script.endswith(".js") or script.endswith(".mjs"):
+            cmd = ["node", script]
+        else:
+            cmd = [sys.executable, script]
+        try:
+            r = subprocess.run(cmd, cwd=wt, capture_output=True, text=True, encoding="utf-8",
+                               errors="replace", timeout=SEARCH_TIMEOUT_S,
+                               env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+        except subprocess.TimeoutExpired:
+            return "search_failed", f"The generator {script} ran longer than {SEARCH_TIMEOUT_S} s."
+        if r.returncode != 0:
+            return "search_failed", f"The generator {script} failed (exit {r.returncode}):\n" + r.stderr[-2000:]
+        out_path = Path(wt, task["output"])
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(r.stdout, encoding="utf-8")
 
     if config.LINT:
         lint_errors = lint.check(wt, written)
