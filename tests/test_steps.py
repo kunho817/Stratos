@@ -60,13 +60,22 @@ def test_nothing_is_recorded_without_a_telemetry():
         pass   # no error, nowhere to record
 
 
-def test_the_steps_are_timed():
-    for fn, name in [(verify.run_tests, "tests"), (checker.check, "check"), (lint.check, "lint"),
-                     (refcheck.check, "refcheck"), (refcheck.mutation, "mutation"),
-                     (plantests.check_draft, "draft_check")]:
-        assert f'steps.timed("{name}")' in inspect.getsource(fn), fn.__name__
-    assert "steps.use(gw.telemetry, task_id)" in inspect.getsource(loop.write_task)
+def timed_in(fn, name):
+    return f'steps.timed("{name}")' in inspect.getsource(fn)
+
+
+def test_verify_checker_lint_are_timed():          # part A (with steps.py)
+    assert timed_in(verify.run_tests, "tests") and timed_in(checker.check, "check") and timed_in(lint.check, "lint")
+
+
+def test_refcheck_and_drafts_are_timed():          # part B
+    assert timed_in(refcheck.check, "refcheck") and timed_in(refcheck.mutation, "mutation")
+    assert timed_in(plantests.check_draft, "draft_check")
     assert "steps.use(gw.telemetry, plan_id)" in inspect.getsource(plantests.draft_tests)
+
+
+def test_the_loop_names_its_task():                # part C
+    assert "steps.use(gw.telemetry, task_id)" in inspect.getsource(loop.write_task)
 
 
 EVENTS = [
@@ -78,7 +87,7 @@ EVENTS = [
 ]
 
 
-def test_report_breaks_down_the_other_time():
+def test_report_breaks_down_the_other_time():   # part C
     t = report.efficiency(EVENTS)["time"]
     assert t["steps"] == {"check": 5.0, "tests": 50.0}
     assert list(t["steps"]) == ["check", "tests"]
