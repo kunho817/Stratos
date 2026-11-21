@@ -46,11 +46,15 @@ def check(root, paths):
         return []
     if "{files}" in cmd:
         cmd = [item for x in cmd for item in (paths if x == "{files}" else [x])]
+    elif config.PROJECT.get("test_runner") == "dotnet":
+        # (Claude, 2026-11-21, Settle) dotnet build takes a project, not .cs files (MSB4025): build it as given
+        cmd = list(cmd)
     else:
         cmd = list(cmd) + list(paths)
     try:
         r = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=120)
+                           encoding="utf-8", errors="replace", timeout=120,
+                           env={**os.environ, "DOTNET_CLI_UI_LANGUAGE": "en"})
     except (subprocess.TimeoutExpired, OSError):
         return []
     return parse(r.stdout + r.stderr, root, paths)

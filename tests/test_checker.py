@@ -53,3 +53,21 @@ def test_check_runs_the_command(tmp_path, monkeypatch):
     assert checker.check(tmp_path, []) == []
     monkeypatch.setattr(config, "PROJECT", {**config.PROJECT, "check_command": None})
     assert checker.check(tmp_path, ["a.py"]) == []
+
+
+def test_dotnet_builds_without_file_paths(tmp_path, monkeypatch):
+    """(Claude, 2026-11-21, Settle) `dotnet build <file>.cs` reads the .cs as a project (MSB4025) - every C# attempt
+    failed on it; for dotnet the command runs as given, and in English."""
+    import subprocess
+    seen = []
+
+    class Done:
+        returncode = 1
+        stdout = "C:\\w\\src\\A.cs(3,1): error CS1002: ; expected [C:\\w\\src\\A.csproj]"
+        stderr = ""
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: seen.append((cmd, kw["env"].get("DOTNET_CLI_UI_LANGUAGE")))
+                        or Done())
+    monkeypatch.setattr(config, "PROJECT", {**config.PROJECT, "test_runner": "dotnet",
+                                            "check_command": ["dotnet", "build", "-v", "q"]})
+    assert checker.check("C:\\w", ["src/A.cs"]) == ["src/A.cs:3: CS1002: ; expected"]
+    assert seen == [(["dotnet", "build", "-v", "q"], "en")]
