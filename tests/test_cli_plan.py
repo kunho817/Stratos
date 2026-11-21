@@ -16,12 +16,11 @@ plan-add: loads the plan (unknown id: "no such plan: <id>" on stderr, return 1; 
     record("plan", plan=pid, tasks=<count>, edited=plan.edited(<the plan as loaded>)), prints "added <id>: <title>"
     per task (like add), returns 0. The add command's body is shared with plan-add, so add behaves as before."""
 import json
-import sys
-from pathlib import Path
 
 import pytest
 
 from stratos import __main__ as cli, config, plan, plantests
+from stratos.plan import PlanNotFound
 from stratos.__main__ import main
 from stratos.state import Store
 from stratos.telemetry import Telemetry
@@ -393,6 +392,6 @@ def test_prints_the_results(tmp_path, monkeypatch, capsys):
 
 
 def test_unknown_plan(tmp_path, monkeypatch, capsys):
-    setup(tmp_path, monkeypatch, KeyError("P404"))
+    setup(tmp_path, monkeypatch, PlanNotFound("P404"))
     assert cli.main(["plan-tests", "P404"]) == 1
     assert "no such plan: P404" in capsys.readouterr().err
