@@ -79,10 +79,10 @@ def summarize_output(out):
 
 
 def run_tests(worktree, tests, parallel=False):
-    if config.PROJECT["test_runner"] == "dotnet":
+    if config.PROJECT.get("test_runner") == "dotnet":
         cmd = [*config.PROJECT["test_command"], "--filter", "|".join(
             f"FullyQualifiedName~{Path(t.split('::')[0]).stem}" for t in tests)]
-    elif parallel and config.PROJECT["test_runner"] == "pytest" and importlib.util.find_spec("xdist") is not None:
+    elif parallel and config.PROJECT.get("test_runner") == "pytest" and importlib.util.find_spec("xdist") is not None:
         cmd = [*config.PROJECT["test_command"], "-n", "auto", *tests]
     else:
         cmd = [*config.PROJECT["test_command"], *tests]

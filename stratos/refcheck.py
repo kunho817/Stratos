@@ -90,7 +90,7 @@ def count_tests(output):
         total = len(tap)
         failing = [name.strip() for ok, name in tap if ok == "not ok"]
         return (total, failing)
-    totals = re.findall(r"Total:\s*(\d+)", output)
+    totals = re.findall(r"Total(?: tests)?:\s*(\d+)", output)   # "Total: 4"; with verbosity=normal "Total tests: 4"
     if totals:
         return (int(totals[-1]), decide._extract_ids(output))
     lines = output.splitlines()

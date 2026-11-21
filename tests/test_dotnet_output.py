@@ -32,6 +32,8 @@ def test_count_tests_reads_dotnet():
                                              "Probe.Tests.CalcTests.WrongOnPurpose"])
     passed = "Passed!  - Failed:     0, Passed:     3, Skipped:     0, Total:     3, Duration: 5 ms - X.dll (net8.0)\n"
     assert refcheck.count_tests(passed) == (3, [])
+    # (Claude, Settle) with --logger "console;verbosity=normal" one project prints "Total tests: 1"
+    assert refcheck.count_tests("  Passed Settle.Tests.ExampleTests.A [115 ms]\nTotal tests: 1\n     Passed: 1\n") == (1, [])
 
 
 def test_coder_system_uses_the_language_extension():

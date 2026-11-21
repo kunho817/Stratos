@@ -178,7 +178,7 @@ def check_draft(root, path):
             ast.parse(p.read_text(encoding="utf-8"))
         except SyntaxError as e:
             return ("syntax_error", str(e))
-    if config.PROJECT["test_runner"] == "dotnet":
+    if config.PROJECT.get("test_runner") == "dotnet":
         cmd = list(config.PROJECT["draft_check_command"])
     else:
         cmd = config.PROJECT["draft_check_command"] + [path]
