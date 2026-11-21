@@ -42,6 +42,7 @@ from . import memindex
 from . import memsearch
 from . import memstore
 from . import plan as plan_mod
+from .plan import PlanNotFound
 from . import plancritic
 from . import plantests
 from . import push
@@ -393,7 +394,7 @@ def cmd_plan(args, store, parser: argparse.ArgumentParser):
 def cmd_plan_critique(args, store, parser: argparse.ArgumentParser):
     try:
         p = plan_mod.load_plan(config.STATE_DIR, args.plan_id)
-    except KeyError:
+    except PlanNotFound:
         print(f"no such plan: {args.plan_id}", file=sys.stderr)
         return 1
     gw = Gateway(Telemetry(config.STATE_DIR / "telemetry.jsonl"))
@@ -404,7 +405,7 @@ def cmd_plan_critique(args, store, parser: argparse.ArgumentParser):
 def cmd_plan_add(args, store, parser: argparse.ArgumentParser):
     try:
         p = plan_mod.load_plan(config.STATE_DIR, args.plan_id)
-    except KeyError:
+    except PlanNotFound:
         print(f"no such plan: {args.plan_id}", file=sys.stderr)
         return 1
     if p["status"] != "draft":
@@ -433,7 +434,7 @@ def cmd_plan_tests(args, store, parser: argparse.ArgumentParser):
     gw = Gateway(tel)
     try:
         results = plantests.draft_tests(gw, args.plan_id, config.REPO, config.STATE_DIR)
-    except KeyError:
+    except PlanNotFound:
         print(f"no such plan: {args.plan_id}", file=sys.stderr)
         return 1
     for r in results:
