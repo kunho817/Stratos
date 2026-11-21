@@ -131,6 +131,29 @@ def test_dotnet_scope_writes_and_removes_the_targets(tmp_path):
     assert not (tmp_path / "t" / "Directory.Build.targets").exists()
 
 
+def test_dotnet_scope_tolerates_a_removed_file(tmp_path):
+    """(T238) the old verify.dotnet_scope ignored an OSError on removal: a run that deleted the file (git clean, a
+    test) must not turn into a crash of the harness."""
+    target = tmp_path / "tests" / "Directory.Build.targets"
+    with langs.runner(CS).scope(tmp_path, ["tests/ATests.cs"]):
+        target.unlink()
+    assert not target.exists()
+
+
+def test_langs_source_is_tidy():
+    """(T238) Dotnet.with_paths reuses Runner.with_paths for "{files}" (super()), and every import of langs.py is at
+    the top of the module."""
+    import ast
+    import inspect
+    src = inspect.getsource(langs)
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            assert node in tree.body, f"import inside a function at line {node.lineno}"
+    dotnet_with_paths = inspect.getsource(langs.Dotnet.with_paths)
+    assert "super()" in dotnet_with_paths and "for " not in dotnet_with_paths
+
+
 def test_child_env(monkeypatch):
     monkeypatch.setenv("STRATOS_TEST_MARK", "1")
     env = langs.child_env(PYTHONHASHSEED="3")
