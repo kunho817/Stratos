@@ -77,3 +77,7 @@ lines; a person reads them before they are committed.
 - [plan, tests] When a task changes function signatures or structure, identify all tests that inspect the old implementation (e.g., via inspect.getsource) and update them to match the new structure. (Stratos: reset:T239:1)
 - [plan, code] When a goal requires annotating a variable, explicitly state the type hint to prevent the model from adding unrelated error handling logic. (Stratos: reset:T239:2)
 - [tests, assertions] When a function returns a list, assert on the list structure directly instead of splitting a string representation. (Stratos: reset:T248:1)
+- [plan, tests] When a goal specifies multiple behaviors, list all required test scenarios in the goal; do not omit edge cases like plant death. (Sprout: plan:P001:plants)
+- [plan, tests] When a goal defines static data, include a solution or validation logic in the goal to ensure the data is correct and testable. (Sprout: plan:P001:levels)
+- [plan, tests] When a rule changes (e.g., planting on unsuitable soil is allowed), explicitly list the new test cases that verify the changed behavior. (Sprout: plan:P001:game)
+- [plan, code-review] When a task introduces a new module (like view.js), explicitly list it in the files section and update dependent tasks to import it. (Sprout: plan:P001:main)

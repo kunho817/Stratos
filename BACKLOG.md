@@ -57,6 +57,42 @@ Go + C# follow-ups. Memory packs and Jev stay on hold.
   addcheck's "uses <name>" is noisy for common names (check, main: 30+ lines) - rank or drop names defined in
   many modules.
 
+**Trial 17: Sprout, a garden puzzle (D:\Strata\Trials\Sprout, JS, 2026-11-21) - the first DELEGATION trial: Claude edited no code or test file (only setup, goals, commands, reading).** 8 tasks done (T009 dropped), 134 tests, every level's solution wins with the spec's exact scores; first try 7/9, 2.11 attempts, waste 20.3%. Time: model 2094 s, switches 476 s, tests 6 s, mutation 8 s, refcheck 1 s, draft_check 1 s, other 560 s of 3147 s - the timed steps are small for JS; "other" is elsewhere (memory/wiki upkeep, git, planning) - time those next. Interventions:
+1. setup (Claude): stratos.toml, package.json, .gitignore, tests/example.test.js, git init.
+2. plan goals (Claude, allowed): 4 fixes after plan + critique - plant refused on moisture (not in the spec),
+   levels "seeds match plantable cells" (meaningless) -> a winning solution per level played by the test,
+   plants' dry-day test belongs to game, main tested without DOM -> src/view.js pure helpers; a stray sentence.
+3. Claude's slip: the added "view" task had no "protected" key -> plantests KeyError.
+   Stratos weakness (queue as a Stratos task): every KeyError inside plan-tests/plan-add/... is printed as
+   "no such plan: P001" (__main__ catches KeyError around the whole call) - it hid the real cause. Also: a plan
+   task missing a key should be filled with defaults or refused with its name when the plan is loaded.
+4. plan-tests results: moisture/plants drafts had been written by the crashed first run, so the rerun kept them
+   ("already exists") and made no reference for them -> the game and levels references could not import
+   src/plants.js / newGame ("interface"). Stratos weakness: a kept draft gets no reference, which breaks the
+   reference chain for every later task (queue: make the reference even when the draft is kept).
+   view: 1 of 15 flagged - the test wanted "#..." colors, the goal said "a CSS color" -> Claude made the goal
+   say "#rrggbb" (goal edit, allowed). Claude read game and levels drafts: correct.
+   mutation: html 0/3 (only placeholder text changed - harmless), main 0/12 (main's test reads the source as
+   text by design) -> mutation on a text-reading test says nothing; queue: skip or mark it when the test does
+   not import the module.
+5. run-all: T001-T004, T006 done (T001, T003 needed a second round after review). T005 (levels) failed 4 times
+   with 2 models: the solutions put plants on springs - a spatial slip (grid row/col reading), the perception
+   weakness the user named. Claude's intervention (goal only): how to check each solution cell (grid[row][col]
+   is '.', distance rule per kind, harvest day = ripeStage + 1, points add up, a comment per cell).
+   Idea: a "check" tool the model can call on its own data (play the solution) before answering - or Stratos
+   runs the tests on a draft level data file and feeds the cell-by-cell failure back.
+6. T005 passed on attempt 8 after the goal fix; T007 (main) passed first try. 106 tests pass 3 times.
+   Claude's check (playing every level's solution with node): all won, but score 30/9 - **src/plants.js has
+   sunflower 10 and fern 8 points, the spec says 3 and 2.** The planner's plants goal dropped the numbers
+   ("points" without values); the plants test compares with PLANTS[kind].points (cannot see a wrong number);
+   that draft came from the crashed run, so no reference and no mutation score ever looked at it.
+   Stratos weaknesses: (a) plan split lost spec numbers - the plan critic did not notice; (b) the kept draft
+   had no checks (item 4). Levels: no rocks and almost no cacti - valid but dull (spec did not ask more).
+   Fix handed to Stratos as plan P002 (goal only). First plan attempt: "plan invalid: files must be a
+   non-empty list" - the planner made a tests-only task; the second attempt was valid.
+7. T009 (re-check level 3): the passing answer changed nothing and `git commit` failed on the empty change - run-all crashed (Stratos weakness: an answer that changes nothing must be handled). Claude dropped T009 (not needed).
+**Queue for Stratos (from this trial):** (a) KeyError shown as "no such plan"; (b) a kept draft gets no reference/mutation; (c) mutation on text-reading tests is noise; (d) a passing answer with no change crashes the commit; (e) the plan split can drop spec numbers - the critic should compare numbers in the feature goal with the task goals; (f) the planner made a tests-only task (no files); (g) spatial slips on grids (levels): let the model check its own data (play the solution) before answering.
+
 **Next theme (user, 2026-11-21): perception - research and design in a NEW session.** The local models (even the
 vision ones) perceive the world far worse than frontier models. Start: a spatial occupancy map ("HeightMap") of a
 screen - count per cell how many things occupy it, so text overlap (TowerDefense) and overflow are found by
