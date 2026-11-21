@@ -239,10 +239,13 @@ def write_task(store, gw, task_id, log=print):
                                         attempt=attempt, model=r["model"], effort=r["effort"], max_tokens=r["max_tokens"])
             save_answer(task_id, attempt, text)
             result, detail = check_answer(task, wt, text, getattr(gw, "last_finish", None))
-            if result == "failed":
+            if result in ("failed", "search_failed"):
                 last_failed_text = text
                 last_failed_detail = detail
-                failed_ids.setdefault(r["model"], set()).update(decide._extract_ids(detail))
+                if result == "search_failed":
+                    failed_ids.setdefault(r["model"], set()).add("(the generator)")
+                else:
+                    failed_ids.setdefault(r["model"], set()).update(decide._extract_ids(detail))
             gw.telemetry.record("outcome", call_id=call_id, task=task_id, result=result, detail=detail[-500:])
             store.decide(task=task_id, attempt=attempt, role=role, model=r["model"], result=result)
             log(f"  attempt {attempt} ({role}, {r['model']}): {result}")
