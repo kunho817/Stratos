@@ -1,5 +1,6 @@
 """Warn about a task's test list when adding it: missing or broken test files, a test that belongs to another
-waiting task, and old tests that use the files this task changes but are left out of the list."""
+waiting task, old tests that read a changed file's source text, and old tests that use the files this task changes
+but are left out of the list."""
 
 import re
 from pathlib import Path
@@ -32,6 +33,23 @@ def check(repo, task, others, cmap):
                         "leave it out of this task's tests"
                     )
                     break
+
+    # 3b. old tests that read a changed file's source text
+    test_dir = cmap.get("test_dir", "tests")
+    prefix = test_dir + "/"
+    importers = set(plantests.old_tests(cmap, {"files": task["files"], "tests": tests}))
+    for p in sorted(cmap.get("files", {})):
+        if not p.startswith(prefix) or p in tests:
+            continue
+        try:
+            text = Path(repo, p).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if (p in importers and ("getsource(" in text or ".__file__" in text)) or any(
+                f in text for f in task["files"]):
+            lines.append(
+                f"{p} reads the source text of a file this task changes (getsource, __file__ or its path): "
+                "a new structure breaks it even when the behaviour stays the same - update it now")
 
     # 4. old tests that use the files this task changes
     goal = task.get("goal", "")
