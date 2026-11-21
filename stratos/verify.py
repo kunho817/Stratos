@@ -8,7 +8,7 @@ import re
 import subprocess
 import warnings
 
-from stratos import config, langs
+from stratos import config, langs, steps
 
 
 def summarize_output(out):
@@ -91,7 +91,8 @@ def dotnet_scope(root, tests):
 
 def run_tests(worktree, tests, parallel=False):
     with dotnet_scope(worktree, tests):
-        return _run_tests(worktree, tests, parallel)
+        with steps.timed("tests"):
+            return _run_tests(worktree, tests, parallel)
 
 
 def _run_tests(worktree, tests, parallel=False):

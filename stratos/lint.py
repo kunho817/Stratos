@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from stratos import steps
+
 ERRORS = ("F821", "F822", "F823")
 FIXES = ("F401",)
 
@@ -40,12 +42,13 @@ def check(root, paths, codes=ERRORS):
         return []
 
     root_path = Path(root)
-    result = subprocess.run(
-        [sys.executable, "-m", "ruff", "check", "--no-cache",
-         "--select", ",".join(codes), "--output-format", "json"] + py,
-        cwd=str(root_path), capture_output=True, text=True,
-        encoding="utf-8", errors="replace", timeout=120,
-    )
+    with steps.timed("lint"):
+        result = subprocess.run(
+            [sys.executable, "-m", "ruff", "check", "--no-cache",
+             "--select", ",".join(codes), "--output-format", "json"] + py,
+            cwd=str(root_path), capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=120,
+        )
 
     stdout = result.stdout.strip()
     if not stdout:

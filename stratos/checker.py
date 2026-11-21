@@ -14,7 +14,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from stratos import config, langs
+from stratos import config, langs, steps
 
 _COLON = re.compile(r"^\s*(?P<file>.+?):(?P<line>\d+)(?::\d+)?\s*-?\s*error\s*:?\s*(?P<msg>.+)$")
 _PAREN = re.compile(r"^\s*(?P<file>.+?)\((?P<line>\d+),\d+\)\s*:\s*error\s+(?P<msg>.+)$")
@@ -46,9 +46,10 @@ def check(root, paths):
         return []
     cmd = langs.runner().with_paths(cmd, paths)
     try:
-        r = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=120,
-                           env=langs.child_env())
+        with steps.timed("check"):
+            r = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", timeout=120,
+                               env=langs.child_env())
     except (subprocess.TimeoutExpired, OSError):
         return []
     return parse(r.stdout + r.stderr, root, paths)
