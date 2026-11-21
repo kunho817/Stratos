@@ -27,6 +27,7 @@ def no_network(monkeypatch, tmp_path_factory):
     monkeypatch.setattr(config, "STREAM", False, raising=False)   # task gateway_stream: old fakes replace _req
     monkeypatch.setattr(config, "AUTO_LEARN", False, raising=False)   # task upkeep
     monkeypatch.setattr(config, "AUTO_WIKI", False, raising=False)
+    monkeypatch.setattr(config, "CHECK", False, raising=False)   # task loop_checker: no real pyright in the tests
     monkeypatch.setattr(config, "LESSONS", tmp_path_factory.mktemp("lessons") / "LESSONS.md", raising=False)
 
     def refuse(*args, **kwargs):
