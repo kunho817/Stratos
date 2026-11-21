@@ -185,7 +185,7 @@ def check(gw, plan_id, task, root, tests, extra=None):
             # (Claude, Settle) nothing ran (a wrong command, a build error before the tests): not an "agree"
             first = next((ln.strip()[:200] for ln in out.splitlines() if "rror" in ln), out.strip()[-200:])
             return {"status": "error", "total": 0, "failing": [], "first_error": "no test ran: " + first,
-                    "files": files}
+                    "files": []}   # a reference that ran nothing is not passed on to later tasks
         crash = crash_line(out, [p for p, _ in files])
         if crash:
             return {"status": "crashed", "total": total, "failing": failing,
