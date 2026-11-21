@@ -73,13 +73,13 @@ def refresh_memory():
         print(f"memory: {e}", file=sys.stderr)
 
 
-def add_one(store, title, goal, files, protected, tests, role, after):
+def add_one(store, title, goal, files, protected, tests, role, after, output=None):
     if role is None:
         d = decide.choose_role({'files': files, 'goal': goal})
         role = d['choice']
     else:
         d = None
-    t = store.add_task(title, goal, files, protected, tests, role=role, after=after)
+    t = store.add_task(title, goal, files, protected, tests, role=role, after=after, output=output)
     if d is not None:
         store.update(t['id'], role_decision=d)
         Telemetry(config.STATE_DIR / 'telemetry.jsonl').record('decision', decision='role', decider='rules',
@@ -151,6 +151,7 @@ def _main(argv=None):
     a.add_argument("--tests", required=True)
     a.add_argument("--role", choices=sorted(config.ROLES), default=None, help="which model plays this task")
     a.add_argument("--after", default="", help="comma-separated task ids that must be done first")
+    a.add_argument("--output", default=None, help="a search task: the file the generator prints")
     plan_p = sub.add_parser("plan", help="split a feature goal into tasks")
     plan_p.add_argument("--goal-file", required=True, help="path to a file containing the feature goal")
     plan_p.add_argument("--tries", type=int, default=2, help="attempts to get a valid plan")
@@ -224,7 +225,7 @@ def _main(argv=None):
             goal = args.goal
         role = args.role
         t = add_one(store, args.title, goal, split(args.files), split(args.protected), split(args.tests),
-                    role, split(args.after))
+                    role, split(args.after), args.output)
         try:
             lines = addcheck.check(config.REPO, t, [o for o in store.tasks() if o["id"] != t["id"]],
                                    codemap.build(config.REPO))
