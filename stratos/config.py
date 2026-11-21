@@ -118,6 +118,10 @@ REF_WRITER = {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 24000,
 # REF_CHECK: run the reference check after drafts in plan-tests; STRATOS_REF_CHECK=0 turns it off
 REF_CHECK = os.environ.get("STRATOS_REF_CHECK", "1") != "0"
 
+# the old tests shown to the test writer, at most this many characters of their text (2026-11-22: 42 old tests of
+# __main__.py made a prompt over Swift's context); the most relevant are shown, the rest as one line each
+OLD_TESTS_CHARS = 48000
+
 # mutation score: mutate the reference implementation, run the tests, count mutants killed
 MUTATION = True
 # number of mutants to generate from the reference

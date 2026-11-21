@@ -155,10 +155,7 @@ def build_messages(task, root, example=None, earlier=(), memory=None, old=()):
     for p in task["tests"]:
         if Path(root, p).exists():
             parts.append(context.show_file(root, p, "EXISTING TEST, DO NOT REWRITE"))
-    for p in old:
-        if Path(root, p).exists():
-            parts.append(context.show_file(root, p,
-                "EXISTING TEST THAT USES THESE FILES (it must keep passing unless the goal changes what it checks)"))
+    parts.extend(_old_test_parts(task, root, old))
     final = "WRITE THESE TEST FILES: " + ", ".join(new or task["tests"])
     if old or any(Path(root, p).exists() for p in task["tests"]):
         final += ("\nIf the goal makes a test in those existing files wrong, name it at the top of your new file "
@@ -166,6 +163,56 @@ def build_messages(task, root, example=None, earlier=(), memory=None, old=()):
     parts.append(final)
     return [{"role": "system", "content": TEST_SYSTEM},
             {"role": "user", "content": "\n\n".join(parts)}]
+
+
+_DEFS = (re.compile(r"^(?:def|class)\s+([A-Za-z_]\w*)|^([A-Za-z_]\w*)\s*=", re.M),
+         re.compile(r"^export\s+(?:async\s+)?(?:function\*?|class|const|let|var)\s+([A-Za-z_$][\w$]*)", re.M))
+
+
+def goal_names(root, task):
+    """Top-level names of the task's changed files that the goal names as whole words, sorted."""
+    goal = task.get("goal", "")
+    names = set()
+    for path in task.get("files", []):
+        try:
+            text = Path(root, path).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for rx in _DEFS:
+            for m in rx.finditer(text):
+                name = next(g for g in m.groups() if g)
+                if re.search(r"(?<![\w$])" + re.escape(name) + r"(?![\w$])", goal):
+                    names.add(name)
+    return sorted(names)
+
+
+def _old_test_parts(task, root, old):
+    """(Claude, 2026-11-22) the old tests that import a changed file, within config.OLD_TESTS_CHARS: 42 of them
+    (~69k tokens) for __main__.py made a prompt over Swift's context. When all fit, as before."""
+    label = "EXISTING TEST THAT USES THESE FILES (it must keep passing unless the goal changes what it checks)"
+    texts = {}
+    for p in old:
+        try:
+            texts[p] = Path(root, p).read_text(encoding="utf-8")
+        except OSError:
+            continue
+    if sum(len(t) for t in texts.values()) <= config.OLD_TESTS_CHARS:
+        return [context.show_file(root, p, label) for p in texts]
+    names = goal_names(root, task)
+
+    def used(text):
+        return [n for n in names if re.search(r"(?<![\w$])" + re.escape(n) + r"(?![\w$])", text)]
+    ordered = sorted(texts, key=lambda p: (-len(used(texts[p])), p))
+    total, parts = 0, []
+    for p in ordered:
+        if total + len(texts[p]) <= config.OLD_TESTS_CHARS:
+            total += len(texts[p])
+            parts.append(context.show_file(root, p, label))
+        else:
+            u = used(texts[p])
+            parts.append(f"OLD TEST {p} (not shown, {len(texts[p].splitlines())} lines; uses: "
+                         f"{', '.join(u) if u else 'none of the goal' + chr(39) + 's names'})")
+    return parts
 
 
 def draft_problems(root, path):
