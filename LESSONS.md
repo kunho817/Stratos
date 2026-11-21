@@ -73,3 +73,6 @@ lines; a person reads them before they are committed.
 - [plan, code] When a task involves building or compiling code, verify the build command and file paths in the harness to prevent MSB4025 errors. (Settle: reset:T001:1)
 - [plan, data-flow] When a goal specifies output formatting like lowercasing, explicitly state the transformation step to ensure the coder applies it to all relevant names. (Settle: reset:T003:1)
 - [plan, code] When a task specifies a namespace, explicitly list the file and its namespace declaration to ensure the code is placed in the correct module. (Settle: reset:T005:1)
+- [plan, code] When a goal specifies a context manager, explicitly state that setup code must execute before the yield and teardown in a finally block. (Stratos: reset:T236:1)
+- [plan, tests] When a task changes function signatures or structure, identify all tests that inspect the old implementation (e.g., via inspect.getsource) and update them to match the new structure. (Stratos: reset:T239:1)
+- [plan, code] When a goal requires annotating a variable, explicitly state the type hint to prevent the model from adding unrelated error handling logic. (Stratos: reset:T239:2)

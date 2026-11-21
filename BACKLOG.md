@@ -16,6 +16,20 @@ files with 1-2 tests (one file per task). Then P20 language adapters (one place 
 output reading, syntax/build check, scoping; split __main__ and report), P21 test strength (mutation score for
 drafts, stale-test finder), P22 judging (reviewer's false blocks, the flaky push test, "other" time measured), P23
 Go + C# follow-ups. Memory packs and Jev stay on hold.
+  **Done 2026-11-21:** tests merged one file per module (187 -> 134 files, the same 944 tests, collected names
+  identical; scratchpad merge_tests.py, strict: no name clash incl. helpers imported from other test files).
+  P20: stratos/langs.py (T236-T238: Runner/Pytest/NodeTest/Dotnet - test_cmd, with_paths, scope,
+  missing_import, child_env; verify/checker/plantests/refcheck name no runner now; checked on Settle and
+  Lantern for real) and __main__ as one function per command + COMMANDS (T239). 965 tests.
+  Found: (a) **checker vs reviewer**: an untyped `parser` made pyright say "possibly unbound" after
+  parser.error(); Swift added `raise SystemExit(2)`, the reviewer rejected it as dead code - 3 rounds (fixed in
+  the goal: annotate the parameter). P22: when a check_error fix is what the review blocks, the review must see
+  why the line is there. (b) the last T239 review was `review_unparsed` and counted as approval - P22 too.
+  (c) reset failed 3 times: Claude's shell cwd sat in the task folder; gitops now treats the emptied folder as
+  removed. (d) Claude's slips: a too-strict test (T237), 3 old tests reading getsource(cli._main) not updated
+  before add (addcheck warned "uses main" generically; it cannot see getsource), `&& tail` hid a test failure
+  again. Left for later: report.py split (636 lines of functions, not a chain - low value), test cleanup step
+  2 (40 FakeGateway variants in 38 files -> one scripted fake).
 
 **Next theme (user, 2026-11-21): perception - research and design in a NEW session.** The local models (even the
 vision ones) perceive the world far worse than frontier models. Start: a spatial occupancy map ("HeightMap") of a
