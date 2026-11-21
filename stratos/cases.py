@@ -1,5 +1,7 @@
 import ast
+import json
 import re
+
 
 def _call(src):
     try:
@@ -77,7 +79,9 @@ def parse(text):
     return {"imports": imports, "plain": plain, "other": other}
 
 
-def render(parsed):
+def render(parsed, language="python"):
+    if language == "javascript":
+        return _render_javascript(parsed)
     header_lines = ['"""Tests written by Stratos from the cases Claude gave (stratos/cases.py)."""']
     has_raises = any(c["kind"] == "raises" for c in parsed["plain"])
     if has_raises:
@@ -120,3 +124,37 @@ def render(parsed):
     header = "\n".join(header_lines)
     body = "\n\n\n".join(funcs)
     return header + "\n\n\n" + body + "\n"
+
+
+def _render_javascript(parsed):
+    header_lines = ['// Tests written by Stratos from the cases Claude gave (stratos/cases.py).',
+                    'import { test } from "node:test";',
+                    'import assert from "node:assert/strict";']
+    for imp in parsed["imports"]:
+        header_lines.append(imp)
+    modules = {}
+    module_order = []
+    for c in parsed["plain"]:
+        mod = c["module"]
+        if mod is not None:
+            if mod not in modules:
+                modules[mod] = []
+                module_order.append(mod)
+            if c["name"] not in modules[mod]:
+                modules[mod].append(c["name"])
+    for mod in module_order:
+        names = sorted(modules[mod])
+        header_lines.append('import { %s } from "../%s.js";' % (", ".join(names), mod.replace(".", "/")))
+    counters = {}
+    tests = []
+    for c in parsed["plain"]:
+        name = c["name"]
+        counters[name] = counters.get(name, 0) + 1
+        n = counters[name]
+        if c["kind"] == "eq":
+            tests.append('test("%s %d", () => {\n  assert.deepEqual(%s, %s);\n});' % (name, n, c["call"], c["expected"]))
+        elif c["kind"] == "raises":
+            extra = "" if c["message"] is None else ' && e.message.includes(' + json.dumps(c["message"]) + ')'
+            tests.append('test("%s %d", () => {\n  assert.throws(() => %s, (e) => e instanceof %s%s);\n});' % (
+                name, n, c["call"], c["error"], extra))
+    return "\n".join(header_lines) + "\n\n" + "\n\n".join(tests) + "\n"
