@@ -61,7 +61,7 @@ def test_strong_tests_kill_every_mutant(tmp_path, monkeypatch):
     root = project(tmp_path, monkeypatch, "    assert two() == 2\n")
     r = refcheck.check(GW([REF]), "P1", TASK, root, ["tests/test_b.py"])
     assert r["status"] == "agree"
-    assert r["mutation"] == {"total": 3, "killed": 3, "survivors": []}
+    assert r["mutation"] == {"total": 3, "killed": 3, "survivors": [], "skipped": []}
 
 
 def test_weak_tests_let_them_through(tmp_path, monkeypatch):
@@ -71,7 +71,7 @@ def test_weak_tests_let_them_through(tmp_path, monkeypatch):
     assert r["mutation"] == {"total": 3, "killed": 0, "survivors": [
         "pkg/b.py:2: return 1 + 1 -> return 2 + 1",
         "pkg/b.py:2: return 1 + 1 -> return 1 - 1",
-        "pkg/b.py:2: return 1 + 1 -> return 1 + 2"]}
+        "pkg/b.py:2: return 1 + 1 -> return 1 + 2"], "skipped": []}
 
 
 def test_no_mutation_when_off_or_not_agreeing(tmp_path, monkeypatch):
@@ -99,7 +99,7 @@ def test_mutation_skips_broken_mutants_and_limits(tmp_path, monkeypatch):
     assert (copy / "pkg" / "b.py").read_text(encoding="utf-8") == src   # written back
     monkeypatch.setattr(refcheck.verify, "syntax_errors", lambda root, paths: ["pkg/b.py:2: bad"])
     assert refcheck.mutation(copy, [("pkg/b.py", src)], ["tests/test_b.py"]) == {"total": 0, "killed": 0,
-                                                                              "survivors": []}
+                                                                              "survivors": [], "skipped": []}
 
 
 def test_mutation_lines(monkeypatch):
