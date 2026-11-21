@@ -17,8 +17,9 @@ ROLES = {
     # Swift 1.5 runs on PolyStrata's separate engine (engine\strata.exe): switching to it takes ~60-100 s (Flint ~27 s).
     # It writes ~4,300 tokens per call with the budget; Windows has only ~13 GB of memory left while it is loaded
     "coder_hard": {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 24000, "reasoning_budget": 3000},
-    # reads the diff after the tests pass; a different model from the coders, so it does not share their blind spots
-    "reviewer": {"model": "qwen3.6-35b-a3b-ud-q3_k_m", "effort": "low", "max_tokens": 4000},
+    # Tiel reviews as well as Qwen3.6 on the 10 known cases (9/10 twice), and needs no model switch after Tiel writes;
+    # review switches were 53% of switch time, so the reviewer is now the coder's own model
+    "reviewer": {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "low", "max_tokens": 4000},
 }
 
 REVIEW = True   # review every diff that passes its tests; high/medium issues send it back as a failed attempt
