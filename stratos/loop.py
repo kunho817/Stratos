@@ -243,8 +243,13 @@ def write_task(store, gw, task_id, log=print):
         gw.telemetry.record("preflight", task=task_id, verdict="run", reason=pre["reason"])
         if pre["output"]:
             before = pre["output"][-3000:]
-    failure = task.get("review_feedback")
+    failure = None
     attempt = task.get("attempts", 0)
+    review_text = task.get("review_feedback")
+    triage_data = task.get("triage")
+    diagnosis_text = None
+    if isinstance(triage_data, dict) and triage_data.get("verdict") == "code_wrong" and triage_data.get("reason"):
+        diagnosis_text = triage_data["reason"]
     last_failed_text = None
     last_failed_detail = None
     failed_ids = {}
@@ -258,6 +263,10 @@ def write_task(store, gw, task_id, log=print):
                 log(f"  model switch to {r['model']}: {switch:.1f} s")
             budget = r.get("reasoning_budget")
             extra = {"before": before} if before else {}
+            if review_text:
+                extra["review"] = review_text
+            if diagnosis_text:
+                extra["diagnosis"] = diagnosis_text
             kw = {"reasoning_budget": budget} if budget is not None else {}
             try:
                 call_id, text = gw.chat(context.build_messages(task, wt, failure, memory=memory, **extra), task=task_id, role=role,
