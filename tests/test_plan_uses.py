@@ -18,16 +18,16 @@ HEAD = "WHO USES WHAT (when a task changes a name, every user listed here must b
 
 
 def test_build_messages_with_uses():
-    suffix = "\n\nTEST FILES: every test file path starts with tests/ and ends with .py."
+    suffix = "TEST FILES: every test file path starts with tests/ and ends with .py."
     user = plan.build_messages("G", "S", uses="TOWER_TYPES (src/towers.js): used by src/step.js:step; tests: none")[1]
-    assert user["content"] == ("PROJECT FILES:\nS\n\n" + HEAD +
-                               "TOWER_TYPES (src/towers.js): used by src/step.js:step; tests: none\n\nFEATURE GOAL:\nG" + suffix)
+    assert user["content"] == ("PROJECT FILES:\nS\n\n" + suffix + "\n\n" + HEAD +
+                               "TOWER_TYPES (src/towers.js): used by src/step.js:step; tests: none\n\nFEATURE GOAL:\nG")
 
 
 def test_build_messages_with_uses_and_conventions():
-    suffix = "\n\nTEST FILES: every test file path starts with tests/ and ends with .py."
+    suffix = "TEST FILES: every test file path starts with tests/ and ends with .py."
     user = plan.build_messages("G", "S", conventions="C", uses="U")[1]["content"]
-    assert user == "PROJECT FILES:\nS\n\n" + HEAD + "U\n\nPROJECT CONVENTIONS:\nC\n\nFEATURE GOAL:\nG" + suffix
+    assert user == "PROJECT FILES:\nS\n\n" + suffix + "\n\n" + HEAD + "U\n\nPROJECT CONVENTIONS:\nC\n\nFEATURE GOAL:\nG"
 
 
 def test_build_messages_without_uses():
