@@ -67,7 +67,8 @@ def test_run_try(tmp_path):
         pass
 
 
-def test_server(tmp_path):
+def test_server(tmp_path, monkeypatch):
+    monkeypatch.setattr(dashboard, "TRY_TIMEOUT_S", 60)
     cli_repo(tmp_path)
     game = make(tmp_path, "Game", '[try]\nkind = "static"\nindex = "index.html"\n')
     (game / "index.html").write_text("<h1>game</h1>", encoding="utf-8")
