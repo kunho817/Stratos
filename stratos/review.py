@@ -29,6 +29,7 @@ REVIEW_SYSTEM = (
     "low = style only, in lines the goal asked to change. "
     "Use approve when there are no high or medium issues. "
     "An issue whose quote is not a line of the diff or of the whole changed files does not count."
+    " The task's tests were written before the code and are not part of the diff: never report missing, unchanged or unwritten tests."
 )
 
 
