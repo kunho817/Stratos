@@ -103,3 +103,5 @@ lines; a person reads them before they are committed.
 - [plan, code-review] Verify that every parameter mentioned in the goal is actually passed by the caller in the implementation. (Stratos: reset:T273:1)
 - [tests, fakes] When a task relies on a specific fake implementation, verify the fake's behavior matches the real function's output to prevent test setup errors. (Stratos: reset:T273:2)
 - [plan, code-review] Verify exact spacing and punctuation in string literals against the goal to prevent formatting mismatches. (Stratos: reset:T278:1)
+- [plan, tests] When a task changes sorting or ordering logic, explicitly state the expected order in the goal to prevent tests from asserting the old order. (Stratos: reset:T280:1)
+- [plan, tests] When a task changes budget or limit logic, verify test data actually triggers the new boundary conditions, not just the default case. (Stratos: reset:T280:2)
