@@ -292,7 +292,7 @@ def related_files(root, files, extra=()):
     return sorted(found - set(files))
 
 
-def build_messages(task, root, failure=None, memory=None, before=None):
+def build_messages(task, root, failure=None, memory=None, before=None, review=None, diagnosis=None):
     parts = [f"TASK {task['id']}: {task['title']}", task["goal"]]
     for path in task["files"]:
         parts.append(show_file(root, path, "FILE YOU MAY WRITE"))
@@ -320,6 +320,10 @@ def build_messages(task, root, failure=None, memory=None, before=None):
             parts.append(f"READ-ONLY (imported by the files you write; only the parts they use): {path}\n```\n{module_excerpt(root, path, names)}\n```")
     if memory:
         parts.append("MEMORY (found for this task: lessons and related code):\n" + memory)
+    if review:
+        parts.append("THE TESTS PASSED, BUT A CODE REVIEW FOUND THESE PROBLEMS - fix every one and keep the tests passing:\n" + review)
+    if diagnosis:
+        parts.append("A DIAGNOSIS OF THE EARLIER ATTEMPTS (another model read their code and the failing tests):\n" + diagnosis)
     if failure:
         parts.append("YOUR PREVIOUS ATTEMPT FAILED and was not kept: the files above are as they were before it, so send every change again. Test output:\n```\n" + failure + "\n```\nFix it.")
     elif before:
