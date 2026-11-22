@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from stratos import codemap, config, embed, learn, wiki
+from stratos import codemap, config, embed, learn, steps, wiki
 from stratos.telemetry import Telemetry
 
 
@@ -19,22 +19,23 @@ def pending(tasks, events, state_dir, repo):
 
 
 def after_run(gw, store, finished, log=print, refresh=lambda: None):
-    try:
-        tasks = store.tasks()
-        events = Telemetry(config.STATE_DIR / "telemetry.jsonl").load()
-        ran = False
-        if config.AUTO_LEARN:
-            todo = pending(tasks, events, config.STATE_DIR, config.REPO)
-            if todo:
-                r = learn.learn(gw, tasks, events, config.LESSONS, config.STATE_DIR,
-                                config.REPO.name, embedder=embed.Embedder(), repo=config.REPO)
-                log(f"memory learn: {r['added']} lessons from {len(todo)} corrections")
+    with steps.timed("upkeep"):
+        try:
+            tasks = store.tasks()
+            events = Telemetry(config.STATE_DIR / "telemetry.jsonl").load()
+            ran = False
+            if config.AUTO_LEARN:
+                todo = pending(tasks, events, config.STATE_DIR, config.REPO)
+                if todo:
+                    r = learn.learn(gw, tasks, events, config.LESSONS, config.STATE_DIR,
+                                    config.REPO.name, embedder=embed.Embedder(), repo=config.REPO)
+                    log(f"memory learn: {r['added']} lessons from {len(todo)} corrections")
+                    ran = True
+            if config.AUTO_WIKI and finished:
+                c = wiki.build(gw, config.REPO, config.STATE_DIR, codemap.build(config.REPO))
+                log(f"wiki: {c['written']} written, {c['unchanged']} unchanged")
                 ran = True
-        if config.AUTO_WIKI and finished:
-            c = wiki.build(gw, config.REPO, config.STATE_DIR, codemap.build(config.REPO))
-            log(f"wiki: {c['written']} written, {c['unchanged']} unchanged")
-            ran = True
-        if ran:
-            refresh()
-    except Exception as e:
-        log(f"upkeep: {e}")
+            if ran:
+                refresh()
+        except Exception as e:
+            log(f"upkeep: {e}")

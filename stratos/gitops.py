@@ -3,6 +3,8 @@ merging a finished task back is a person's decision."""
 import subprocess
 from pathlib import Path
 
+from stratos import steps
+
 BOT = ["-c", "user.name=Stratos", "-c", "user.email=stratos@localhost"]
 
 
@@ -21,23 +23,24 @@ def git(cwd, *args, check=True):
 
 
 def ensure_worktree(repo, root, task_id, bases=None):
-    path = Path(root) / task_id
-    if path.exists():
+    with steps.timed("worktree"):
+        path = Path(root) / task_id
+        if path.exists():
+            return path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        bases = bases or []
+        start = bases[0] if bases else "HEAD"
+        git(repo, "worktree", "add", "-b", f"stratos/{task_id}", str(path), start)
+        # the other bases, and HEAD too: commits made on main after a dependency's branch (a test fix) must reach the
+        # copy (T083, 2026-11-19)
+        head = git(repo, "rev-parse", "HEAD") if bases else None
+        for base in bases[1:] + ([head] if head else []):
+            r = subprocess.run(["git", *BOT, "merge", "--no-edit", base], cwd=path, capture_output=True, **UTF8)
+            if r.returncode != 0:
+                subprocess.run(["git", "merge", "--abort"], cwd=path, capture_output=True, check=False)
+                remove_worktree(repo, root, task_id)
+                raise BaseConflict(f"merging {base} into stratos/{task_id} conflicted")
         return path
-    path.parent.mkdir(parents=True, exist_ok=True)
-    bases = bases or []
-    start = bases[0] if bases else "HEAD"
-    git(repo, "worktree", "add", "-b", f"stratos/{task_id}", str(path), start)
-    # the other bases, and HEAD too: commits made on main after a dependency's branch (a test fix) must reach the
-    # copy (T083, 2026-11-19)
-    head = git(repo, "rev-parse", "HEAD") if bases else None
-    for base in bases[1:] + ([head] if head else []):
-        r = subprocess.run(["git", *BOT, "merge", "--no-edit", base], cwd=path, capture_output=True, **UTF8)
-        if r.returncode != 0:
-            subprocess.run(["git", "merge", "--abort"], cwd=path, capture_output=True, check=False)
-            remove_worktree(repo, root, task_id)
-            raise BaseConflict(f"merging {base} into stratos/{task_id} conflicted")
-    return path
 
 
 def dependency_bases(repo, task_ids):
@@ -116,9 +119,10 @@ def discard_changes(worktree):
 
 
 def commit_all(worktree, message):
-    git(worktree, "add", "-A")
-    git(worktree, *BOT, "commit", "-m", message)
-    return git(worktree, "rev-parse", "--short", "HEAD")
+    with steps.timed("git"):
+        git(worktree, "add", "-A")
+        git(worktree, *BOT, "commit", "-m", message)
+        return git(worktree, "rev-parse", "--short", "HEAD")
 
 
 def changed_since(repo, paths, since):

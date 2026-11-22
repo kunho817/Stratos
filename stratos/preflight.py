@@ -8,7 +8,7 @@ writes (Orbit T003, a missing After), test files with syntax errors.
 import re
 from pathlib import Path
 
-from . import verify
+from . import steps, verify
 
 
 def _cut_suffix(path):
@@ -18,38 +18,39 @@ def _cut_suffix(path):
 
 def check(task, wt, run=None):
     """Run a task's tests on its base; return {"verdict", "reason", "output"}."""
-    wt = Path(wt)
-    paths = [_cut_suffix(t) for t in task["tests"]]
+    with steps.timed("preflight"):
+        wt = Path(wt)
+        paths = [_cut_suffix(t) for t in task["tests"]]
 
-    # (1) a test path that does not exist under wt
-    for path in paths:
-        if not (wt / path).exists():
-            return {"verdict": "refuse", "reason": f"test file missing: {path}", "output": ""}
+        # (1) a test path that does not exist under wt
+        for path in paths:
+            if not (wt / path).exists():
+                return {"verdict": "refuse", "reason": f"test file missing: {path}", "output": ""}
 
-    # (2) syntax errors in the test files
-    errors = verify.syntax_errors(wt, paths)
-    if errors:
-        return {"verdict": "refuse", "reason": "test file has a syntax error: " + errors[0], "output": ""}
+        # (2) syntax errors in the test files
+        errors = verify.syntax_errors(wt, paths)
+        if errors:
+            return {"verdict": "refuse", "reason": "test file has a syntax error: " + errors[0], "output": ""}
 
-    # (3) the tests already pass on the base
-    run = run or verify.run_tests
-    passed, out = run(wt, task["tests"])
-    if passed:
-        return {"verdict": "run", "reason": "tests already pass on the base", "output": ""}
+        # (3) the tests already pass on the base
+        run = run or verify.run_tests
+        passed, out = run(wt, task["tests"])
+        if passed:
+            return {"verdict": "run", "reason": "tests already pass on the base", "output": ""}
 
-    # (4) the tests import something this task does not write, or need a missing module
-    for entry in missing_imports(out, wt, task["tests"]):
-        if entry.startswith("module:"):
-            name = entry[len("module:"):]
-            return {"verdict": "refuse", "reason": f"the tests need module {name}, which is not installed", "output": out}
-        if entry not in task["files"]:
-            return {"verdict": "refuse",
-                    "reason": f"the tests import {entry}, which this task does not write: add the task that writes it "
-                              "to After, or the file to Files",
-                    "output": out}
+        # (4) the tests import something this task does not write, or need a missing module
+        for entry in missing_imports(out, wt, task["tests"]):
+            if entry.startswith("module:"):
+                name = entry[len("module:"):]
+                return {"verdict": "refuse", "reason": f"the tests need module {name}, which is not installed", "output": out}
+            if entry not in task["files"]:
+                return {"verdict": "refuse",
+                        "reason": f"the tests import {entry}, which this task does not write: add the task that writes it "
+                                  "to After, or the file to Files",
+                        "output": out}
 
-    # (5) the tests fail before the change
-    return {"verdict": "run", "reason": "tests fail before the change", "output": out}
+        # (5) the tests fail before the change
+        return {"verdict": "run", "reason": "tests fail before the change", "output": out}
 
 
 _PY_CANNOT_IMPORT = re.compile(r"cannot import name '(\w+)' from '([\w.]+)' \(([^)]+)\)")

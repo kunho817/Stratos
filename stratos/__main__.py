@@ -66,13 +66,14 @@ def split(s):
 
 
 def refresh_memory():
-    if not config.MEMORY:
-        return
-    try:
-        c = memindex.refresh(config.REPO, config.STATE_DIR, embed.Embedder())
-        print(f"memory: {c['changed']} changed, {c['embedded']} embedded")
-    except Exception as e:
-        print(f"memory: {e}", file=sys.stderr)
+    with steps.timed("memory"):
+        if not config.MEMORY:
+            return
+        try:
+            c = memindex.refresh(config.REPO, config.STATE_DIR, embed.Embedder())
+            print(f"memory: {c['changed']} changed, {c['embedded']} embedded")
+        except Exception as e:
+            print(f"memory: {e}", file=sys.stderr)
 
 
 def add_one(store, title, goal, files, protected, tests, role, after, output=None):
