@@ -42,6 +42,11 @@ def _extract_ids(detail):
         m = re.match(r"^Failed (\S.*?) \[[^\]]*\]$", stripped)
         if m:
             ids.append(m.group(1))
+        elif line.startswith("--- FAIL: "):
+            rest = line[len("--- FAIL: "):]
+            word = rest.split(' ', 1)[0]
+            if word:
+                ids.append(word)
         elif stripped.startswith('FAILED '):
             rest = stripped[len('FAILED '):]
             ids.append(rest.split(' - ', 1)[0].strip())
