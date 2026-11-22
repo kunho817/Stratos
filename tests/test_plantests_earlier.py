@@ -16,7 +16,6 @@ plantests.build_messages(task, root, example=None, earlier=()):
 - With earlier empty and no existing test files the messages are exactly as before.
 
 draft_tests passes earlier = the plan's tasks before the current one, in plan order."""
-import json
 
 import pytest
 
@@ -104,7 +103,7 @@ def test_draft_tests_passes_the_earlier_tasks(root, tmp_path, monkeypatch):
     monkeypatch.setattr(plantests, "suite_leaks", lambda r, p, ignore=(): [])
     pid = plan.save_plan(state, "G", [T1, T2])
     gw = FakeGateway()
-    first = plantests.build_messages(T1, root, earlier=[])      # before the first draft is written
+    first = plantests.build_messages(T1, root, earlier=[], feature="G")      # before the first draft is written
     plantests.draft_tests(gw, pid, root, state, log=lambda s: None)
     assert gw.messages[0] == first
-    assert gw.messages[1] == plantests.build_messages(T2, root, earlier=[T1])
+    assert gw.messages[1] == plantests.build_messages(T2, root, earlier=[T1], feature="G")

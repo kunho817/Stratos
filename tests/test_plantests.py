@@ -29,8 +29,6 @@ draft_tests(gw, plan_id, root, state_dir, log=print) -> list of {"key", "file", 
 import inspect
 import json
 import subprocess
-import sys
-from pathlib import Path
 
 import pytest
 
@@ -121,7 +119,7 @@ def test_draft_tests(root, tmp_path, monkeypatch):
           "def test_cli():\n    pass\n```\nFILE: stratos/evil.py\n```python\nY = 2\n```\n")
     gw = FakeGateway(Telemetry(tmp_path / "t.jsonl"), [a1, a2])
     lines = []
-    expected_first = plantests.build_messages(TASK, root)      # before the drafts change the project summary
+    expected_first = plantests.build_messages(TASK, root, feature="a feature")      # before the drafts change the project summary
     out = plantests.draft_tests(gw, pid, root, state, log=lines.append)
     assert out == [{"key": "core", "file": "tests/test_m.py", "status": "import_error"},
                    {"key": "cli", "file": "tests/test_diagnose.py", "status": "exists"},
