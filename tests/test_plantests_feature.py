@@ -9,11 +9,10 @@ stratos/plantests.py, build_messages(task, root, example=None, earlier=(), memor
 draft_tests(gw, plan_id, root, state_dir, log=print): passes feature=p["goal"] (the plan's feature goal)
   to build_messages for every task in the plan.
 """
-import json
 
 import pytest
 
-from stratos import codemap, config, context, plan, plantests
+from stratos import codemap, config, plan, plantests
 
 
 T1 = {"key": "a", "title": "Add f", "goal": "Add f to x.py.",
@@ -51,8 +50,6 @@ def test_feature_block_inserted_after_goal(root):
     # parts[0] = "TASK a: Add f", parts[1] = goal
     assert parts[1] == "Add f to x.py."
     assert parts[2] == feature_part
-    # The feature part sits before PROJECT FILES:
-    assert parts[2] < parts[3]
     assert parts[3].startswith("PROJECT FILES:")
     # Verify the exact string
     expected = ("THE WHOLE FEATURE (this task is one part of it; "
