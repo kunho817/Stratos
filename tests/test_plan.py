@@ -28,7 +28,6 @@ load_plan(state_dir, pid) -> the dict; KeyError(pid) when the file does not exis
 edited(plan) -> plan_hash(plan["tasks"]) != plan["hash"]  (a person changed the tasks after the planner wrote them)
 mark_added(state_dir, pid, task_ids) -> sets "status": "added" and "task_ids": task_ids (key -> task id) in the file."""
 import json
-import re
 
 import pytest
 
@@ -62,7 +61,8 @@ def test_repo_summary(tmp_path):
 def test_build_messages():
     msgs = plan.build_messages("Make it fly.", "stratos/a.py")
     assert msgs == [{"role": "system", "content": plan.SYSTEM},
-                    {"role": "user", "content": "PROJECT FILES:\nstratos/a.py\n\nFEATURE GOAL:\nMake it fly."}]
+                    {"role": "user", "content": "PROJECT FILES:\nstratos/a.py\n\nFEATURE GOAL:\nMake it fly."
+                    + "\n\nTEST FILES: every test file path starts with tests/ and ends with .py."}]
 
 
 def test_parse_a_fenced_plan_and_defaults():
@@ -248,10 +248,11 @@ ANSWER = '{"tasks": [{"key": "a", "title": "T", "goal": "G", "files": ["stratos/
 
 
 def test_build_messages_with_memory():
+    suffix = "\n\nTEST FILES: every test file path starts with tests/ and ends with .py."
     user = plan.build_messages("G", "S", conventions="C", uses="U", memory="M")[1]["content"]
     assert user == ("PROJECT FILES:\nS\n\nWHO USES WHAT (when a task changes a name, every user listed here must be "
-                    "changed or checked too):\nU\n\n" + HEAD + "M\n\nPROJECT CONVENTIONS:\nC\n\nFEATURE GOAL:\nG")
-    assert plan.build_messages("G", "S", memory="M")[1]["content"] == "PROJECT FILES:\nS\n\n" + HEAD + "M\n\nFEATURE GOAL:\nG"
+                    "changed or checked too):\nU\n\n" + HEAD + "M\n\nPROJECT CONVENTIONS:\nC\n\nFEATURE GOAL:\nG" + suffix)
+    assert plan.build_messages("G", "S", memory="M")[1]["content"] == ("PROJECT FILES:\nS\n\n" + HEAD + "M\n\nFEATURE GOAL:\nG" + suffix)
     assert plan.build_messages("G", "S", memory="") == plan.build_messages("G", "S")
 
 
@@ -824,10 +825,12 @@ def test_a_normal_task_still_passes():
 def test_build_messages_with_conventions_and_system():
     msgs = plan.build_messages("Fly.", "stratos/a.py", conventions="Use gw.chat.")
     assert msgs[0] == {"role": "system", "content": plan.SYSTEM}
-    assert msgs[1]["content"] == "PROJECT FILES:\nstratos/a.py\n\nPROJECT CONVENTIONS:\nUse gw.chat.\n\nFEATURE GOAL:\nFly."
+    assert msgs[1]["content"] == ("PROJECT FILES:\nstratos/a.py\n\nPROJECT CONVENTIONS:\nUse gw.chat.\n\nFEATURE GOAL:\nFly."
+                                  + "\n\nTEST FILES: every test file path starts with tests/ and ends with .py.")
     assert plan.build_messages("Fly.", "s", system=plan.TEXT_SYSTEM)[0]["content"] == plan.TEXT_SYSTEM
     assert plan.build_messages("Fly.", "s") == plan.build_messages("Fly.", "s", conventions=None, system=None)
-    assert plan.build_messages("Fly.", "s")[1]["content"] == "PROJECT FILES:\ns\n\nFEATURE GOAL:\nFly."
+    assert plan.build_messages("Fly.", "s")[1]["content"] == ("PROJECT FILES:\ns\n\nFEATURE GOAL:\nFly."
+                                  + "\n\nTEST FILES: every test file path starts with tests/ and ends with .py.")
 
 
 def test_text_system():
