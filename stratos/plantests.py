@@ -124,10 +124,12 @@ def outdated(text):
             for m in re.finditer(r"OUTDATED:\s*(\S+?::.+?)\s+-\s+(.+)$", text, re.M)]
 
 
-def build_messages(task, root, example=None, earlier=(), memory=None, old=()):
+def build_messages(task, root, example=None, earlier=(), memory=None, old=(), feature=None):
     if example is None:
         example = config.PROJECT["example_test"]
     parts = [f"TASK {task['key']}: {task['title']}", task["goal"]]
+    if feature:
+        parts.append("THE WHOLE FEATURE (this task is one part of it; its exact formats and numbers hold):\n" + feature)
     if earlier:
         parts.append(
             "EARLIER TASKS OF THIS PLAN (done before this one; use their functions, names and numbers exactly as "
@@ -340,12 +342,12 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                     log(f"{task['tests'][0]}: written from {len(parsed['plain'])} cases (no model)")
                 else:
                     old = old_tests(cmap, task)
-                    messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old)
+                    messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old, feature=p["goal"])
                     messages[1]["content"] += "\n\nCASES (write one test for each, with exactly these values):\n" + "\n".join(lines)
                     files = _ask_test_writer(gw, plan_id, task, messages, model_cfg, answers_dir, root)
             else:
                 old = old_tests(cmap, task)
-                messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old)
+                messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old, feature=p["goal"])
                 try:
                     files = _ask_test_writer(gw, plan_id, task, messages, model_cfg, answers_dir, root)
                 except urllib.error.HTTPError as e:
