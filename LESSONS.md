@@ -94,3 +94,7 @@ lines; a person reads them before they are committed.
 - [plan, tests] When adding a new runner, create a dedicated test file for it (e.g., test_langs_go.py) instead of mixing it with existing generic tests. (Stratos: plan:P012:t1)
 - [plan, tests] When a goal adds new parsing logic, explicitly state that existing tests must remain unchanged to verify backward compatibility. (Stratos: reset:T258:1)
 - [plan, files] When a task modifies a test file, include that test file in the files list to ensure the changes are applied. (Stratos: plan:P014:gotest-file-paths)
+- [plan, tests] When a task creates a new package, explicitly state the import path in the tests section to prevent incorrect import statements. (Rota: plan:P001:parse)
+- [plan, tests] When specifying test imports for a Go module with a folder name matching the module name, explicitly state the full import path to prevent incorrect package references. (Rota: plan:P001:cli)
+- [plan, code] When a goal specifies line numbering, explicitly state whether it refers to logical lines or physical lines to prevent ambiguity. (Rota: reset:T001:1)
+- [plan, tests] When a task goal specifies sorting or selection criteria, explicitly define the tie-breaking rules to prevent ambiguous test expectations. (Rota: reset:T002:1)
