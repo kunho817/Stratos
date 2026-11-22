@@ -210,13 +210,18 @@ def check(gw, plan_id, task, root, tests, extra=None):
         result = {"status": judge(total, failing), "total": total, "failing": failing,
                   "first_error": first_error, "files": files}
         if result["status"] == "agree" and config.MUTATION:
-            result["mutation"] = mutation(copy, files, tests)
+            base = {}
+            for path, _ in files:
+                f = Path(root) / path
+                if f.is_file():
+                    base[path] = f.read_text(encoding="utf-8")
+            result["mutation"] = mutation(copy, files, tests, base=base)
         return result
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def mutation(copy, files, tests, limit=None):
+def mutation(copy, files, tests, limit=None, base=None):
     if limit is None:
         limit = config.MUTANTS
     if not files:
@@ -247,6 +252,12 @@ def mutation(copy, files, tests, limit=None):
     for path, content in kept_files:
         for m in mutate.mutants(content, per_file):
             all_mutants.append((path, m))
+    if base is not None:
+        base_lines = {}
+        for bpath, btext in base.items():
+            base_lines[bpath] = set(ln.strip() for ln in btext.splitlines())
+        all_mutants = [(path, m) for path, m in all_mutants
+                       if path not in base_lines or m['old'].strip() not in base_lines[path]]
     all_mutants = all_mutants[:limit]
 
     total = 0
