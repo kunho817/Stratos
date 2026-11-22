@@ -105,3 +105,6 @@ lines; a person reads them before they are committed.
 - [plan, code-review] Verify exact spacing and punctuation in string literals against the goal to prevent formatting mismatches. (Stratos: reset:T278:1)
 - [plan, tests] When a task changes sorting or ordering logic, explicitly state the expected order in the goal to prevent tests from asserting the old order. (Stratos: reset:T280:1)
 - [plan, tests] When a task changes budget or limit logic, verify test data actually triggers the new boundary conditions, not just the default case. (Stratos: reset:T280:2)
+- [tests, python] When writing test strings containing backslashes, use raw strings (r"...") to prevent invalid escape sequence errors. (Stratos: reset:T286:1)
+- [plan, tests] When a goal changes validation logic for a specific runner, explicitly state the expected behavior for other runners to prevent unintended side effects. (Stratos: reset:T284:2)
+- [tests, data-flow] When a task modifies input parsing to strip prefixes, write a test that verifies the stripped input produces the same result as the original unprefixed input. (Stratos: reset:T286:2)
