@@ -30,12 +30,12 @@ def step_events(state_dir):
 def test_main_sets_telemetry_for_steps(tmp_path, monkeypatch):
     """_main calls steps.use(telemetry) right after Store, so a steps.timed inside
     a command handler writes a step event to the telemetry file.
-    We monkeypatch cmd_status to include a timed block."""
+    We monkeypatch COMMANDS["status"] to include a timed block."""
     def fake_status(args, store, parser):
         with steps.timed("status"):
             pass
         return 0
-    monkeypatch.setattr(cli, "cmd_status", fake_status)
+    monkeypatch.setitem(cli.COMMANDS, "status", fake_status)
     # _main calls steps.use(Telemetry(STATE_DIR / "telemetry.jsonl"))
     # cmd_status calls steps.timed("status"), which records a step event
     assert cli.main(["status"]) == 0
@@ -61,7 +61,7 @@ def test_telemetry_path_matches_state_dir(tmp_path, monkeypatch):
     def fake_status(args, store, parser):
         seen.append(steps._telemetry)
         return 0
-    monkeypatch.setattr(cli, "cmd_status", fake_status)
+    monkeypatch.setitem(cli.COMMANDS, "status", fake_status)
     cli.main(["status"])
     # Expect: steps.use was called inside _main.
     #   step 1: _telemetry is not None (use(telemetry) installed a Telemetry instance)
