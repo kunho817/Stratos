@@ -108,3 +108,7 @@ lines; a person reads them before they are committed.
 - [tests, python] When writing test strings containing backslashes, use raw strings (r"...") to prevent invalid escape sequence errors. (Stratos: reset:T286:1)
 - [plan, tests] When a goal changes validation logic for a specific runner, explicitly state the expected behavior for other runners to prevent unintended side effects. (Stratos: reset:T284:2)
 - [tests, data-flow] When a task modifies input parsing to strip prefixes, write a test that verifies the stripped input produces the same result as the original unprefixed input. (Stratos: reset:T286:2)
+- [tests, global-state] When a task modifies module-level state, reset that state in the test fixture to prevent leakage between tests. (Stratos: reset:T291:1)
+- [tests, data-flow] When a task adds a new computed field to a return value, update all existing tests that assert on the full return structure to include the new field. (Stratos: reset:T293:1)
+- [tests, fakes] When mocking a CLI command, verify the actual dispatch mechanism (e.g., COMMANDS dict) and mock that entry point, not the internal helper function. (Stratos: reset:T291:3)
+- [plan, data-flow] When a task adds a configuration switch, trace every code path that triggers the behavior and ensure the switch gates all entry points. (Stratos: reset:T296:1)
