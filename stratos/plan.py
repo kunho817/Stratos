@@ -136,6 +136,18 @@ _MEMORY_HEADER = "MEMORY (found for this goal in the project's code, tests, past
 def build_messages(goal, summary, conventions=None, system=None, uses=None, memory=None):
     sys_content = system if system is not None else SYSTEM
     parts = [f"PROJECT FILES:\n{summary}"]
+    try:
+        proj = config.PROJECT
+        test_dir = proj["test_dir"]
+        suffixes = proj["test_suffixes"]
+        if suffixes:
+            test_line = f"TEST FILES: every test file path starts with {test_dir}/ and ends with {suffixes[0]}."
+        else:
+            test_line = None
+    except (AttributeError, KeyError, TypeError, IndexError):
+        test_line = None
+    if test_line:
+        parts.append("\n\n" + test_line)
     if uses:
         parts.append("\n\n" + _USES_HEADER + uses)
     if memory:
