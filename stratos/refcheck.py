@@ -53,9 +53,34 @@ def build_messages(task, root):
                 continue
             existing.append((rel, f))
     existing.sort(key=lambda x: x[0])
+    budget = config.REF_EXISTING_CHARS
+    texts = {}
     for rel, f in existing:
-        text = f.read_text(encoding="utf-8")
-        parts.append(f"EXISTING FILE {rel}:\n```\n{text}\n```")
+        texts[rel] = f.read_text(encoding="utf-8")
+    total_chars = sum(len(t) for t in texts.values())
+    if total_chars <= budget:
+        for rel, f in existing:
+            parts.append(f"EXISTING FILE {rel}:\n```\n{texts[rel]}\n```")
+    else:
+        goal = task.get("goal", "")
+        matched = []
+        unmatched = []
+        for rel, f in existing:
+            stem = Path(rel).stem
+            if re.search(r"(?<!\w)" + re.escape(stem) + r"(?!\w)", goal):
+                matched.append(rel)
+            else:
+                unmatched.append(rel)
+        ordered = matched + unmatched
+        running = 0
+        for rel in ordered:
+            text = texts[rel]
+            if running + len(text) <= budget:
+                running += len(text)
+                parts.append(f"EXISTING FILE {rel}:\n```\n{text}\n```")
+            else:
+                n = len(text.splitlines())
+                parts.append(f"EXISTING FILE {rel} (not shown, {n} lines)")
     conv_path = Path(root) / "CONVENTIONS.md"
     if conv_path.exists():
         parts.append("CONVENTIONS:\n" + conv_path.read_text(encoding="utf-8"))
