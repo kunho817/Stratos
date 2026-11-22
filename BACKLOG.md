@@ -10,6 +10,15 @@ partly (rules v1, Jev shadow, diagnosis A/B). 4 autonomy (planning, tests, mergi
 
 ## Open (top first)
 
+**Work order 6 (user, 2026-11-22: "add the retry policy, then the rest in order").** From the Tiel analysis (622 coder attempts over Stratos and 18 trials): Tiel passes 34% of attempts (Swift 50%), 48% of first attempts (Swift 61%), but at 19 s and ~1.5k tokens per call (Swift 61 s, ~4.8k) a pass costs ~56 s against ~123 s. Of Tiel's 295 test failures 75% are wrong values (logic), 9% names, 5% types; ~40% of them (117) were on tasks a person later found had a wrong test (85), goal (23) or harness bug (9). no_files 8%: half cut off at the length limit, half no FILE block. Swift passed 92 of the 104 tasks Tiel could not; 16% of Tiel's passes were rejected by review. Tiel tries in a row: 1st 40%, 2nd 24%, 3rd 14% - the policy already gives Tiel 2 tries, the 3rd-in-a-row tries come from a new round (after a review rejection or a reset) that starts with Tiel again. Order:
+1. Retry policy: a round whose task's last two coder attempts were Tiel's and failed starts with coder_hard.
+2. Weakness group 3 (checks): (i) mutate only the lines the reference changed; (s) a budget for refcheck's prompt; (x) addcheck warns about old tests that hold a literal of the text being changed or fake the changed function; (w) a test-fix task can run its own test; (f) a plan with a files-less task is asked again automatically; (g) let the coder check its own data (play the solution) before answering.
+3. Go and the flaky test: (p) Go tests in any folder by suffix; (t) "is not in std" as missing_import; (n) a tool prefix (vet.exe: ) in checker lines; (u) chained references in a typed language; (h) the CASES path guard; (l) test_dashboard_try::test_server.
+4. Time "other" (38% of active time; tests and checks are only 2%): time upkeep (memory, wiki), planning, critique, git.
+5. The design doc: P20-P23 and the weakness groups.
+6. A verification trial after these (consider no exception at all - the user's next delegation step).
+7. Later: C# reinforcement (reference quality, xUnit cases), test cleanup step 2 (one scripted fake gateway). On hold (user): memory packs, Jev; perception in a new session.
+
 **Work order 5 (user, 2026-11-21, "진행"): first a cleanup of Stratos's own tests (user: "tidy what can be tidied"):
 189 files, 16,150 lines, 944 tests; 29 different FakeGateway classes, 9 FakeTelemetry, 15 inline `git init`s, 36
 files with 1-2 tests (one file per task). Then P20 language adapters (one place per language for test command,
