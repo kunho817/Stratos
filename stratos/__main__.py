@@ -140,7 +140,8 @@ def main(argv=None):
             finally:
                 tel.record("command", name=cmd, phase="end")
         else:
-            return _main(argv)
+            with runlog.tee(config.STATE_DIR / "run.log", args_list):
+                return _main(argv)
     else:
         return _main(argv)
 

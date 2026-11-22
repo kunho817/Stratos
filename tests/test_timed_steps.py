@@ -26,6 +26,11 @@ class FakeTel:
 
 
 @pytest.fixture(autouse=True)
+def enable_timing(monkeypatch):
+    monkeypatch.setattr(config, "TIMING", True)
+
+
+@pytest.fixture(autouse=True)
 def reset_steps():
     yield
     steps.use(None)
