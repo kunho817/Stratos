@@ -368,8 +368,13 @@ def parse_plan(text):
             raise PlanError(f"Task {key}: tests must be a non-empty list of strings.")
         test_dir = config.PROJECT["test_dir"]
         test_suffixes = config.PROJECT["test_suffixes"]
-        if not all(isinstance(t_str, str) and t_str.startswith(test_dir + "/") and any(t_str.endswith(s) for s in test_suffixes) for t_str in tests):
-            raise PlanError(f"Task {key}: tests must start with '{test_dir}/' and end with one of {test_suffixes}.")
+        is_go = config.PROJECT.get("test_runner") == "go test"
+        if is_go:
+            if not all(isinstance(t_str, str) and any(t_str.endswith(s) for s in test_suffixes) for t_str in tests):
+                raise PlanError(f"Task {key}: tests must end with one of {test_suffixes}.")
+        else:
+            if not all(isinstance(t_str, str) and t_str.startswith(test_dir + "/") and any(t_str.endswith(s) for s in test_suffixes) for t_str in tests):
+                raise PlanError(f"Task {key}: tests must start with '{test_dir}/' and end with one of {test_suffixes}.")
         if not isinstance(protected, list):
             raise PlanError(f"Task {key}: protected must be a list of strings.")
         if not all(isinstance(p, str) for p in protected):
@@ -389,7 +394,7 @@ def parse_plan(text):
         seen_keys.append(key)
 
         # A task whose files are all under tests/ is invalid.
-        if all(f.startswith(test_dir + "/") for f in files):
+        if not is_go and all(f.startswith(test_dir + "/") for f in files):
             raise PlanError(f"Task {key}: files are all under '{test_dir}/', which is not allowed.")
 
         # A task cannot write to its own test files.
