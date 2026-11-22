@@ -98,3 +98,7 @@ lines; a person reads them before they are committed.
 - [plan, tests] When specifying test imports for a Go module with a folder name matching the module name, explicitly state the full import path to prevent incorrect package references. (Rota: plan:P001:cli)
 - [plan, code] When a goal specifies line numbering, explicitly state whether it refers to logical lines or physical lines to prevent ambiguity. (Rota: reset:T001:1)
 - [plan, tests] When a task goal specifies sorting or selection criteria, explicitly define the tie-breaking rules to prevent ambiguous test expectations. (Rota: reset:T002:1)
+- [tests, assertions] When verifying string content, assert on the string value directly rather than checking order or structure that implies a different data type. (Stratos: reset:T266:1)
+- [tests, assertions] When checking order, assert on the index or structure, not string comparison, to verify position rather than alphabetical value. (Stratos: reset:T269:2)
+- [plan, code-review] Verify that every parameter mentioned in the goal is actually passed by the caller in the implementation. (Stratos: reset:T273:1)
+- [tests, fakes] When a task relies on a specific fake implementation, verify the fake's behavior matches the real function's output to prevent test setup errors. (Stratos: reset:T273:2)
