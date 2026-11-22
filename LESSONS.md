@@ -91,3 +91,5 @@ lines; a person reads them before they are committed.
 - [plan, tests] When a task goal changes to delete a test, explicitly state the deletion in the goal to prevent the model from attempting to fix the test instead. (Stratos: reset:T255:1)
 - [code, python] Use Path.stem to extract file names without extensions instead of manual string manipulation. (Stratos: reset:T254:4)
 - [plan, tests] When a task goal changes the exception type raised by a fake, update the test to expect the new exception class and message. (Stratos: reset:T256:1)
+- [plan, tests] When adding a new runner, create a dedicated test file for it (e.g., test_langs_go.py) instead of mixing it with existing generic tests. (Stratos: plan:P012:t1)
+- [plan, tests] When a goal adds new parsing logic, explicitly state that existing tests must remain unchanged to verify backward compatibility. (Stratos: reset:T258:1)
