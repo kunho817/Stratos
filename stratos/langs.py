@@ -67,20 +67,14 @@ class GoTest(Runner):
         return list(cmd)
 
     def test_cmd(self, tests, parallel=False):
-        packages = []
+        files = []
         seen = set()
         for t in tests:
-            path = t.split("::")[0]
-            path = path.replace("\\", "/")
-            if "/" in path:
-                folder = path.rsplit("/", 1)[0]
-                pkg = "./" + folder
-            else:
-                pkg = "."
-            if pkg not in seen:
-                seen.add(pkg)
-                packages.append(pkg)
-        return [*self.project["test_command"], *packages]
+            path = t.split("::")[0].replace("\\", "/")
+            if path not in seen:
+                seen.add(path)
+                files.append(path)
+        return [*self.project["test_command"], *files]
 
 
 class Dotnet(Runner):

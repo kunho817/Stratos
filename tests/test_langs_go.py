@@ -7,7 +7,7 @@ from each test file path (before "::"): the folder prefix with forward slashes, 
 runner(project) with project["test_runner"] == "go test" returns GoTest.
 """
 
-from stratos import config, langs
+from stratos import langs
 
 GO = {"test_runner": "go test", "test_command": ["go", "test"], "test_dir": "."}
 
@@ -30,49 +30,48 @@ def test_runner_no_go_test_key_is_base_runner():
 
 
 def test_go_test_cmd_single_folder():
-    """A test in a sub-folder "pkg/a_test.go" yields package "./pkg"."""
+    """A test in a sub-folder "pkg/a_test.go" yields the file path "pkg/a_test.go"."""
     r = langs.GoTest(GO)
-    # test file: "pkg/a_test.go" → folder "pkg" → package "./pkg"
-    # Expected command: ["go", "test", "./pkg"]
+    # test file: "pkg/a_test.go" → file path "pkg/a_test.go"
+    # Expected command: ["go", "test", "pkg/a_test.go"]
     got = r.test_cmd(["pkg/a_test.go"])
-    assert got == ["go", "test", "./pkg"]
+    assert got == ["go", "test", "pkg/a_test.go"]
 
 
 def test_go_test_cmd_top_level_file():
-    """A top-level test file "main_test.go" yields package "."."""
+    """A top-level test file "main_test.go" yields the file path "main_test.go"."""
     r = langs.GoTest(GO)
-    # test file "main_test.go" has no directory → package "."
-    # Expected command: ["go", "test", "."]
+    # test file "main_test.go" has no directory → file path "main_test.go"
+    # Expected command: ["go", "test", "main_test.go"]
     got = r.test_cmd(["main_test.go"])
-    assert got == ["go", "test", "."]
+    assert got == ["go", "test", "main_test.go"]
 
 
 def test_go_test_cmd_multiple_files_deduplicate_in_order():
-    """Files in the same folder deduplicate; order of first occurrence is preserved."""
+    """Files deduplicate by path; order of first occurrence is preserved."""
     r = langs.GoTest(GO)
-    # files: "pkg/a_test.go" → "./pkg", "pkg/b_test.go" → "./pkg" (dup), "main_test.go" → "."
-    # deduplicated order: ["./pkg", "."]
-    # Expected command: ["go", "test", "./pkg", "."]
+    # files: "pkg/a_test.go", "pkg/b_test.go", "main_test.go" (all distinct paths)
+    # Expected command: ["go", "test", "pkg/a_test.go", "pkg/b_test.go", "main_test.go"]
     got = r.test_cmd(["pkg/a_test.go", "pkg/b_test.go", "main_test.go"])
-    assert got == ["go", "test", "./pkg", "."]
+    assert got == ["go", "test", "pkg/a_test.go", "pkg/b_test.go", "main_test.go"]
 
 
 def test_go_test_cmd_strips_double_colon():
-    """A path like "pkg/inner_test.go::TestX" strips "::TestX" to give package "./pkg"."""
+    """A path like "pkg/inner_test.go::TestX" strips "::TestX" to give the file path "pkg/inner_test.go"."""
     r = langs.GoTest(GO)
-    # "pkg/inner_test.go::TestX" → strip "::TestX" → "pkg/inner_test.go" → folder "pkg" → "./pkg"
-    # Expected command: ["go", "test", "./pkg"]
+    # "pkg/inner_test.go::TestX" → strip "::TestX" → "pkg/inner_test.go"
+    # Expected command: ["go", "test", "pkg/inner_test.go"]
     got = r.test_cmd(["pkg/inner_test.go::TestX"])
-    assert got == ["go", "test", "./pkg"]
+    assert got == ["go", "test", "pkg/inner_test.go"]
 
 
 def test_go_test_cmd_nested_folder_forward_slashes():
-    """A test in "pkg/sub/a_test.go" yields package "./pkg/sub" (forward slashes)."""
+    """A test in "pkg/sub/a_test.go" yields the file path "pkg/sub/a_test.go" (forward slashes)."""
     r = langs.GoTest(GO)
-    # folder of "pkg/sub/a_test.go" is "pkg/sub" → "./pkg/sub"
-    # Expected command: ["go", "test", "./pkg/sub"]
+    # "pkg/sub/a_test.go" → file path "pkg/sub/a_test.go"
+    # Expected command: ["go", "test", "pkg/sub/a_test.go"]
     got = r.test_cmd(["pkg/sub/a_test.go"])
-    assert got == ["go", "test", "./pkg/sub"]
+    assert got == ["go", "test", "pkg/sub/a_test.go"]
 
 
 def test_go_test_cmd_parallel_is_ignored():
@@ -80,18 +79,18 @@ def test_go_test_cmd_parallel_is_ignored():
     package-level parallelism); the command is the same as non-parallel."""
     r = langs.GoTest(GO)
     # parallel=True should not change the output
-    # Expected command: ["go", "test", "./pkg"]
+    # Expected command: ["go", "test", "pkg/a_test.go"]
     got = r.test_cmd(["pkg/a_test.go"], parallel=True)
-    assert got == ["go", "test", "./pkg"]
+    assert got == ["go", "test", "pkg/a_test.go"]
 
 
 def test_go_test_cmd_preserves_first_seen_order():
-    """If "." appears before "./pkg", the order is preserved (dedup keeps first-seen)."""
+    """File paths appear in first-seen order."""
     r = langs.GoTest(GO)
-    # files: "main_test.go" → ".", "pkg/a_test.go" → "./pkg"
-    # Expected command: ["go", "test", ".", "./pkg"]
+    # files: "main_test.go" → "main_test.go", "pkg/a_test.go" → "pkg/a_test.go"
+    # Expected command: ["go", "test", "main_test.go", "pkg/a_test.go"]
     got = r.test_cmd(["main_test.go", "pkg/a_test.go"])
-    assert got == ["go", "test", ".", "./pkg"]
+    assert got == ["go", "test", "main_test.go", "pkg/a_test.go"]
 
 
 def test_go_test_cmd_no_tests():
