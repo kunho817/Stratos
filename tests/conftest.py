@@ -35,5 +35,6 @@ def no_network(monkeypatch, tmp_path_factory):
         raise AssertionError("a test tried to call the real Jev API")
 
     monkeypatch.setattr(jev, "_default_post", refuse)
+    monkeypatch.setattr(config, "TIMING", False, raising=False)
     monkeypatch.setattr(steps, "_telemetry", None)
     monkeypatch.setattr(steps, "_task", None)

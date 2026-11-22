@@ -16,6 +16,11 @@ from stratos import config, runlog
 from stratos.state import Store
 
 
+@pytest.fixture(autouse=True)
+def timing_on(monkeypatch):
+    monkeypatch.setattr(config, "TIMING", True, raising=False)
+
+
 def all_events(state_dir):
     """Read every JSON line from the telemetry file; empty list when it does not exist."""
     p = state_dir / "telemetry.jsonl"

@@ -41,6 +41,8 @@ def reset_steps():
 
 
 def test_timed_records_to_the_telemetry_in_use(monkeypatch):
+    from stratos import config as cfg
+    monkeypatch.setattr(cfg, "TIMING", True, raising=False)
     clock = iter([10.0, 12.345, 20.0, 21.0])
     monkeypatch.setattr(steps.time, "monotonic", lambda: next(clock))
     tel = Tel()

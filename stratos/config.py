@@ -12,6 +12,8 @@ from pathlib import Path
 
 BASE_URL = os.environ.get("STRATOS_BASE_URL", "http://127.0.0.1:8080")
 
+TIMING = True  # record command and step events in telemetry; False turns off all timing for old tests
+
 ROLES = {
     "coder": {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "none", "max_tokens": 6000},
     # Swift 1.5 runs on PolyStrata's separate engine (engine\strata.exe): switching to it takes ~60-100 s (Flint ~27 s).

@@ -131,13 +131,16 @@ def main(argv=None):
             cmd = item
             break
     if cmd in runlog.LOGGED:
-        tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
-        tel.record("command", name=cmd, phase="start")
-        try:
-            with runlog.tee(config.STATE_DIR / "run.log", args_list):
-                return _main(argv)
-        finally:
-            tel.record("command", name=cmd, phase="end")
+        if config.TIMING:
+            tel = Telemetry(config.STATE_DIR / "telemetry.jsonl")
+            tel.record("command", name=cmd, phase="start")
+            try:
+                with runlog.tee(config.STATE_DIR / "run.log", args_list):
+                    return _main(argv)
+            finally:
+                tel.record("command", name=cmd, phase="end")
+        else:
+            return _main(argv)
     else:
         return _main(argv)
 
@@ -225,7 +228,8 @@ def _main(argv=None):
 
     store = Store(config.STATE_DIR)
 
-    steps.use(Telemetry(config.STATE_DIR / "telemetry.jsonl"))
+    if config.TIMING:
+        steps.use(Telemetry(config.STATE_DIR / "telemetry.jsonl"))
 
     parsers = {
         "add": a,

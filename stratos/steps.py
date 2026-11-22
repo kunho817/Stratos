@@ -6,6 +6,9 @@ _task = None
 
 
 def use(telemetry, task=None):
+    from stratos import config
+    if not config.TIMING:
+        return
     global _telemetry, _task
     _telemetry = telemetry
     _task = task

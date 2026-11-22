@@ -16,6 +16,11 @@ from stratos import __main__ as cli
 from stratos import config, steps
 
 
+@pytest.fixture(autouse=True)
+def timing_on(monkeypatch):
+    monkeypatch.setattr(config, "TIMING", True, raising=False)
+
+
 def read_telemetry(state_dir):
     p = state_dir / "telemetry.jsonl"
     if not p.exists():

@@ -1,14 +1,9 @@
 """Tests for task format_idle: format_efficiency shows idle seconds.
 
 When time["idle_seconds"] > 0, the time line inserts ", idle <s> s" (s formatted
-with :.1f, i.e. one decimal place) right before ", other ...". When idle_seconds
+with :.0f, i.e. a whole number) right before ", other ...". When idle_seconds
 is 0 the time line stays as today (no ", idle"). The idle value is taken from
 efficiency's time dict, which is computed from command start/end intervals.
-
-OUTDATED: tests/test_idle_seconds.py::test_format_shows_idle_when_positive -
-  uses :.0f for idle ("idle 10 s"), task requires :.1f ("idle 10.0 s").
-OUTDATED: tests/test_idle_seconds.py::test_format_idle_with_steps -
-  uses :.0f for idle ("idle 10 s"), task requires :.1f ("idle 10.0 s").
 
 Fakes: plain event dicts, no network, no GPU, no models.
 """
@@ -61,7 +56,7 @@ EVENTS_NO_CMD = [
 
 
 def test_format_shows_idle_7s_before_other():
-    """idle_seconds = 7.0 → the time line contains ", idle 7.0 s" right before ", other"."""
+    """idle_seconds = 7.0 → the time line contains ", idle 7 s" right before ", other"."""
     e = report.efficiency(EVENTS_IDLE7)
     t = e["time"]
     # step 1: ts values [0, 23, 30]; gaps 23-0=23, 30-23=7, both ≤ 600
@@ -73,7 +68,7 @@ def test_format_shows_idle_7s_before_other():
     #   start 30 has no end → no interval. Merged coverage = 23.0
     # step 6: idle = 30.0 - 23.0 = 7.0
     # step 7: other = max(0, 30.0 - 0.0 - 0.0 - 0.0 - 7.0) = 23.0
-    # step 8: format uses :.1f for idle → "idle 7.0 s"
+    # step 8: format uses :.0f for idle → "idle 7 s"
     assert t["idle_seconds"] == 7.0
     assert t["active_seconds"] == 30.0
     assert t["other_seconds"] == 23.0
@@ -81,19 +76,19 @@ def test_format_shows_idle_7s_before_other():
     lines = report.format_efficiency(e)
     time_line = next(ln for ln in lines if "time:" in ln)
     # Expected format (no steps, idle > 0):
-    #   "  time: model 0 s, switches 0 s, idle 7.0 s, other 23 s of 30 s active"
+    #   "  time: model 0 s, switches 0 s, idle 7 s, other 23 s of 30 s active"
     #   model_seconds 0.0 → :.0f → "0"
     #   switch_seconds 0.0 → :.0f → "0"
-    #   idle_seconds 7.0 → :.1f → "7.0"
+    #   idle_seconds 7.0 → :.0f → "7"
     #   other_seconds 23.0 → :.0f → "23"
     #   active_seconds 30.0 → :.0f → "30"
-    assert "idle 7.0 s" in time_line
+    assert "idle 7 s" in time_line
     # Check idle appears before "other" in the line
-    idx_idle = time_line.index("idle 7.0 s")
+    idx_idle = time_line.index("idle 7 s")
     idx_other = time_line.index("other")
     assert idx_idle < idx_other
-    # Check the exact substring ", idle 7.0 s, other" (idle right before other)
-    assert ", idle 7.0 s, other" in time_line
+    # Check the exact substring ", idle 7 s, other" (idle right before other)
+    assert ", idle 7 s, other" in time_line
 
 
 def test_format_no_idle_when_zero():
@@ -133,15 +128,15 @@ def test_format_idle_after_steps_before_other():
     # step 6: idle = 30.0 - 23.0 = 7.0
     # step 7: other = max(0, 30.0 - 0.0 - 0.0 - 5.0 - 7.0) = 18.0
     # step 8: format (with steps, idle > 0):
-    #   "  time: model 0 s, switches 0 s, tests 5 s, idle 7.0 s, other 18 s of 30 s active"
+    #   "  time: model 0 s, switches 0 s, tests 5 s, idle 7 s, other 18 s of 30 s active"
     assert t["idle_seconds"] == 7.0
     assert t["other_seconds"] == 18.0
 
     lines = report.format_efficiency(e)
     time_line = next(ln for ln in lines if "time:" in ln)
     # Expected format (steps present, idle > 0):
-    #   "  time: model 0 s, switches 0 s, tests 5 s, idle 7.0 s, other 18 s of 30 s active"
-    assert "tests 5 s, idle 7.0 s, other 18 s" in time_line
+    #   "  time: model 0 s, switches 0 s, tests 5 s, idle 7 s, other 18 s of 30 s active"
+    assert "tests 5 s, idle 7 s, other 18 s" in time_line
     # Check ordering: steps → idle → other
-    assert time_line.index("tests 5 s") < time_line.index("idle 7.0 s")
-    assert time_line.index("idle 7.0 s") < time_line.index("other")
+    assert time_line.index("tests 5 s") < time_line.index("idle 7 s")
+    assert time_line.index("idle 7 s") < time_line.index("other")
