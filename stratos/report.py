@@ -456,13 +456,70 @@ def efficiency(events):
             step_seconds[event["name"]] = step_seconds.get(event["name"], 0.0) + (event.get("seconds") or 0)
     step_seconds = {name: round(sec, 1) for name, sec in sorted(step_seconds.items())}
 
+    # Build command intervals
+    command_starts = {}
+    command_events_exist = False
+    intervals = []
+    for event in events:
+        if event.get("kind") == "command":
+            command_events_exist = True
+            name = event.get("name")
+            phase = event.get("phase")
+            ts = event.get("ts", 0)
+            if phase == "start":
+                command_starts.setdefault(name, []).append(ts)
+            elif phase == "end":
+                stack = command_starts.get(name, [])
+                if stack:
+                    start_ts = stack.pop()
+                    intervals.append((start_ts, ts))
+
+    # Merge intervals
+    if intervals:
+        intervals.sort()
+        merged = []
+        for start, end in intervals:
+            if merged and start <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+            else:
+                merged.append((start, end))
+    else:
+        merged = []
+
+    # Compute covered time within sessions
+    if not command_events_exist:
+        idle_seconds = 0.0
+    else:
+        # Build sessions
+        sessions = []
+        if ts_values:
+            session_start = ts_values[0]
+            prev = ts_values[0]
+            for ts in ts_values[1:]:
+                if ts - prev > 600:
+                    sessions.append((session_start, prev))
+                    session_start = ts
+                prev = ts
+            sessions.append((session_start, prev))
+
+        covered = 0.0
+        for sess_start, sess_end in sessions:
+            for iv_start, iv_end in merged:
+                lo = max(sess_start, iv_start)
+                hi = min(sess_end, iv_end)
+                if lo < hi:
+                    covered += hi - lo
+
+        idle_seconds = round(active_seconds - covered, 1)
+
     step_sum = sum(step_seconds.values())
-    other_seconds = round(max(0, active_seconds - model_seconds - switch_seconds - step_sum), 1)
+    other_seconds = round(max(0, active_seconds - model_seconds - switch_seconds - step_sum - idle_seconds), 1)
 
     time_info = {
         "model_seconds": model_seconds,
         "switch_seconds": switch_seconds,
         "active_seconds": active_seconds,
+        "idle_seconds": idle_seconds,
         "other_seconds": other_seconds,
         "steps": step_seconds,
     }
@@ -576,12 +633,14 @@ def format_efficiency(e):
         b = e["by_cause"][cause]
         lines.append(f"    {cause}: {b['calls']} calls, {b['completion_tokens']} tokens, {b['seconds']:.0f} s")
     t = e["time"]
+    parts = [f"model {t['model_seconds']:.0f} s", f"switches {t['switch_seconds']:.0f} s"]
     if t["steps"]:
-        lines.append(f"  time: model {t['model_seconds']:.0f} s, switches {t['switch_seconds']:.0f} s, "
-                     + ", ".join(f"{name} {sec:.0f} s" for name, sec in t["steps"].items())
-                     + f", other {t['other_seconds']:.0f} s of {t['active_seconds']:.0f} s active")
-    else:
-        lines.append(f"  time: model {t['model_seconds']:.0f} s, switches {t['switch_seconds']:.0f} s, other {t['other_seconds']:.0f} s of {t['active_seconds']:.0f} s active")
+        for name, sec in t["steps"].items():
+            parts.append(f"{name} {sec:.0f} s")
+    if t["idle_seconds"] > 0:
+        parts.append(f"idle {t['idle_seconds']:.0f} s")
+    parts.append(f"other {t['other_seconds']:.0f} s of {t['active_seconds']:.0f} s active")
+    lines.append("  time: " + ", ".join(parts))
     ft = e["first_try"]
     first_try_line = f"  first try: {ft['passed']}/{ft['tasks']} tasks"
     first_try_line += "".join(f", {role} {p}/{n}" for role, (p, n) in sorted(ft["by_role"].items()))
