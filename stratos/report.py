@@ -638,7 +638,7 @@ def format_efficiency(e):
         for name, sec in t["steps"].items():
             parts.append(f"{name} {sec:.0f} s")
     if t["idle_seconds"] > 0:
-        parts.append(f"idle {t['idle_seconds']:.0f} s")
+        parts.append(f"idle {t['idle_seconds']:.1f} s")
     parts.append(f"other {t['other_seconds']:.0f} s of {t['active_seconds']:.0f} s active")
     lines.append("  time: " + ", ".join(parts))
     ft = e["first_try"]
