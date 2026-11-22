@@ -3,7 +3,7 @@ the real HTTP sender fails loudly if anything calls it. config.STATE_DIR is a fr
 its own, so nothing a test writes reaches the real .stratos (2026-11-19)."""
 import pytest
 
-from stratos import config, jev
+from stratos import config, jev, steps
 
 
 @pytest.fixture(autouse=True)
@@ -35,3 +35,5 @@ def no_network(monkeypatch, tmp_path_factory):
         raise AssertionError("a test tried to call the real Jev API")
 
     monkeypatch.setattr(jev, "_default_post", refuse)
+    monkeypatch.setattr(steps, "_telemetry", None)
+    monkeypatch.setattr(steps, "_task", None)

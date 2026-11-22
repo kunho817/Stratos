@@ -49,6 +49,7 @@ from . import push
 from . import recall
 from . import replay
 from . import runlog
+from . import steps
 from . import upkeep
 from . import verify
 from . import wiki
@@ -217,6 +218,8 @@ def _main(argv=None):
     args = ap.parse_args(argv)
 
     store = Store(config.STATE_DIR)
+
+    steps.use(Telemetry(config.STATE_DIR / "telemetry.jsonl"))
 
     parsers = {
         "add": a,
