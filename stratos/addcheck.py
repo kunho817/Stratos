@@ -2,6 +2,7 @@
 waiting task, old tests that read a changed file's source text, and old tests that use the files this task changes
 but are left out of the list."""
 
+import ast
 import re
 from pathlib import Path
 
@@ -81,5 +82,54 @@ def check(repo, task, others, cmap):
         lines.append(f"... and {len(warn4) - 8} more old tests")
     else:
         lines.extend(warn4)
+
+    # 5. rules (a) and (b): old tests that pin text or fake functions
+
+    # (a) string literals >= 30 chars from changed .py files
+    lits = []
+    for path in task["files"]:
+        if not path.endswith(".py"):
+            continue
+        try:
+            text = Path(repo, path).read_text(encoding="utf-8")
+            tree = ast.parse(text)
+        except (OSError, SyntaxError, ValueError):
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) and len(node.value) >= 30:
+                lits.append((node.value, path))
+
+    old = sorted(plantests.old_tests(cmap, {"files": task["files"], "tests": tests}))
+
+    seen_a = set()
+    for p in old:
+        if p in seen_a:
+            continue
+        try:
+            ptext = Path(repo, p).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for s, fpath in lits:
+            if s in ptext:
+                lines.append(f"{p} holds text from {fpath}: a change of that text breaks it - update it now")
+                seen_a.add(p)
+                break
+
+    # (b) setattr(<module>, "<name>") where name is in changed and in goal
+    setattr_re = re.compile(r'(?<!\.)setattr\(\s*[\w.]+\s*,\s*["\'](\w+)["\']')
+    seen_b = set()
+    for p in old:
+        if p in seen_b:
+            continue
+        try:
+            ptext = Path(repo, p).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for m in setattr_re.finditer(ptext):
+            name = m.group(1)
+            if name in changed:
+                lines.append(f"{p} replaces {name} with a fake: a new parameter or return value breaks it - update it now")
+                seen_b.add(p)
+                break
 
     return lines
