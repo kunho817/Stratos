@@ -344,7 +344,15 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                     old = old_tests(cmap, task)
                     messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old, feature=p["goal"])
                     messages[1]["content"] += "\n\nCASES (write one test for each, with exactly these values):\n" + "\n".join(lines)
-                    files = _ask_test_writer(gw, plan_id, task, messages, model_cfg, answers_dir, root)
+                    try:
+                        files = _ask_test_writer(gw, plan_id, task, messages, model_cfg, answers_dir, root)
+                    except urllib.error.HTTPError as e:
+                        detail = e.read().decode("utf-8", errors="replace")[:500]
+                        for tpath in task["tests"]:
+                            results.append({"key": key, "file": tpath, "status": "call_error", "detail": detail})
+                        task_written[key] = []
+                        task_entries[key] = []
+                        continue
             else:
                 old = old_tests(cmap, task)
                 messages = build_messages(task, root, earlier=p["tasks"][:i], memory=memory, old=old, feature=p["goal"])
