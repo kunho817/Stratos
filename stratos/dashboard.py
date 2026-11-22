@@ -25,6 +25,7 @@ KEEP = ("ts", "kind", "task", "role", "attempt", "model", "from_model",
         "completion_tokens")
 PAGE = Path(__file__).parent / "dashboard.html"
 STALE_S = 1800
+TRY_TIMEOUT_S = 10
 
 
 def default_repos(home):
@@ -121,14 +122,14 @@ def run_try(repo, text, args=""):
             r = subprocess.run(cmd, cwd=str(repo), env=env,
                                capture_output=True, text=True,
                                encoding="utf-8", errors="replace",
-                               timeout=10, shell=False)
+                               timeout=TRY_TIMEOUT_S, shell=False)
             code = r.returncode
             stdout = r.stdout[:20000]
             stderr = r.stderr[:20000]
         except subprocess.TimeoutExpired:
             code = -1
             stdout = ""
-            stderr = "timed out after 10 s"
+            stderr = f"timed out after {TRY_TIMEOUT_S} s"
     return {"code": code, "stdout": stdout, "stderr": stderr}
 
 
