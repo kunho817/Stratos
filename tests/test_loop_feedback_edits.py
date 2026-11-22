@@ -33,7 +33,9 @@ def env(tmp_path, monkeypatch):
     runs = []
     monkeypatch.setattr(verify, "run_tests", lambda w, tests: runs.append(1) or (True, "ok"))
 
-    def fake_check(root, paths):
+    def fake_check(root, paths, codes=None):
+        if codes == ("F401",):
+            return []
         text = (root / "pkg" / "cli.py").read_text(encoding="utf-8")
         out = []
         for n, line in enumerate(text.splitlines(), 1):
