@@ -105,10 +105,10 @@ def test_go_test_cmd_no_tests():
 def test_go_test_cmd_backslash_normalized():
     """A path with backslashes (Windows-style) is normalized to forward slashes."""
     r = langs.GoTest(GO)
-    # "pkg\\sub\\a_test.go" → normalize → "pkg/sub/a_test.go" → folder "pkg/sub" → "./pkg/sub"
-    # Expected command: ["go", "test", "./pkg/sub"]
+    # "pkg\\sub\\a_test.go" → normalize → "pkg/sub/a_test.go"
+    # Expected command: ["go", "test", "pkg/sub/a_test.go"]
     got = r.test_cmd(["pkg\\sub\\a_test.go"])
-    assert got == ["go", "test", "./pkg/sub"]
+    assert got == ["go", "test", "pkg/sub/a_test.go"]
 
 
 def test_go_test_is_runner_subclass():
