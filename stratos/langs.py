@@ -53,6 +53,24 @@ class NodeTest(Runner):
     pass
 
 
+class GoTest(Runner):
+    def test_cmd(self, tests, parallel=False):
+        packages = []
+        seen = set()
+        for t in tests:
+            path = t.split("::")[0]
+            path = path.replace("\\", "/")
+            if "/" in path:
+                folder = path.rsplit("/", 1)[0]
+                pkg = "./" + folder
+            else:
+                pkg = "."
+            if pkg not in seen:
+                seen.add(pkg)
+                packages.append(pkg)
+        return [*self.project["test_command"], *packages]
+
+
 class Dotnet(Runner):
     """(Claude, 2026-11-21, Settle) C#: the seven harness bugs of trial 16 came from here."""
 
@@ -105,6 +123,8 @@ def runner(project=None):
         return NodeTest(project)
     if name == "dotnet":
         return Dotnet(project)
+    if name == "go test":
+        return GoTest(project)
     return Runner(project)
 
 
