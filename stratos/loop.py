@@ -54,7 +54,7 @@ def task_memory(task):
         return None
 
 
-def _lint_fix(wt, written, tests, out):
+def _lint_fix(wt, written, tests, out, skip=()):
     """After the tests pass, lint.fix removes unused imports; if the fix breaks the tests, undo it."""
     kept = {}
     for p in written:
@@ -62,7 +62,8 @@ def _lint_fix(wt, written, tests, out):
             fp = Path(wt, p)
             if fp.exists():
                 kept[p] = fp.read_text(encoding="utf-8")
-    fixed = lint.fix(wt, written)
+    filtered = [p for p in written if p not in skip]
+    fixed = lint.fix(wt, filtered)
     if not fixed:
         return "passed", out
     ok2, out2 = verify.run_tests(wt, tests)
@@ -118,8 +119,11 @@ def _judge(task, wt, text, finish):
             + "\nKeep everything that is already in the file: change an existing file with SEARCH/REPLACE edit blocks, or write the whole file completely.")
 
     base = []
+    base_unused = set()
     if config.LINT:
-        base = lint.check(wt, [p for p, _ in files if Path(wt, p).exists()])
+        base_paths = [p for p, _ in files if Path(wt, p).exists()]
+        base = lint.check(wt, base_paths)
+        base_unused = {line.split(":")[0] for line in lint.check(wt, base_paths, codes=("F401",))}
 
     base_check = []
     if config.CHECK:
@@ -199,7 +203,7 @@ def _judge(task, wt, text, finish):
         return "failed", out
 
     if config.LINT:
-        return _lint_fix(wt, written, task["tests"], out)
+        return _lint_fix(wt, written, task["tests"], out, skip=base_unused)
 
     return "passed", out
 
