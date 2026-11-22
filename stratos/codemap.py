@@ -7,6 +7,7 @@ import re
 from pathlib import Path, PurePosixPath
 
 import stratos.config as config
+from stratos import steps
 
 
 JS_KEYWORDS = frozenset({
@@ -325,43 +326,44 @@ def symbol_text(text, sym):
 
 def build(root, settings=None):
     """Build the code map of a project: scan every source and test file into symbols."""
-    if settings is None:
-        settings = config.PROJECT
+    with steps.timed("codemap"):
+        if settings is None:
+            settings = config.PROJECT
 
-    root = Path(root)
-    files = {}
-    imports = {}
+        root = Path(root)
+        files = {}
+        imports = {}
 
-    dirs = list(settings["source_dirs"])
-    if settings["test_dir"]:
-        dirs.append(settings["test_dir"])
+        dirs = list(settings["source_dirs"])
+        if settings["test_dir"]:
+            dirs.append(settings["test_dir"])
 
-    for rel in dirs:
-        base = Path(root) / rel
-        if not base.is_dir():
-            continue
-        for path in base.rglob("*"):
-            if not path.is_file():
+        for rel in dirs:
+            base = Path(root) / rel
+            if not base.is_dir():
                 continue
-            suffix = path.suffix.lower()
-            if suffix == ".py":
-                text = path.read_text(encoding="utf-8")
-                symbols = scan_python(text)
-            elif suffix in (".js", ".mjs"):
-                text = path.read_text(encoding="utf-8")
-                symbols = scan_js(text)
-            else:
-                continue
-            relpath = path.relative_to(root).as_posix()
-            files[relpath] = symbols
-            if suffix == ".py":
-                imports[relpath] = imports_python(text)
-            else:
-                imports[relpath] = imports_js(text)
+            for path in base.rglob("*"):
+                if not path.is_file():
+                    continue
+                suffix = path.suffix.lower()
+                if suffix == ".py":
+                    text = path.read_text(encoding="utf-8")
+                    symbols = scan_python(text)
+                elif suffix in (".js", ".mjs"):
+                    text = path.read_text(encoding="utf-8")
+                    symbols = scan_js(text)
+                else:
+                    continue
+                relpath = path.relative_to(root).as_posix()
+                files[relpath] = symbols
+                if suffix == ".py":
+                    imports[relpath] = imports_python(text)
+                else:
+                    imports[relpath] = imports_js(text)
 
-    sorted_files = dict(sorted(files.items()))
-    imports_dict = {path: imports[path] for path in sorted_files}
-    return {"test_dir": settings["test_dir"], "files": sorted_files, "imports": imports_dict}
+        sorted_files = dict(sorted(files.items()))
+        imports_dict = {path: imports[path] for path in sorted_files}
+        return {"test_dir": settings["test_dir"], "files": sorted_files, "imports": imports_dict}
 
 
 def users(cmap, name, path=None):
