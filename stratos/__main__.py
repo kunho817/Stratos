@@ -419,7 +419,8 @@ def cmd_plan_add(args, store, parser: argparse.ArgumentParser):
         for test in t["tests"]:
             if test not in prot:
                 prot.append(test)
-        task = add_one(store, t["title"], t["goal"], t["files"], prot,
+        goal = t["goal"] + "\n\nTHE WHOLE FEATURE (this task is one part of it; its exact formats and numbers hold):\n" + p["goal"]
+        task = add_one(store, t["title"], goal, t["files"], prot,
                        t["tests"], t.get("role"), after_ids, t.get("output"))   # a search task (P16)
         key_to_id[t["key"]] = task["id"]
     plan_mod.mark_added(config.STATE_DIR, args.plan_id, key_to_id)
