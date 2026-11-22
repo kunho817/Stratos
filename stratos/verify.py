@@ -5,6 +5,7 @@ code that depends on set or dict order can pass once by luck (T003's first answe
 import contextlib
 import os
 import re
+import shutil
 import subprocess
 import warnings
 
@@ -182,4 +183,19 @@ def syntax_errors(root, paths):
                 line = _node_check(full, source, root)
                 if line is not None:
                     messages.append(f"{path}: {line}")
+        elif suffix == ".go":
+            if shutil.which("gofmt") is None:
+                continue
+            r = subprocess.run(
+                ["gofmt", "-l", "-e", path],
+                cwd=root, capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
+                timeout=config.TEST_TIMEOUT_S,
+            )
+            combined = r.stdout + r.stderr
+            go_pattern = re.compile(r'^(.+):(\d+):(\d+): (.+)$')
+            for ln in combined.splitlines():
+                m = go_pattern.match(ln)
+                if m:
+                    messages.append(f"{path}: line {m.group(2)}: {m.group(4)}")
     return messages
