@@ -92,6 +92,18 @@ def count_tests(output):
         total = len(tap)
         failing = [name.strip() for ok, name in tap if ok == "not ok"]
         return (total, failing)
+    go_lines = [ln for ln in output.splitlines()
+                if ln.startswith("--- PASS: ") or ln.startswith("--- FAIL: ")]
+    if go_lines:
+        total = len(go_lines)
+        failing = []
+        for ln in go_lines:
+            if ln.startswith("--- FAIL: "):
+                rest = ln[len("--- FAIL: "):]
+                parts = rest.split()
+                if parts:
+                    failing.append(parts[0])
+        return (total, failing)
     totals = re.findall(r"Total(?: tests)?:\s*(\d+)", output)
     if totals:
         return (int(totals[-1]), decide._extract_ids(output))
