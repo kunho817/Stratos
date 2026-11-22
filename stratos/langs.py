@@ -54,6 +54,13 @@ class NodeTest(Runner):
 
 
 class GoTest(Runner):
+    def missing_import(self, output):
+        # Go's missing import: an undefined symbol, a module not in go.mod, or a package that cannot be imported
+        for phrase in ("undefined: ", "no required module provides package", "could not import"):
+            if phrase in output:
+                return True
+        return super().missing_import(output)
+
     def test_cmd(self, tests, parallel=False):
         packages = []
         seen = set()
