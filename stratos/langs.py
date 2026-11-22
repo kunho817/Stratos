@@ -61,6 +61,11 @@ class GoTest(Runner):
                 return True
         return super().missing_import(output)
 
+    def with_paths(self, cmd, paths):
+        if "{files}" in cmd:
+            return super().with_paths(cmd, paths)
+        return list(cmd)
+
     def test_cmd(self, tests, parallel=False):
         packages = []
         seen = set()
