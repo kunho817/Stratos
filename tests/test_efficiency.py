@@ -77,7 +77,8 @@ def test_by_cause_and_waste():
 def test_time():
     t = report.efficiency(EVENTS)["time"]
     # sessions: 1000..1301 (301 s) and 3000..3101 (101 s)
-    assert t == {"model_seconds": 222.0, "switch_seconds": 20.0, "active_seconds": 402.0, "other_seconds": 160.0,
+    assert t == {"model_seconds": 222.0, "switch_seconds": 20.0, "active_seconds": 402.0,
+                 "idle_seconds": 0.0, "other_seconds": 160.0,
                  "steps": {}}   # T244: no "step" events here (tests/test_steps.py)
 
 
@@ -117,3 +118,17 @@ def test_a_pass_after_the_reset_is_useful():
               call("x2", "T9", "coder", 200, 20, 4), out("x2", "T9", "passed", 5)]
     by = report.efficiency(events)["by_cause"]
     assert by["discarded"]["completion_tokens"] == 100 and by["useful"]["completion_tokens"] == 200
+
+
+def test_idle_seconds_with_command_gaps():
+    """Command events with gaps produce idle_seconds > 0."""
+    events = [
+        {"kind": "command", "name": "run", "phase": "start", "ts": 10},
+        {"kind": "command", "name": "run", "phase": "end", "ts": 20},
+        {"kind": "command", "name": "run", "phase": "start", "ts": 30},
+        {"kind": "command", "name": "run", "phase": "end", "ts": 40},
+    ]
+    t = report.efficiency(events)["time"]
+    # session [10,40] = 30; intervals [10,20] and [30,40] cover 20; idle = 10
+    assert t["idle_seconds"] > 0
+    assert t["idle_seconds"] == 10.0
