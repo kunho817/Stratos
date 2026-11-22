@@ -93,3 +93,4 @@ lines; a person reads them before they are committed.
 - [plan, tests] When a task goal changes the exception type raised by a fake, update the test to expect the new exception class and message. (Stratos: reset:T256:1)
 - [plan, tests] When adding a new runner, create a dedicated test file for it (e.g., test_langs_go.py) instead of mixing it with existing generic tests. (Stratos: plan:P012:t1)
 - [plan, tests] When a goal adds new parsing logic, explicitly state that existing tests must remain unchanged to verify backward compatibility. (Stratos: reset:T258:1)
+- [plan, files] When a task modifies a test file, include that test file in the files list to ensure the changes are applied. (Stratos: plan:P014:gotest-file-paths)
