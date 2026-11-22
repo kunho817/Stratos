@@ -126,6 +126,8 @@ OLD_TESTS_CHARS = 48000
 MUTATION = True
 # number of mutants to generate from the reference
 MUTANTS = 12
+# the budget of existing-file text in the reference writer's prompt
+REF_EXISTING_CHARS = 60000
 # ratio below which the tests are considered weak
 MUTATION_WEAK = 0.6
 # per-mutant test timeout in seconds
