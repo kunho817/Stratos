@@ -223,21 +223,22 @@ def test_multiple_matching_stems_sorted(tmp_path, monkeypatch):
     # Files: pkg/util.py (stem "util"), pkg/add.py (stem "add"), pkg/beta.py (stem "beta").
     # Matching stems: add, util. Sorted paths: pkg/add.py, pkg/util.py.
     # Non-matching: pkg/beta.py.
-    # Budget 15: add 5, util 5, beta 5.
-    # Running: add: 0+5=5 ≤ 15. util: 5+5=10 ≤ 15. beta: 10+5=15 ≤ 15.
-    # All fit! 15 = 15.
-    root = _build(tmp_path, monkeypatch, 15,
+    # Budget 14: add 5, util 5, beta 5.
+    # Running: add: 0+5=5 ≤ 14. util: 5+5=10 ≤ 14. beta: 10+5=15 > 14.
+    # add and util fit (shown in full, goal-stem order); beta no longer fits.
+    root = _build(tmp_path, monkeypatch, 14,
                   [("add.py", "x" * 5), ("util.py", "x" * 5), ("beta.py", "x" * 5)])
     user = refcheck.build_messages(task, root)[1]["content"]
     # add.py before util.py (both matched, sorted)
     assert user.index("pkg/add.py") < user.index("pkg/util.py")
-    # util.py before beta.py
+    # util.py before beta.py (matched shown first, then non-matching)
     assert user.index("pkg/util.py") < user.index("pkg/beta.py")
-    # all shown in full
+    # add and util shown in full
     assert "EXISTING FILE pkg/add.py:\n```\n" in user
     assert "EXISTING FILE pkg/util.py:\n```\n" in user
-    assert "EXISTING FILE pkg/beta.py:\n```\n" in user
-    assert "(not shown" not in user
+    # beta not shown (exceeds budget)
+    assert "EXISTING FILE pkg/beta.py (not shown, 1 lines)" in user
+    assert "(not shown" in user
 
 
 # ---- 12: budget 0 → all files not shown ----
