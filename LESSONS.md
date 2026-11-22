@@ -102,3 +102,4 @@ lines; a person reads them before they are committed.
 - [tests, assertions] When checking order, assert on the index or structure, not string comparison, to verify position rather than alphabetical value. (Stratos: reset:T269:2)
 - [plan, code-review] Verify that every parameter mentioned in the goal is actually passed by the caller in the implementation. (Stratos: reset:T273:1)
 - [tests, fakes] When a task relies on a specific fake implementation, verify the fake's behavior matches the real function's output to prevent test setup errors. (Stratos: reset:T273:2)
+- [plan, code-review] Verify exact spacing and punctuation in string literals against the goal to prevent formatting mismatches. (Stratos: reset:T278:1)
