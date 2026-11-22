@@ -18,8 +18,8 @@ from stratos import config, lint, loop, verify
 FILE_A = "import os\nX = 1\n"
 # pkg/b.py: sys is used → no pre-existing F401
 FILE_B = "import sys\nprint(sys.argv)\n"
-# pkg/e.py: import json unused → pre-existing F401
-FILE_E = "import json\nY = 1\n"
+# pkg/e.py: import os unused → pre-existing F401
+FILE_E = "import os\nY = 1\n"
 
 TASK_AB = {"id": "T1", "title": "t", "goal": "g",
            "files": ["pkg/a.py", "pkg/b.py"],
