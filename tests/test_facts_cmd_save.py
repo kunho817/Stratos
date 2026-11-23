@@ -185,11 +185,12 @@ def test_program_a_failed_no_json_saved(tmp_path, monkeypatch, capsys):
     b_path = tmp_path / "state" / "facts" / "P001-b.json"
     assert not a_path.exists()
     assert not b_path.exists()
+    out = capsys.readouterr().out
     # Expected: stdout is "facts: program A failed"
-    assert "facts: program A failed" in capsys.readouterr().out
+    assert "facts: program A failed" in out
     # Expected: the folder note is printed for a non-agree reason
     facts_dir = str(tmp_path / "state" / "facts")
-    assert f"facts: both outputs are in {facts_dir}" in capsys.readouterr().out
+    assert f"facts: both outputs are in {facts_dir}" in out
 
 
 # 5 – program B failed: keep["a"] = obj_a, keep["b"] = None
@@ -214,11 +215,12 @@ def test_program_b_failed_a_saved_b_not(tmp_path, monkeypatch, capsys):
     # json.dumps({"x": {"1": 2}}, indent=1, sort_keys=True)
     # Expected: a.json content == json.dumps(obj_a, indent=1, sort_keys=True)
     assert a_path.read_text(encoding="utf-8") == json.dumps(obj_a, indent=1, sort_keys=True)
+    out = capsys.readouterr().out
     # Expected: stdout is "facts: program B failed"
-    assert "facts: program B failed" in capsys.readouterr().out
+    assert "facts: program B failed" in out
     # Expected: the folder note is printed for a non-agree reason
     facts_dir = str(tmp_path / "state" / "facts")
-    assert f"facts: both outputs are in {facts_dir}" in capsys.readouterr().out
+    assert f"facts: both outputs are in {facts_dir}" in out
 
 
 # 6 – reason "none": both None, no files saved
@@ -238,11 +240,12 @@ def test_none_reason_no_files_saved(tmp_path, monkeypatch, capsys):
     b_path = tmp_path / "state" / "facts" / "P001-b.json"
     assert not a_path.exists()
     assert not b_path.exists()
+    out = capsys.readouterr().out
     # Expected: stdout "facts: none"
-    assert "facts: none" in capsys.readouterr().out
+    assert "facts: none" in out
     # Expected: the folder note is printed for a non-agree reason
     facts_dir = str(tmp_path / "state" / "facts")
-    assert f"facts: both outputs are in {facts_dir}" in capsys.readouterr().out
+    assert f"facts: both outputs are in {facts_dir}" in out
 
 
 # 7 – disagree prints reason AND folder note
