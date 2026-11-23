@@ -281,6 +281,14 @@ def js_unbound_calls(text):
 
     keywords = {"if", "for", "while", "switch", "catch", "function", "return", "typeof", "new", "super", "await"}
 
+    # Getter: get name() {  (empty parens) at member position
+    for m in re.finditer(r'(?:[{,]\s*|\n\s*|(?<=^))get\s+([A-Za-z_$][\w$]*)\s*\(\s*\)\s*\{', text):
+        declared.add(m.group(1))
+    # Setter: set name(param) {  (non-empty parens) at member position
+    for m in re.finditer(r'(?:[{,]\s*|\n\s*|(?<=^))set\s+([A-Za-z_$][\w$]*)\s*\(\s*([A-Za-z_$][\w$]*)\s*\)\s*\{', text):
+        declared.add(m.group(1))
+        declared.add(m.group(2))
+
     # Method shorthand: name(params) { at object/class member position
     # prefix must be {, comma, newline, or start-of-text (not }, ;, function keyword)
     for m in re.finditer(r'(?:[{,]\s*|\n\s*|(?<=^))(\w+)\s*\(([^)]*)\)\s*\{', text):
