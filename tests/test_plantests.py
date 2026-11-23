@@ -417,4 +417,4 @@ def test_test_system_for_non_python_project():
     """For a Rust project the prompt names Rust and cargo test, not pytest."""
     text = plantests.system_prompt("Rust", "cargo test")
     assert "Rust" in text and "cargo test" in text and "pytest" not in text
-    assert plantests.TEST_SYSTEM == plantests.system_prompt(config.PROJECT["language"], config.PROJECT["test_runner"])
+    assert plantests.TEST_SYSTEM == plantests.system_prompt(config.PROJECT["language"], config.PROJECT["test_runner"]) + plantests.APPENDED
