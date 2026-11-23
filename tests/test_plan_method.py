@@ -59,33 +59,24 @@ def test_appended_at_the_end_of_text_system():
 # ---------------------------------------------------------------------------
 
 def test_existing_system_content_preserved():
-    """The original SYSTEM text (the part before "Tasks that write the same file") is unchanged."""
-    # The original SYSTEM's first part ends at the index of "Tasks that write the same file".
-    # Everything before that index is untouched by the append.
-    marker = "Tasks that write the same file"
-    idx = plan.SYSTEM.index(marker)
-    # expected: the prefix before the rules section is intact
-    # The original SYSTEM prefix was:
-    # "You are a planner. Answer with JSON only, no prose. Format:\n"
-    # '{"tasks": [{"key", "title", "goal", "files", "tests", "protected", "after", "role"}]}\n'
-    # "Each task should be small (one function or one file). "
-    # "Each task names its test files under tests/. "
-    # "after lists keys of earlier tasks it builds on. "
-    # "protected lists files it may read but not change. "
-    # 'role is "coder" for new functions and small additions, '
-    # 'or "coder_hard" for changes of existing control flow.\n'
-    prefix = plan.SYSTEM[:idx]
-    # expected: the prefix contains key planning words
-    assert "JSON" in prefix
-    assert "title" in prefix
-    assert "goal" in prefix
-    assert "files" in prefix
-    assert "tests" in prefix
-    assert "after" in prefix
-    assert "protected" in prefix
-    assert "role" in prefix
-    # expected: the prefix ends just before "Tasks that write the same file"
-    assert prefix.rstrip().endswith("Prefer 2 to 6 tasks for a feature.")
+    """The original SYSTEM text is preserved: its old sentences are still present and the
+    appended METHOD sentence is the last text."""
+    # expected: a few old SYSTEM sentences are still in SYSTEM
+    for old in ("You are a planner.",
+                "Each task should be small (one function or one file).",
+                "after lists keys of earlier tasks it builds on.",
+                "protected lists files it may read but not change.",
+                "Tasks that write the same file must be chained",
+                "Prefer 2 to 6 tasks for a feature."):
+        assert old in plan.SYSTEM
+    # expected: a few old TEXT_SYSTEM sentences are still in TEXT_SYSTEM
+    for old in ("Answer with plain text, no JSON.",
+                "Key:", "Title:", "Goal:", "Files:", "Tests:",
+                "Protected:", "After:", "Role:", "Rules:"):
+        assert old in plan.TEXT_SYSTEM
+    # expected: both strings end with the appended METHOD sentence
+    assert plan.SYSTEM.endswith(APPENDED)
+    assert plan.TEXT_SYSTEM.endswith(APPENDED)
 
 
 # ---------------------------------------------------------------------------
