@@ -29,8 +29,12 @@ The answer is exactly one ```python block containing the program.
 """
 
 
-def run_program(code, timeout=20):
-    """Run code in a temp folder via sys.executable -I, parse stdout as one JSON object."""
+def run_program_full(code, timeout=20):
+    """Run code in a temp folder via sys.executable -I, parse stdout as one JSON object.
+
+    Returns (obj, error): obj is the parsed dict on success, None on failure.
+    error is None on success, otherwise a short text describing the failure.
+    """
     tmp = tempfile.mkdtemp()
     code_file = tmp + "/prog.py"
     with open(code_file, "w", encoding="utf-8") as f:
@@ -43,18 +47,29 @@ def run_program(code, timeout=20):
             cwd=tmp,
         )
         if r.returncode != 0:
-            return None
+            stderr = r.stderr.decode("utf-8", errors="replace")
+            return (None, f"exit code {r.returncode}: {stderr[-2000:]}")
         stdout = r.stdout.decode("utf-8", errors="replace").strip()
         if not stdout:
-            return None
-        obj = json.loads(stdout)
+            return (None, "no output")
+        try:
+            obj = json.loads(stdout)
+        except json.JSONDecodeError:
+            return (None, f"output is not JSON: {stdout[:200]}")
         if not isinstance(obj, dict):
-            return None
-        return obj
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
-        return None
+            return (None, "output is not a JSON object")
+        return (obj, None)
+    except subprocess.TimeoutExpired:
+        return (None, f"timed out after {timeout} s")
+    except Exception as e:
+        return (None, f"could not run: {e}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def run_program(code, timeout=20):
+    """Run code in a temp folder via sys.executable -I, parse stdout as one JSON object."""
+    return run_program_full(code, timeout)[0]
 
 
 def _extract_code(text):
@@ -96,8 +111,10 @@ def derive(gw, rules, log=print, keep=None):
     """Ask two independent models to compute the facts and compare their outputs.
 
     Returns {"facts": dict|None, "reason": str}.
-    When keep is a dict, sets keep["a"] and keep["b"] to the objects the two programs
-    printed (None for a program that did not run or failed).
+    When keep is a dict, sets keep["a"], keep["b"] to the objects the two programs
+    printed (None for a program that did not run or failed), and also sets
+    keep["a_program"], keep["b_program"] (code text or None) and
+    keep["a_error"], keep["b_error"] (error text or None).
     """
     # Step 1: ask REF_WRITER with SYSTEM_A as system, rules as user
     answer_a = _chat(gw, config.REF_WRITER, SYSTEM_A, rules)
@@ -106,6 +123,10 @@ def derive(gw, rules, log=print, keep=None):
         if keep is not None:
             keep["a"] = None
             keep["b"] = None
+            keep["a_program"] = None
+            keep["b_program"] = None
+            keep["a_error"] = None
+            keep["b_error"] = None
         return {"facts": None, "reason": "none"}
 
     code_a = _extract_code(answer_a)
@@ -113,53 +134,91 @@ def derive(gw, rules, log=print, keep=None):
         if keep is not None:
             keep["a"] = None
             keep["b"] = None
+            keep["a_program"] = None
+            keep["b_program"] = None
+            keep["a_error"] = "no program in the answer"
+            keep["b_error"] = None
         return {"facts": None, "reason": "program A failed"}
-    obj_a = run_program(code_a)
+
+    obj_a, err_a = run_program_full(code_a)
     if obj_a is None:
         if keep is not None:
             keep["a"] = None
             keep["b"] = None
+            keep["a_program"] = code_a
+            keep["b_program"] = None
+            keep["a_error"] = err_a
+            keep["b_error"] = None
         return {"facts": None, "reason": "program A failed"}
 
     # Validate: every fact value must be a dict
+    a_fact_valid = True
     for name in obj_a:
         if not isinstance(obj_a[name], dict):
-            if keep is not None:
-                keep["a"] = None
-                keep["b"] = None
-            return {"facts": None, "reason": "program A failed"}
+            a_fact_valid = False
+            break
+    if not a_fact_valid:
+        if keep is not None:
+            keep["a"] = None
+            keep["b"] = None
+            keep["a_program"] = code_a
+            keep["b_program"] = None
+            keep["a_error"] = "a fact is not a JSON object"
+            keep["b_error"] = None
+        return {"facts": None, "reason": "program A failed"}
 
-    # Step 2: ask coder with SYSTEM_B + A's fact names and keys
+    # Step 2: ask B with SYSTEM_B + A's fact names and keys
     keys_text = "\n".join(f"{name}: {json.dumps(sorted(obj_a[name].keys()))}"
                           for name in sorted(obj_a.keys()))
     user_b = rules + "\n\nFact names and input keys:\n" + keys_text
-    answer_b = _chat(gw, config.ROLES["coder"], SYSTEM_B, user_b)
+    answer_b = _chat(gw, config.ROLES[config.FACTS_B_ROLE], SYSTEM_B, user_b)
 
     code_b = _extract_code(answer_b)
     if code_b is None:
         if keep is not None:
             keep["a"] = obj_a
             keep["b"] = None
+            keep["a_program"] = code_a
+            keep["b_program"] = None
+            keep["a_error"] = None
+            keep["b_error"] = "no program in the answer"
         return {"facts": None, "reason": "program B failed"}
-    obj_b = run_program(code_b)
+
+    obj_b, err_b = run_program_full(code_b)
     if obj_b is None:
         if keep is not None:
             keep["a"] = obj_a
             keep["b"] = None
+            keep["a_program"] = code_a
+            keep["b_program"] = code_b
+            keep["a_error"] = None
+            keep["b_error"] = err_b
         return {"facts": None, "reason": "program B failed"}
 
     # Validate: every fact value must be a dict
+    b_fact_valid = True
     for name in obj_b:
         if not isinstance(obj_b[name], dict):
-            if keep is not None:
-                keep["a"] = obj_a
-                keep["b"] = None
-            return {"facts": None, "reason": "program B failed"}
+            b_fact_valid = False
+            break
+    if not b_fact_valid:
+        if keep is not None:
+            keep["a"] = obj_a
+            keep["b"] = None
+            keep["a_program"] = code_a
+            keep["b_program"] = code_b
+            keep["a_error"] = None
+            keep["b_error"] = "a fact is not a JSON object"
+        return {"facts": None, "reason": "program B failed"}
 
     # Set keep values
     if keep is not None:
         keep["a"] = obj_a
         keep["b"] = obj_b
+        keep["a_program"] = code_a
+        keep["b_program"] = code_b
+        keep["a_error"] = None
+        keep["b_error"] = None
 
     # Step 3: compare
     if obj_a == obj_b:

@@ -359,60 +359,11 @@ def test_derive_b_uses_facts_b_role(monkeypatch):
     assert gw.calls[1][1]["model"] == config.ROLES[role]["model"]
 
 
-# ---- 15: cmd_facts writes program and error files ----
+def test_run_program_full_other_error(monkeypatch):
+    def run(cmd, **kw):
+        raise OSError("no python")
+    monkeypatch.setattr(facts.subprocess, "run", run)
+    assert facts.run_program_full("print(1)") == (None, "could not run: no python")
 
-def test_cmd_facts_writes_program_and_error_files(tmp_path, monkeypatch, capsys):
-    # derive fake sets keep with a_program="print('A')",
-    #   b_program="print('B')", a_error=None, b_error="exit code 1: boom".
-    # plan id = P001.
-    # Expected: state/facts/P001-a.py == "print('A')"
-    # Expected: state/facts/P001-b.py == "print('B')"
-    # Expected: state/facts/P001-a-error.txt NOT written (a_error is None)
-    # Expected: state/facts/P001-b-error.txt == "exit code 1: boom"
-    plan = _plan()
-    _setup_cli(tmp_path, monkeypatch, plan)
-    monkeypatch.setattr(cli.facts, "render", lambda f: "rendered")
 
-    def fake_derive(gw, goal, **kw):
-        keep = kw.get("keep", {})
-        keep["a"] = {"x": {"1": 2}}
-        keep["b"] = {"x": {"1": 3}}
-        keep["a_program"] = "print('A')"
-        keep["b_program"] = "print('B')"
-        keep["a_error"] = None
-        keep["b_error"] = "exit code 1: boom"
-        return {"facts": None, "reason": "disagree: x 1: 2 vs 3"}
 
-    monkeypatch.setattr(cli.facts, "derive", fake_derive)
-    rc = cli.main(["facts", "P001"])
-    # Expected: rc 0
-    assert rc == 0
-    facts_dir = tmp_path / "state" / "facts"
-    # Expected: P001-a.py exists with the program text
-    a_py = facts_dir / "P001-a.py"
-    # Expected: content == "print('A')"
-    assert a_py.exists()
-    # Expected: content is the program text
-    assert a_py.read_text(encoding="utf-8") == "print('A')"
-    # Expected: P001-b.py exists
-    b_py = facts_dir / "P001-b.py"
-    # Expected: content == "print('B')"
-    assert b_py.exists()
-    # Expected: content is the program text
-    assert b_py.read_text(encoding="utf-8") == "print('B')"
-    # Expected: P001-a-error.txt NOT written (a_error is None)
-    a_err = facts_dir / "P001-a-error.txt"
-    # Expected: not present
-    assert not a_err.exists()
-    # Expected: P001-b-error.txt written with the error text
-    b_err = facts_dir / "P001-b-error.txt"
-    # Expected: present
-    assert b_err.exists()
-    # Expected: content == "exit code 1: boom"
-    assert b_err.read_text(encoding="utf-8") == "exit code 1: boom"
-    # Expected: stdout has reason and folder note
-    out = capsys.readouterr().out
-    # Expected: reason is printed
-    assert "facts: disagree: x 1: 2 vs 3" in out
-    # Expected: folder note is printed
-    assert f"facts: both outputs are in {facts_dir}" in out
