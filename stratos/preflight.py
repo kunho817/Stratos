@@ -42,6 +42,8 @@ def check(task, wt, run=None):
         for entry in missing_imports(out, wt, task["tests"]):
             if entry.startswith("module:"):
                 name = entry[len("module:"):]
+                if _is_explained_by_task_files(name, task["files"]):
+                    continue
                 return {"verdict": "refuse", "reason": f"the tests need module {name}, which is not installed", "output": out}
             if entry not in task["files"]:
                 return {"verdict": "refuse",
@@ -77,6 +79,19 @@ def _module_path(name, wt):
     if (wt / first).is_dir() or (wt / (first + ".py")).is_file():
         return (name.replace(".", "/") + ".py")
     return None
+
+
+def _is_explained_by_task_files(name, task_files):
+    """True if module name (dots as slashes) equals a task file path stripped of '.py',
+    or is a folder prefix that holds one of the task's files."""
+    slashed = name.replace(".", "/")
+    for f in task_files:
+        stripped = f[:-3] if f.endswith(".py") else f
+        if slashed == stripped:
+            return True
+        if f.startswith(slashed + "/"):
+            return True
+    return False
 
 
 def _node_spec_path(spec, wt, js_folder):
