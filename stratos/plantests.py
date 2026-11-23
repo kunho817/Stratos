@@ -238,6 +238,68 @@ def draft_problems(root, path):
     return lint.check(root, [path], codes=("F811", "F821", "F822", "F823"))
 
 
+def _strip_regex(text):
+    """Strip JavaScript regular expression literals from text."""
+    prefix_chars = set('(,:[]!&|?{};')
+    result = []
+    i = 0
+    while i < len(text):
+        if text[i] == '/':
+            # Find last non-whitespace char before i
+            j = i - 1
+            while j >= 0 and text[j].isspace():
+                j -= 1
+            if j < 0:
+                is_regex = True
+            elif text[j] in prefix_chars:
+                is_regex = True
+            else:
+                # Check if the word ending at j is "return"
+                k = j
+                while k >= 0 and (text[k].isalnum() or text[k] == '_'):
+                    k -= 1
+                word = text[k + 1:j + 1]
+                is_regex = (word == "return")
+
+            if is_regex:
+                i += 1  # skip opening /
+                in_class = False
+                found_close = False
+                while i < len(text):
+                    ch = text[i]
+                    if ch == '\\':
+                        i += 2
+                        continue
+                    if ch == '\n':
+                        break
+                    if ch == '[':
+                        in_class = True
+                        i += 1
+                        continue
+                    if ch == ']' and in_class:
+                        in_class = False
+                        i += 1
+                        continue
+                    if ch == '/' and not in_class:
+                        i += 1
+                        # consume flags
+                        while i < len(text) and text[i].isalpha() and text[i].islower():
+                            i += 1
+                        result.append(' ')
+                        found_close = True
+                        break
+                    i += 1
+                if not found_close:
+                    result.append('/')
+            else:
+                result.append('/')
+                i += 1
+        else:
+            result.append(text[i])
+            i += 1
+    return ''.join(result)
+
+
 def js_unbound_calls(text):
     """Sorted list of names called as ``name(`` in text that are not imported, declared, a property call,
     a JS keyword, or a common global. Strips comments and string literals first, recognises method shorthand."""
@@ -249,6 +311,8 @@ def js_unbound_calls(text):
     text = re.sub(r"'(?:[^'\\]|\\.)*'", '', text)
     text = re.sub(r'"(?:[^"\\]|\\.)*"', '', text)
     text = re.sub(r'`(?:[^`\\]|\\.)*`', '', text)
+    # Strip regex literals
+    text = _strip_regex(text)
 
     imported = set()
     for m in re.finditer(r"import\s*\{([^}]*)\}\s*from", text):
@@ -279,7 +343,8 @@ def js_unbound_calls(text):
             if p:
                 declared.add(p)
 
-    keywords = {"if", "for", "while", "switch", "catch", "function", "return", "typeof", "new", "super", "await"}
+    keywords = {"if", "for", "while", "switch", "catch", "function", "return", "typeof", "new", "super",
+               "await", "of", "import"}
 
     # Getter: get name() {  (empty parens) at member position
     for m in re.finditer(r'(?:[{,]\s*|\n\s*|(?<=^))get\s+([A-Za-z_$][\w$]*)\s*\(\s*\)\s*\{', text):
