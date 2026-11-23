@@ -16,8 +16,8 @@ import inspect
 
 from stratos import __main__ as cli
 
-NAMES = ["add", "plan", "plan-critique", "plan-add", "plan-tests", "run", "run-all", "status", "report", "push",
-         "clean", "reset", "drop", "accept", "cases", "replay", "memory", "dashboard"]
+NAMES = ["add", "plan", "plan-critique", "plan-add", "plan-tests", "facts", "run", "run-all", "status", "report",
+         "push", "clean", "reset", "drop", "accept", "cases", "replay", "memory", "dashboard"]
 
 
 def test_commands_table():
