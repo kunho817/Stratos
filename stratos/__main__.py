@@ -474,6 +474,14 @@ def cmd_facts(args, store, parser: argparse.ArgumentParser):
     if keep.get("b") is not None:
         (facts_dir / f"{args.plan_id}-b.json").write_text(
             json.dumps(keep["b"], indent=1, sort_keys=True), encoding="utf-8")
+    if keep.get("a_program") is not None:
+        (facts_dir / f"{args.plan_id}-a.py").write_text(keep["a_program"], encoding="utf-8")
+    if keep.get("b_program") is not None:
+        (facts_dir / f"{args.plan_id}-b.py").write_text(keep["b_program"], encoding="utf-8")
+    if keep.get("a_error") is not None:
+        (facts_dir / f"{args.plan_id}-a-error.txt").write_text(keep["a_error"], encoding="utf-8")
+    if keep.get("b_error") is not None:
+        (facts_dir / f"{args.plan_id}-b-error.txt").write_text(keep["b_error"], encoding="utf-8")
     if result["reason"] != "agree":
         print("facts: " + result["reason"])
         print(f"facts: both outputs are in {str(facts_dir)}")
