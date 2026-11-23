@@ -30,7 +30,11 @@ def system_prompt(language, test_runner):
     )
 
 
-TEST_SYSTEM = system_prompt(config.PROJECT["language"], config.PROJECT["test_runner"])
+APPENDED = (' monkeypatch.setattr takes an object, the attribute name and the value, '
+            'or one "module.attribute" string and the value; to give a program a file, '
+            'write a real file in tmp_path instead of faking open.')
+
+TEST_SYSTEM = system_prompt(config.PROJECT["language"], config.PROJECT["test_runner"]) + APPENDED
 
 
 def _has_file_marker(text):
