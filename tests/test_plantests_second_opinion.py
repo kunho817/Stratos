@@ -118,9 +118,9 @@ def test_second_opinion_exists():
 def test_second_check_uses_coder_writer(tmp_path, monkeypatch):
     # FIRST_REF failing=["test_x","test_y"], SECOND_REF failing=["test_y","test_z"]
     # suspect = sorted({"test_x","test_y"} & {"test_y","test_z"}) = ["test_y"]
-    # refcheck calls: first writer=None, second writer=coder
+    # refcheck calls: second writer=coder, recheck writer=None
     root, state = _setup(tmp_path, monkeypatch)
-    gw = FakeGW(Telemetry(state / "t.jsonl"), [])
+    gw = FakeGW(Telemetry(state / "t.jsonl"), [REPAIRED_ANSWER])
     ref = RefRecorder([SECOND_REF, REPAIRED_REF])
     (root / "tests" / "test_a.py").write_text(DRAFT_CONTENT, encoding="utf-8")
     monkeypatch.setattr(refcheck, "check", ref.fake)
@@ -129,12 +129,12 @@ def test_second_check_uses_coder_writer(tmp_path, monkeypatch):
                              [("pkg/a.py", "a1")], FIRST_REF,
                              {"test_dir": "tests", "files": {}, "imports": {}},
                              state / "answers", log.append)
-    # Expected: refcheck called twice
+    # Expected: refcheck called twice (second + recheck)
     assert len(ref.calls) == 2
     # Expected: second refcheck writer = config.ROLES["coder"]
-    assert ref.calls[1]["writer"] == config.ROLES["coder"]
-    # Expected: first writer (recheck) = None
-    assert ref.calls[1] is not None
+    assert ref.calls[0]["writer"] == config.ROLES["coder"]
+    # Expected: recheck writer (first) = None
+    assert ref.calls[1]["writer"] is None
 
 
 # 3
