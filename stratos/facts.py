@@ -92,27 +92,41 @@ def _chat(gw, cfg, prompt, extra):
     return answer
 
 
-def derive(gw, rules, log=print):
+def derive(gw, rules, log=print, keep=None):
     """Ask two independent models to compute the facts and compare their outputs.
 
     Returns {"facts": dict|None, "reason": str}.
+    When keep is a dict, sets keep["a"] and keep["b"] to the objects the two programs
+    printed (None for a program that did not run or failed).
     """
     # Step 1: ask REF_WRITER with SYSTEM_A as system, rules as user
     answer_a = _chat(gw, config.REF_WRITER, SYSTEM_A, rules)
     stripped = answer_a.strip()
     if stripped == "NONE":
+        if keep is not None:
+            keep["a"] = None
+            keep["b"] = None
         return {"facts": None, "reason": "none"}
 
     code_a = _extract_code(answer_a)
     if code_a is None:
+        if keep is not None:
+            keep["a"] = None
+            keep["b"] = None
         return {"facts": None, "reason": "program A failed"}
     obj_a = run_program(code_a)
     if obj_a is None:
+        if keep is not None:
+            keep["a"] = None
+            keep["b"] = None
         return {"facts": None, "reason": "program A failed"}
 
     # Validate: every fact value must be a dict
     for name in obj_a:
         if not isinstance(obj_a[name], dict):
+            if keep is not None:
+                keep["a"] = None
+                keep["b"] = None
             return {"facts": None, "reason": "program A failed"}
 
     # Step 2: ask coder with SYSTEM_B + A's fact names and keys
@@ -123,15 +137,29 @@ def derive(gw, rules, log=print):
 
     code_b = _extract_code(answer_b)
     if code_b is None:
+        if keep is not None:
+            keep["a"] = obj_a
+            keep["b"] = None
         return {"facts": None, "reason": "program B failed"}
     obj_b = run_program(code_b)
     if obj_b is None:
+        if keep is not None:
+            keep["a"] = obj_a
+            keep["b"] = None
         return {"facts": None, "reason": "program B failed"}
 
     # Validate: every fact value must be a dict
     for name in obj_b:
         if not isinstance(obj_b[name], dict):
+            if keep is not None:
+                keep["a"] = obj_a
+                keep["b"] = None
             return {"facts": None, "reason": "program B failed"}
+
+    # Set keep values
+    if keep is not None:
+        keep["a"] = obj_a
+        keep["b"] = obj_b
 
     # Step 3: compare
     if obj_a == obj_b:
@@ -141,17 +169,31 @@ def derive(gw, rules, log=print):
     diffs = []
     all_names = sorted(set(list(obj_a.keys()) + list(obj_b.keys())))
     for name in all_names:
-        a_keys = obj_a.get(name, {})
-        b_keys = obj_b.get(name, {})
-        all_keys = sorted(set(list(a_keys.keys()) + list(b_keys.keys())))
-        for key in all_keys:
-            a_val = a_keys.get(key)
-            b_val = b_keys.get(key)
-            diffs.append(f"{name} {key}: {json.dumps(a_val)} vs {json.dumps(b_val)}")
-            if len(diffs) >= 5:
-                break
         if len(diffs) >= 5:
             break
+        if name in obj_a and name not in obj_b:
+            diffs.append(f"{name}: only in A")
+            continue
+        if name in obj_b and name not in obj_a:
+            diffs.append(f"{name}: only in B")
+            continue
+        # both have this fact name
+        a_keys = obj_a[name]
+        b_keys = obj_b[name]
+        all_keys = sorted(set(list(a_keys.keys()) + list(b_keys.keys())))
+        for key in all_keys:
+            if len(diffs) >= 5:
+                break
+            in_a = key in a_keys
+            in_b = key in b_keys
+            if in_a and in_b:
+                if a_keys[key] == b_keys[key]:
+                    continue  # equal values never listed
+                diffs.append(f"{name} {key}: {json.dumps(a_keys[key])} vs {json.dumps(b_keys[key])}")
+            elif in_a:
+                diffs.append(f"{name} {key}: {json.dumps(a_keys[key])} vs null")
+            else:
+                diffs.append(f"{name} {key}: null vs {json.dumps(b_keys[key])}")
     reason = "disagree: " + "\n".join(diffs[:5])
     return {"facts": None, "reason": reason}
 
@@ -164,4 +206,3 @@ def render(facts):
         for key in sorted(facts[name].keys()):
             lines.append("  " + key + " -> " + json.dumps(facts[name][key]))
     return "\n".join(lines)
-
