@@ -140,3 +140,5 @@ lines; a person reads them before they are committed.
 - [plan, code] When a task introduces a new variable name, explicitly state the name in the goal to prevent the coder from using an undefined or conflicting identifier. (Stratos: reset:T314:1)
 - [plan, code] When a function creates a directory for output, explicitly add the mkdir call to the goal to prevent runtime errors from missing paths. (Stratos: plan:P025:plantests-second-opinion)
 - [plan, code] When defining pattern matching rules, explicitly list excluded keywords to prevent false positives on control flow statements. (Stratos: reset:T320:1)
+- [plan, code] When defining pattern matching rules, explicitly allow optional whitespace between the closing parenthesis and the opening brace to match flexible syntax. (Stratos: reset:T326:1)
+- [plan, code-review] When a task resets due to environment state corruption, verify the working directory and file system state before proceeding. (Stratos: reset:T326:2)
