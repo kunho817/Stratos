@@ -106,8 +106,10 @@ def _plan(tasks, pid="P001"):
 
 
 def _run(tmp_path, monkeypatch, gw, ref, first, refs, task=TASK,
-         paths=None, answers=None):
+         paths=None, answers=None, check=None):
     root, state = _setup(tmp_path, monkeypatch)
+    if check is not None:
+        monkeypatch.setattr(plantests, "check_draft", check)
     monkeypatch.setattr(refcheck, "check", ref.fake)
     if paths is None:
         paths = task["tests"]
@@ -268,11 +270,11 @@ def test_no_files_one_chat(tmp_path, monkeypatch):
 def test_check_failure_log_format(tmp_path, monkeypatch):
     # Repair writes test_a.py; check_draft returns ("syntax_error", "bad")
     # Expected log: "a: repair round: tests/test_a.py gave syntax_error; the earlier draft is kept"
-    monkeypatch.setattr(plantests, "check_draft", lambda r, p: ("syntax_error", "bad"))
     gw = FakeGW(Telemetry(tmp_path / "state" / "t.jsonl"), [REPAIR_ANSWER])
     ref = RefRecorder([SECOND_REF])
     _, _, log, _, _, _ = _run(tmp_path, monkeypatch, gw, ref, FIRST_REF,
-                              [("pkg/a.py", "a1")])
+                              [("pkg/a.py", "a1")],
+                              check=lambda r, p: ("syntax_error", "bad"))
     # Expected: the log line with path, status
     want = "a: repair round: tests/test_a.py gave syntax_error; the earlier draft is kept"
     assert want in log
@@ -283,11 +285,11 @@ def test_check_failure_log_format(tmp_path, monkeypatch):
 def test_check_failure_restored(tmp_path, monkeypatch):
     # Repair writes new content; check_draft fails; file restored to saved (DRAFT_CONTENT)
     # Expected: test_a.py == DRAFT_CONTENT
-    monkeypatch.setattr(plantests, "check_draft", lambda r, p: ("syntax_error", "bad"))
     gw = FakeGW(Telemetry(tmp_path / "state" / "t.jsonl"), [REPAIR_ANSWER])
     ref = RefRecorder([SECOND_REF])
     _, _, _, _, _, root = _run(tmp_path, monkeypatch, gw, ref, FIRST_REF,
-                                [("pkg/a.py", "a1")])
+                                [("pkg/a.py", "a1")],
+                                check=lambda r, p: ("syntax_error", "bad"))
     # Expected: original content restored
     assert (root / "tests" / "test_a.py").read_text(encoding="utf-8") == DRAFT_CONTENT
 
@@ -302,12 +304,12 @@ def test_check_failure_two_files(tmp_path, monkeypatch):
     #   "a: repair round: tests/test_b.py gave import_error; the earlier draft is kept"
     def fake_check(r, p):
         return ("import_error", "no module")
-    monkeypatch.setattr(plantests, "check_draft", fake_check)
     gw = FakeGW(Telemetry(tmp_path / "state" / "t.jsonl"), [REPAIR_ANSWER_TWO])
     ref = RefRecorder([SECOND_REF])
     _, _, log, _, _, root = _run(tmp_path, monkeypatch, gw, ref, FIRST_REF,
                                   [("pkg/a.py", "a1")], task=TASK_TWO,
-                                  paths=["tests/test_a.py", "tests/test_b.py"])
+                                  paths=["tests/test_a.py", "tests/test_b.py"],
+                                  check=fake_check)
     # Expected: two log lines
     want_a = "a: repair round: tests/test_a.py gave import_error; the earlier draft is kept"
     want_b = "a: repair round: tests/test_b.py gave import_error; the earlier draft is kept"
@@ -324,11 +326,11 @@ def test_check_failure_two_files(tmp_path, monkeypatch):
 def test_check_failure_one_chat_one_refcheck(tmp_path, monkeypatch):
     # Repair writes one file, check_draft fails, return before recheck
     # Expected: 1 gw.chat call, 1 refcheck call
-    monkeypatch.setattr(plantests, "check_draft", lambda r, p: ("syntax_error", "bad"))
     gw = FakeGW(Telemetry(tmp_path / "state" / "t.jsonl"), [REPAIR_ANSWER])
     ref = RefRecorder([SECOND_REF])
     _, _, _, gw, ref, _ = _run(tmp_path, monkeypatch, gw, ref, FIRST_REF,
-                                [("pkg/a.py", "a1")])
+                                [("pkg/a.py", "a1")],
+                                check=lambda r, p: ("syntax_error", "bad"))
     # Expected: 1 chat
     assert len(gw.calls) == 1
     # Expected: 1 refcheck (the second check; no recheck)
@@ -340,11 +342,11 @@ def test_check_failure_one_chat_one_refcheck(tmp_path, monkeypatch):
 def test_check_failure_result(tmp_path, monkeypatch):
     # suspect = ["test_y"]
     # Expected: result == FIRST_REF, extra == {"suspect": ["test_y"]}, no "repaired"
-    monkeypatch.setattr(plantests, "check_draft", lambda r, p: ("syntax_error", "bad"))
     gw = FakeGW(Telemetry(tmp_path / "state" / "t.jsonl"), [REPAIR_ANSWER])
     ref = RefRecorder([SECOND_REF])
     result, extra, _, _, _, _ = _run(tmp_path, monkeypatch, gw, ref, FIRST_REF,
-                                      [("pkg/a.py", "a1")])
+                                      [("pkg/a.py", "a1")],
+                                      check=lambda r, p: ("syntax_error", "bad"))
     # Expected: result is the first reference
     assert result == FIRST_REF
     # Expected: suspect = ["test_y"]
@@ -374,11 +376,11 @@ def test_writer_failure_specific_error_text(tmp_path, monkeypatch):
 def test_check_failure_status_in_log(tmp_path, monkeypatch):
     # check_draft returns ("import_error", "no module"); the status is in the log
     # Expected: "import_error" appears in the log line
-    monkeypatch.setattr(plantests, "check_draft", lambda r, p: ("import_error", "x"))
     gw = FakeGW(Telemetry(tmp_path / "state" / "t.jsonl"), [REPAIR_ANSWER])
     ref = RefRecorder([SECOND_REF])
     _, _, log, _, _, _ = _run(tmp_path, monkeypatch, gw, ref, FIRST_REF,
-                              [("pkg/a.py", "a1")])
+                              [("pkg/a.py", "a1")],
+                              check=lambda r, p: ("import_error", "x"))
     # Expected: status "import_error" is in the log line
     assert any("import_error" in line for line in log)
     # Expected: "the earlier draft is kept" is in the log line

@@ -70,6 +70,8 @@ def _setup(tmp_path, monkeypatch, js_results=None):
     """Set up a worktree. monkeypatch syntax_errors to pass, run_tests to record,
     dropped_definitions to return empty. If js_results is given, FakeJs pops them
     in order. Create tests/ and pkg/ dirs in tmp_path."""
+    monkeypatch.setattr(config, "WRITABLE_SUFFIXES",
+                        set(config.WRITABLE_SUFFIXES) | {".js", ".mjs"})
     monkeypatch.setattr(config, "CHECK", False)
     monkeypatch.setattr(config, "LINT", False)
     monkeypatch.setattr(config, "PREFLIGHT", False)
@@ -104,14 +106,14 @@ def test_js_test_file_with_unbound(tmp_path, monkeypatch):
 # ---- 2. .test.mjs is also checked ----
 
 def test_test_mjs_checked(tmp_path, monkeypatch):
-    # .test.mjs → test file; js_unbound_calls returns ["helper"]
+    # .test.mjs → test file; check reports every file (no early return)
     # Expected result: "check_error"
-    wt, runs = _setup(tmp_path, monkeypatch, js_results=[["helper"]])
+    wt, runs = _setup(tmp_path, monkeypatch, js_results=[["makeRng"], ["helper"]])
     result, detail = loop.check_answer(TASK_TWO, wt, ANSWER_TWO)
-    # Expected: the first file triggers, second not reached (early return)
     assert result == "check_error"
-    # Expected: first file names makeRng
-    assert "makeRng" in detail
+    # Expected: both files reported
+    assert "tests/a.test.js: makeRng" in detail
+    assert "tests/b.test.mjs: helper" in detail
 
 
 # ---- 3. .js in tests/ dir is a test file ----
@@ -243,6 +245,8 @@ def test_py_files_not_js_checked(tmp_path, monkeypatch):
 
 def test_syntax_errors_block_before_js(tmp_path, monkeypatch):
     # syntax_errors returns errors → JS check is never reached
+    monkeypatch.setattr(config, "WRITABLE_SUFFIXES",
+                        set(config.WRITABLE_SUFFIXES) | {".js", ".mjs"})
     monkeypatch.setattr(config, "CHECK", False)
     monkeypatch.setattr(config, "LINT", False)
     monkeypatch.setattr(config, "PREFLIGHT", False)

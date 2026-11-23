@@ -44,6 +44,8 @@ OUTDATED: tests/test_cli_facts.py::test_derive_gets_gateway_and_goal -
 import json
 import os
 import subprocess
+import sys
+from pathlib import Path
 
 from stratos import config, facts
 from stratos import __main__ as cli
@@ -238,30 +240,30 @@ def test_facts_b_role_default(monkeypatch):
 
 def test_facts_b_role_env_var(monkeypatch):
     # env "STRATOS_FACTS_B" = "reviewer", which IS in ROLES.
-    # Expected: val == "reviewer"
-    monkeypatch.setenv("STRATOS_FACTS_B", "reviewer")
-    val = os.environ.get("STRATOS_FACTS_B", "coder")
-    # Expected: "reviewer"
-    assert val == "reviewer"
-    # Expected: in ROLES → no fallback
-    assert val in config.ROLES
-    # Expected: config.FACTS_B_ROLE == "reviewer"
-    assert config.FACTS_B_ROLE == "reviewer"
+    # config reads env at import time, so check in a child process.
+    # Expected: FACTS_B_ROLE == "reviewer"
+    r = subprocess.run(
+        [sys.executable, "-c", "from stratos import config; print(config.FACTS_B_ROLE)"],
+        capture_output=True, text=True,
+        env=dict(os.environ, STRATOS_FACTS_B="reviewer"),
+        cwd=str(Path(__file__).resolve().parent.parent))
+    # Expected: child prints "reviewer"
+    assert r.stdout.strip() == "reviewer"
 
 
 # ---- 10: FACTS_B_ROLE fallback when not in ROLES ----
 
 def test_facts_b_role_fallback(monkeypatch):
     # env "STRATOS_FACTS_B" = "painter" → not in ROLES → "coder".
-    # Expected: env val == "painter", not in ROLES, falls back to "coder"
-    monkeypatch.setenv("STRATOS_FACTS_B", "painter")
-    val = os.environ.get("STRATOS_FACTS_B", "coder")
-    # Expected: env value is "painter"
-    assert val == "painter"
-    # Expected: "painter" NOT in ROLES
-    assert val not in config.ROLES
-    # Expected: config.FACTS_B_ROLE falls back to "coder"
-    assert config.FACTS_B_ROLE == "coder"
+    # config reads env at import time, so check in a child process.
+    # Expected: FACTS_B_ROLE falls back to "coder"
+    r = subprocess.run(
+        [sys.executable, "-c", "from stratos import config; print(config.FACTS_B_ROLE)"],
+        capture_output=True, text=True,
+        env=dict(os.environ, STRATOS_FACTS_B="painter"),
+        cwd=str(Path(__file__).resolve().parent.parent))
+    # Expected: child prints "coder" (fallback)
+    assert r.stdout.strip() == "coder"
 
 
 # ---- 11: derive keep: a_program, b_program, a_error, b_error on success ----
@@ -270,18 +272,18 @@ def test_derive_keep_program_error_success(monkeypatch):
     # A prints {"a": {"x": 1}}, B prints same → agree.
     # code_a = 'import json\nprint(json.dumps({"a": {"x": 1}}))'
     # run_program_full → (obj, None) for both.
-    # Expected: keep["a_program"] == code_a, keep["a_error"] == None,
-    #   keep["b_program"] == code_b, keep["b_error"] == None
+    # Expected: keep["a_program"] == code_a + "\n", keep["a_error"] == None,
+    #   keep["b_program"] == code_b + "\n", keep["b_error"] == None
     code = 'import json\nprint(json.dumps({"a": {"x": 1}}))'
     answer = _code_answer(code)
     _setup_run(monkeypatch, 0, '{"a": {"x": 1}}', '')
     gw = FakeGateway([("c1", answer), ("c2", answer)])
     keep = {}
     facts.derive(gw, "rules", log=_log, keep=keep)
-    # Expected: a_program is the code text
-    assert keep["a_program"] == code
-    # Expected: b_program is the code text
-    assert keep["b_program"] == code
+    # Expected: a_program is the code text with final newline
+    assert keep["a_program"] == code + "\n"
+    # Expected: b_program is the code text with final newline
+    assert keep["b_program"] == code + "\n"
     # Expected: a_error is None
     assert keep["a_error"] is None
     # Expected: b_error is None
@@ -317,7 +319,7 @@ def test_derive_non_dict_fact_error(monkeypatch):
     # A prints {"a": 42} — the fact value is 42, not a dict.
     # run_program_full returns ({"a": 42}, None) (valid JSON dict),
     # then derive validates each fact value.
-    # Expected: keep["a_program"] == code_a,
+    # Expected: keep["a_program"] == code_a + "\n",
     #   keep["a_error"] == "a fact is not a JSON object"
     code_a = 'import json\nprint(json.dumps({"a": 42}))'
     answer_a = _code_answer(code_a)
@@ -325,8 +327,8 @@ def test_derive_non_dict_fact_error(monkeypatch):
     gw = FakeGateway([("c1", answer_a)])
     keep = {}
     result = facts.derive(gw, "rules", log=_log, keep=keep)
-    # Expected: a_program is the code text
-    assert keep["a_program"] == code_a
+    # Expected: a_program is the code text with final newline
+    assert keep["a_program"] == code_a + "\n"
     # Expected: a_error == "a fact is not a JSON object"
     assert keep["a_error"] == "a fact is not a JSON object"
     # Expected: b_program is None
