@@ -129,3 +129,7 @@ lines; a person reads them before they are committed.
 - [plan, code] When a goal specifies appending to a string variable, explicitly name the variable in the goal to prevent appending to the wrong one. (Stratos: reset:T303:1)
 - [plan, code-review] Verify that the first script in a task actually runs and produces the expected output before proceeding. (Stratos: reset:T306:4)
 - [plan, code-review] When appending to a string constant, verify the target variable is not already modified by earlier tasks in the same run. (Stratos: reset:T303:3)
+- [plan, data-flow] When a task depends on a helper function, explicitly list the helper's file in the files section to ensure it is generated. (Current: plan:P001:water-bfs)
+- [tests, code] When correcting a test's expected state, verify the code under test matches the corrected expectation to ensure the fix is valid. (Current: reset:T006:1)
+- [plan, tests] When a task goal specifies multiple exported functions, list all of them in the goal to ensure the coder implements and tests every one. (Current: reset:T003:1)
+- [plan, tests] When a goal specifies a verification method, include a test that executes that method to ensure the implementation satisfies the requirement. (Current: reset:T004:1)
