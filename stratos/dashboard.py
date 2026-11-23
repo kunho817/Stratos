@@ -334,7 +334,7 @@ def make_server(repos, port, metrics=None, home=None):
                     return
                 file = (repo / subpath).resolve()
                 repo_resolved = repo.resolve()
-                if not str(file).startswith(str(repo_resolved)):
+                if not file.is_relative_to(repo_resolved):
                     self.send_response(404)
                     self.end_headers()
                     return
