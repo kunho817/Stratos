@@ -117,3 +117,7 @@ lines; a person reads them before they are committed.
 - [plan, code] When a goal specifies a package structure with `__main__.py`, explicitly list `transit/__main__.py` in the files section to ensure it is generated. (Transit: plan:P001:parse)
 - [plan, data-flow] When a task specifies a function signature, explicitly list the types of all parameters and return values to prevent type mismatches. (Transit: plan:P001:output)
 - [tests, data-flow] When a test prints a string that mimics a runtime error, verify the code does not parse that string as a real error condition. (Stratos: reset:T300:1)
+- [plan, code-review] Verify that every module referenced in the goal actually exists in the repository before planning the task. (Transit: reset:T001:1)
+- [code, types] When comparing values, ensure both operands are of the same type; convert or cast explicitly to avoid comparing None with str. (Transit: reset:T002:2)
+- [plan, code] When a goal specifies exact return types, explicitly annotate the function signature to prevent the model from inferring loose or incorrect types. (Transit: reset:T002:3)
+- [plan, edge-cases] When a goal specifies returning an empty list for a specific condition (like from equals to), explicitly include a test case for that condition. (Transit: reset:T002:4)
