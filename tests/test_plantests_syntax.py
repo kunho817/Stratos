@@ -34,7 +34,7 @@ def test_syntax_warning_invalid_escape_is_syntax_error(tmp_path, monkeypatch):
             stdout = ""
             stderr = ""
         return R()
-    monkeypatch.setattr(plantests, "subprocess", type(plantests.subprocess, (), {"run": fake_run})())
+    monkeypatch.setattr(plantests.subprocess, "run", fake_run)
 
     # Use the real verify.syntax_errors
     lines = verify.syntax_errors(str(tmp_path), ["tests/test_x.py"])
