@@ -8,9 +8,9 @@ import shutil
 from . import config
 
 
-SYSTEM_A = """You must write a Python 3 program that computes facts from the rules below and prints exactly ONE JSON object.
+SYSTEM_A = """You must write a Python 3 program that computes facts from the rules and prints exactly ONE JSON object.
 
-The JSON object has the form {{ "<fact name>": {{ "<input as a string>": <value>, ... }}, ... }}
+The JSON object has the form { "<fact name>": { "<input as a string>": <value>, ... }, ... }
 - Each fact name is a short string describing what is computed.
 - Each key is a string representing one small, finite combination of rule inputs.
 - Each value is computed by code from the rules, never typed in by hand.
@@ -18,23 +18,14 @@ The JSON object has the form {{ "<fact name>": {{ "<input as a string>": <value>
 - At most 400 input keys in all across all facts.
 
 The answer is exactly one ```python block containing the program, or the single word NONE when the rules give nothing small and finite.
-
-Rules:
-{rules}
 """
 
-SYSTEM_B = """You must write a Python 3 program that computes the facts for the given fact names and input keys from the rules below.
-The program prints exactly ONE JSON object in the form {{ "<fact name>": {{ "<input key>": <value>, ... }}, ... }}
+SYSTEM_B = """You must write a Python 3 program that computes the facts for the given fact names and input keys from the rules.
+The program prints exactly ONE JSON object in the form { "<fact name>": { "<input key>": <value>, ... }, ... }
 - You are given the fact names and the input keys. Compute values from the rules; never use the values directly.
 - A value that is a set is printed as a sorted list.
 
 The answer is exactly one ```python block containing the program.
-
-Rules:
-{rules}
-
-Fact names and input keys:
-{keys}
 """
 
 
@@ -106,8 +97,8 @@ def derive(gw, rules, log=print):
 
     Returns {"facts": dict|None, "reason": str}.
     """
-    # Step 1: ask REF_WRITER with SYSTEM_A
-    answer_a = _chat(gw, config.REF_WRITER, SYSTEM_A.format(rules=rules), "")
+    # Step 1: ask REF_WRITER with SYSTEM_A as system, rules as user
+    answer_a = _chat(gw, config.REF_WRITER, SYSTEM_A, rules)
     stripped = answer_a.strip()
     if stripped == "NONE":
         return {"facts": None, "reason": "none"}
@@ -119,10 +110,16 @@ def derive(gw, rules, log=print):
     if obj_a is None:
         return {"facts": None, "reason": "program A failed"}
 
+    # Validate: every fact value must be a dict
+    for name in obj_a:
+        if not isinstance(obj_a[name], dict):
+            return {"facts": None, "reason": "program A failed"}
+
     # Step 2: ask coder with SYSTEM_B + A's fact names and keys
     keys_text = "\n".join(f"{name}: {json.dumps(sorted(obj_a[name].keys()))}"
                           for name in sorted(obj_a.keys()))
-    answer_b = _chat(gw, config.ROLES["coder"], SYSTEM_B.format(rules=rules, keys=keys_text), "")
+    user_b = rules + "\n\nFact names and input keys:\n" + keys_text
+    answer_b = _chat(gw, config.ROLES["coder"], SYSTEM_B, user_b)
 
     code_b = _extract_code(answer_b)
     if code_b is None:
@@ -130,6 +127,11 @@ def derive(gw, rules, log=print):
     obj_b = run_program(code_b)
     if obj_b is None:
         return {"facts": None, "reason": "program B failed"}
+
+    # Validate: every fact value must be a dict
+    for name in obj_b:
+        if not isinstance(obj_b[name], dict):
+            return {"facts": None, "reason": "program B failed"}
 
     # Step 3: compare
     if obj_a == obj_b:
@@ -162,3 +164,4 @@ def render(facts):
         for key in sorted(facts[name].keys()):
             lines.append("  " + key + " -> " + json.dumps(facts[name][key]))
     return "\n".join(lines)
+
