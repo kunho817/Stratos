@@ -138,3 +138,5 @@ lines; a person reads them before they are committed.
 - [plan, config] When adding a new configuration flag, explicitly plan the test fixture updates to mock it, ensuring tests do not fail due to missing or incorrect defaults. (Stratos: plan:P024:plantests_second_ref)
 - [plan, code] When a goal specifies string matching or path checks, explicitly define the exact string format and delimiter handling to prevent ambiguity. (Stratos: plan:P024:loop_missing_tests)
 - [plan, code] When a task introduces a new variable name, explicitly state the name in the goal to prevent the coder from using an undefined or conflicting identifier. (Stratos: reset:T314:1)
+- [plan, code] When a function creates a directory for output, explicitly add the mkdir call to the goal to prevent runtime errors from missing paths. (Stratos: plan:P025:plantests-second-opinion)
+- [plan, code] When defining pattern matching rules, explicitly list excluded keywords to prevent false positives on control flow statements. (Stratos: reset:T320:1)
