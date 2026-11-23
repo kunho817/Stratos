@@ -126,6 +126,8 @@ WIKI = {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "none", "max_tokens"
 REF_WRITER = {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 24000, "reasoning_budget": 3000}
 # REF_CHECK: run the reference check after drafts in plan-tests; STRATOS_REF_CHECK=0 turns it off
 REF_CHECK = os.environ.get("STRATOS_REF_CHECK", "1") != "0"
+# REF_SECOND: run a second reference check (by the coder model) when the first flags; STRATOS_REF_SECOND=0 off
+REF_SECOND = os.environ.get("STRATOS_REF_SECOND", "1") != "0"
 
 # the old tests shown to the test writer, at most this many characters of their text (2026-11-22: 42 old tests of
 # __main__.py made a prompt over Swift's context); the most relevant are shown, the rest as one line each
