@@ -239,7 +239,6 @@ def draft_problems(root, path):
 
 
 def check_draft(root, path):
-    p = Path(root, path)
     if path.endswith(".py"):
         lines = verify.syntax_errors(str(root), [path])
         if lines:
