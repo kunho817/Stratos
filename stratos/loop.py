@@ -217,6 +217,19 @@ def check_answer(task, wt, text, finish=None):
     return result, detail
 
 
+def missing_test_files(task, wt):
+    """The task's "files" that lie under config.PROJECT["test_dir"] and do not exist in folder wt.
+
+    Only when every one of the task's files lies under the test folder; otherwise [] (the task writes
+    non-test files too, so a missing test file is not this task's job). Paths use "/"; a file lies under
+    the test folder when it starts with config.PROJECT["test_dir"].rstrip("/") + "/"."""
+    test_dir = config.PROJECT["test_dir"].rstrip("/") + "/"
+    files = task.get("files") or []
+    if not all(f.startswith(test_dir) for f in files):
+        return []
+    return sorted(f for f in files if not (Path(wt, f).exists()))
+
+
 def write_task(store, gw, task_id, log=print):
     """Run the task's attempts until the tests pass, without a review; commit a candidate when a review is on."""
     steps.use(gw.telemetry, task_id)
@@ -231,6 +244,15 @@ def write_task(store, gw, task_id, log=print):
         log(f"  task {task_id}: base conflict, handing to a person ({e})")
         return "needs_human"
     store.update(task_id, status="running", worktree=str(wt))
+    missing = missing_test_files(task, wt)
+    if missing:
+        store.update(task_id, status="needs_human", missing=missing)
+        store.decide(task=task_id, result="missing_test_file", missing=missing)
+        gw.telemetry.record("outcome", call_id=None, task=task_id, result="missing_test_file",
+                             detail=", ".join(missing))
+        log(f"  task {task_id}: the test file(s) it should fix are not in its copy: "
+            f"{', '.join(missing)} - commit them, or chain the task after the task that adds them")
+        return "needs_human"
     before = None
     if config.PREFLIGHT:
         pre = preflight.check(task, wt)
