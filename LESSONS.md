@@ -112,3 +112,5 @@ lines; a person reads them before they are committed.
 - [tests, data-flow] When a task adds a new computed field to a return value, update all existing tests that assert on the full return structure to include the new field. (Stratos: reset:T293:1)
 - [tests, fakes] When mocking a CLI command, verify the actual dispatch mechanism (e.g., COMMANDS dict) and mock that entry point, not the internal helper function. (Stratos: reset:T291:3)
 - [plan, data-flow] When a task adds a configuration switch, trace every code path that triggers the behavior and ensure the switch gates all entry points. (Stratos: reset:T296:1)
+- [plan, tests] When a goal changes response structure, explicitly state that tests must parse the body (e.g., json.loads) rather than comparing raw bytes. (Stratos: plan:P021:t1_dashboard_post)
+- [plan, tests] When a goal specifies error responses, explicitly include test cases for invalid input bodies that trigger those errors. (Stratos: reset:T298:3)
