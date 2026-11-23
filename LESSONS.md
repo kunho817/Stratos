@@ -133,3 +133,8 @@ lines; a person reads them before they are committed.
 - [tests, code] When correcting a test's expected state, verify the code under test matches the corrected expectation to ensure the fix is valid. (Current: reset:T006:1)
 - [plan, tests] When a task goal specifies multiple exported functions, list all of them in the goal to ensure the coder implements and tests every one. (Current: reset:T003:1)
 - [plan, tests] When a goal specifies a verification method, include a test that executes that method to ensure the implementation satisfies the requirement. (Current: reset:T004:1)
+- [plan, code] When a goal specifies calling a gateway function, explicitly list the required arguments and keyword parameters to ensure the implementation matches the signature. (Stratos: plan:P024:facts_module)
+- [plan, data-flow] When a goal uses a function's return value, specify the exact structure of that value and how the code should handle it. (Stratos: plan:P024:facts_cli)
+- [plan, config] When adding a new configuration flag, explicitly plan the test fixture updates to mock it, ensuring tests do not fail due to missing or incorrect defaults. (Stratos: plan:P024:plantests_second_ref)
+- [plan, code] When a goal specifies string matching or path checks, explicitly define the exact string format and delimiter handling to prevent ambiguity. (Stratos: plan:P024:loop_missing_tests)
+- [plan, code] When a task introduces a new variable name, explicitly state the name in the goal to prevent the coder from using an undefined or conflicting identifier. (Stratos: reset:T314:1)
