@@ -28,16 +28,19 @@ class Store:
                 time.sleep(wait)
         tmp.replace(self.tasks_path)
 
-    def add_task(self, title, goal, files, protected, tests, role='coder', after=(), output=None):
+    def add_task(self, title, goal, files, protected, tests, role='coder', after=(), output=None, replace=()):
         """files: paths shown to the model (it may rewrite them); protected: paths shown read-only (the tests);
         tests: pytest targets that must pass. role: which model plays this task. after: task ids that must be
-        done before this one runs. output: a search task's path; the generator's stdout is written there."""
+        done before this one runs. output: a search task's path; the generator's stdout is written there.
+        replace: paths this task may replace wholesale with a shorter whole file."""
         tasks = self.tasks()
         task = {"id": f"T{len(tasks) + 1:03d}", "title": title, "goal": goal, "files": list(files),
                 "protected": list(protected), "tests": list(tests), "role": role, "after": list(after),
                 "status": "todo", "created": time.time()}
         if output is not None:
             task["output"] = output
+        if replace:
+            task["replace"] = list(replace)
         tasks.append(task)
         self._save(tasks)
         return task

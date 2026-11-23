@@ -78,13 +78,14 @@ def refresh_memory():
             print(f"memory: {e}", file=sys.stderr)
 
 
-def add_one(store, title, goal, files, protected, tests, role, after, output=None):
+def add_one(store, title, goal, files, protected, tests, role, after, output=None, replace=()):
     if role is None:
         d = decide.choose_role({'files': files, 'goal': goal})
         role = d['choice']
     else:
         d = None
-    t = store.add_task(title, goal, files, protected, tests, role=role, after=after, output=output)
+    t = store.add_task(title, goal, files, protected, tests, role=role, after=after, output=output,
+                       replace=replace)
     if d is not None:
         store.update(t['id'], role_decision=d)
         Telemetry(config.STATE_DIR / 'telemetry.jsonl').record('decision', decision='role', decider='rules',
@@ -166,6 +167,7 @@ def _main(argv=None):
     a.add_argument("--role", choices=sorted(config.ROLES), default=None, help="which model plays this task")
     a.add_argument("--after", default="", help="comma-separated task ids that must be done first")
     a.add_argument("--output", default=None, help="a search task: the file the generator prints")
+    a.add_argument("--replace", default="", help="comma-separated files this task may replace wholesale")
     plan_p = sub.add_parser("plan", help="split a feature goal into tasks")
     plan_p.add_argument("--goal-file", required=True, help="path to a file containing the feature goal")
     plan_p.add_argument("--tries", type=int, default=2, help="attempts to get a valid plan")
@@ -275,8 +277,14 @@ def cmd_add(args, store, parser: argparse.ArgumentParser):
             # (Claude, 2026-11-21) "--after T245" for a task that became T245 itself: it would wait forever
             parser.error(f"--after {dep}: no such task")
     role = args.role
-    t = add_one(store, args.title, goal, split(args.files), split(args.protected), split(args.tests),
-                role, split(args.after), args.output)
+    replace = split(args.replace)
+    files = split(args.files)
+    missing = [p for p in replace if p not in files]
+    if missing:
+        print(f"--replace paths must be in --files: {', '.join(missing)}", file=sys.stderr)
+        return 2
+    t = add_one(store, args.title, goal, files, split(args.protected), split(args.tests),
+                role, split(args.after), args.output, replace=replace)
     try:
         lines = addcheck.check(config.REPO, t, [o for o in store.tasks() if o["id"] != t["id"]],
                                codemap.build(config.REPO))
@@ -440,7 +448,8 @@ def cmd_plan_add(args, store, parser: argparse.ArgumentParser):
                 prot.append(test)
         goal = t["goal"] + "\n\nTHE WHOLE FEATURE (this task is one part of it; its exact formats and numbers hold):\n" + p["goal"]
         task = add_one(store, t["title"], goal, t["files"], prot,
-                       t["tests"], t.get("role"), after_ids, t.get("output"))   # a search task (P16)
+                       t["tests"], t.get("role"), after_ids, t.get("output"),
+                       replace=t.get("replace"))   # a search task (P16)
         key_to_id[t["key"]] = task["id"]
     plan_mod.mark_added(config.STATE_DIR, args.plan_id, key_to_id)
     Telemetry(config.STATE_DIR / "telemetry.jsonl").record("plan", plan=args.plan_id,
