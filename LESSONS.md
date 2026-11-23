@@ -149,3 +149,4 @@ lines; a person reads them before they are committed.
 - [tests, data-flow] When a helper filters or modifies a collection, verify the test includes all expected items to catch omissions. (Current: reset:T012:1)
 - [plan, tests] When a task involves grid or tree logic, explicitly test diagonal connectivity to prevent spatial errors where diagonal cells are incorrectly treated as neighbors. (Current: reset:T012:2)
 - [tests, code] When a correction identifies a bug in a helper function, write a test for that helper first to verify the fix before testing the main logic. (Current: reset:T013:1)
+- [tests, fakes] When a test uses a fake DOM, ensure element lookups return the same instance to prevent creating new elements on each access. (Current: reset:T015:1)
