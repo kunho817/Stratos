@@ -159,12 +159,12 @@ def test_output_last_4000_chars(tmp_path, monkeypatch):
 
 def test_output_is_stdout_plus_stderr(tmp_path, monkeypatch):
     # stdout = "s"*3000, stderr = "e"*2000 → combined "s"*3000+"e"*2000 (5000 chars)
-    # last 4000 = "s"*1000 + "e"*2000
+    # last 4000 = "s"*2000 + "e"*2000
     root = _env(tmp_path, monkeypatch, stdout="s" * 3000, stderr="e" * 2000, code=0)
     gw = FakeGW(GOOD)
     r = refcheck.check(gw, "P1", TASK, root, ["tests/test_calc.py"])
-    # Expected: "s"*1000 + "e"*2000
-    assert r["output"] == "s" * 1000 + "e" * 2000
+    # Expected: "s"*2000 + "e"*2000
+    assert r["output"] == "s" * 2000 + "e" * 2000
     assert len(r["output"]) == 4000
 
 

@@ -154,7 +154,7 @@ def judge(total, failing):
     return "flagged"
 
 
-def check(gw, plan_id, task, root, tests, extra=None):
+def check(gw, plan_id, task, root, tests, extra=None, writer=None):
     tmp = Path(tempfile.mkdtemp())
     try:
         copy = tmp / "p"
@@ -164,7 +164,7 @@ def check(gw, plan_id, task, root, tests, extra=None):
             ignore=shutil.ignore_patterns(".git", ".stratos", "node_modules", "__pycache__",
                                           ".venv", "venv", "*-wt", "bin", "obj"),
         )
-        cfg = config.REF_WRITER
+        cfg = writer if writer is not None else config.REF_WRITER
         gw.ensure_model(cfg["model"])
         chat_kwargs = dict(
             task=f"{plan_id}-{task['key']}",
@@ -183,9 +183,10 @@ def check(gw, plan_id, task, root, tests, extra=None):
         r = patch.read_answer(copy, answer, task["files"])
         if not r["edits"] and not r["whole"]:
             return {"status": "error", "total": 0, "failing": [], "first_error": "no file in the answer",
-                    "files": []}
+                    "files": [], "output": ""}
         if r["error"] is not None:
-            return {"status": "error", "total": 0, "failing": [], "first_error": str(r["error"]), "files": []}
+            return {"status": "error", "total": 0, "failing": [], "first_error": str(r["error"]), "files": [],
+                    "output": ""}
         files = r["files"]
         if extra:
             for path, content in extra:
@@ -199,7 +200,7 @@ def check(gw, plan_id, task, root, tests, extra=None):
         errors = verify.syntax_errors(copy, [p for p, _ in files])
         if errors:
             return {"status": "error", "total": 0, "failing": [],
-                    "first_error": "the reference does not compile: " + errors[0], "files": []}
+                    "first_error": "the reference does not compile: " + errors[0], "files": [], "output": ""}
         cmd = verify.test_cmd(tests)
         try:
             with verify.dotnet_scope(copy, tests):
@@ -216,24 +217,25 @@ def check(gw, plan_id, task, root, tests, extra=None):
                     )
         except subprocess.TimeoutExpired:
             return {"status": "error", "total": 0, "failing": [], "first_error": "tests timed out",
-                    "files": []}
+                    "files": [], "output": ""}
         out = r.stdout + r.stderr
+        out_trimmed = out[-4000:]
         total, failing = count_tests(out)
         if total == 0 and not failing:
             first = next((ln.strip()[:200] for ln in out.splitlines() if "rror" in ln), out.strip()[-200:])
             return {"status": "error", "total": 0, "failing": [], "first_error": "no test ran: " + first,
-                    "files": []}
+                    "files": [], "output": out_trimmed}
         crash = crash_line(out, [p for p, _ in files])
         if crash:
             return {"status": "crashed", "total": total, "failing": failing,
-                    "first_error": crash, "files": files}
+                    "first_error": crash, "files": files, "output": out_trimmed}
         first_error = ""
         for line in out.splitlines():
             if "Error" in line or "assert" in line:
                 first_error = line.strip()[:200]
                 break
         result = {"status": judge(total, failing), "total": total, "failing": failing,
-                  "first_error": first_error, "files": files}
+                  "first_error": first_error, "files": files, "output": out_trimmed}
         if result["status"] == "agree" and config.MUTATION:
             base = {}
             for path, _ in files:

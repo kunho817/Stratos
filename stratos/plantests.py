@@ -238,6 +238,53 @@ def draft_problems(root, path):
     return lint.check(root, [path], codes=("F811", "F821", "F822", "F823"))
 
 
+def js_unbound_calls(text):
+    """Sorted list of names called as ``name(`` in text that are not imported, declared, a property call,
+    a JS keyword, or a common global."""
+    imported = set()
+    for m in re.finditer(r"import\s*\{([^}]*)\}\s*from", text):
+        for part in m.group(1).split(","):
+            part = part.strip()
+            if not part:
+                continue
+            imported.add(part.split(" as ")[-1].strip())
+    for m in re.finditer(r"import\s+(\w+)\s+from", text):
+        imported.add(m.group(1))
+    for m in re.finditer(r"import\s+\*\s+as\s+(\w+)\s+from", text):
+        imported.add(m.group(1))
+
+    declared = set()
+    for m in re.finditer(r"\bfunction\s+([A-Za-z_$][\w$]*)", text):
+        declared.add(m.group(1))
+    for m in re.finditer(r"\b(class|const|let|var)\s+([A-Za-z_$][\w$]*)", text):
+        declared.add(m.group(2))
+    for m in re.finditer(r"\bfunction\s*\(([^)]*)\)", text):
+        for p in m.group(1).split(","):
+            p = p.strip().split("=")[0].strip()
+            if p:
+                declared.add(p)
+    for m in re.finditer(r"\(([^)]*)\)\s*=>", text):
+        params = m.group(1).strip()
+        for p in params.split(","):
+            p = p.strip().split("=")[0].strip()
+            if p:
+                declared.add(p)
+
+    keywords = {"if", "for", "while", "switch", "catch", "function", "return", "typeof", "new", "super", "await"}
+    globals_ = {"test", "it", "describe", "before", "after", "beforeEach", "afterEach", "assert", "expect",
+                "require", "console", "Math", "JSON", "Object", "Array", "Number", "String", "Boolean", "Symbol",
+                "Set", "Map", "Promise", "Error", "TypeError", "RangeError", "Date", "RegExp", "parseInt",
+                "parseFloat", "isNaN", "structuredClone", "setTimeout", "clearTimeout", "queueMicrotask", "fetch"}
+
+    called = set()
+    for m in re.finditer(r"(?<![.\w$])([A-Za-z_$][\w$]*)\s*\(", text):
+        name = m.group(1)
+        if name not in keywords and name not in globals_ and name not in imported and name not in declared:
+            called.add(name)
+
+    return sorted(called)
+
+
 def check_draft(root, path):
     if path.endswith(".py"):
         lines = verify.syntax_errors(str(root), [path])
@@ -255,6 +302,14 @@ def check_draft(root, path):
     except subprocess.TimeoutExpired:
         return ("error", "draft check timed out")
     if result.returncode == 0:
+        if path.endswith(".js") or path.endswith(".mjs"):
+            try:
+                content = Path(root, path).read_text(encoding="utf-8")
+            except OSError:
+                content = ""
+            names = js_unbound_calls(content)
+            if names:
+                return ("unbound", "uses names it never imports or defines: " + ", ".join(names))
         return ("collected", "")
     output = result.stdout + result.stderr
     if langs.runner().missing_import(output):
@@ -475,7 +530,91 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                                 total=r["total"], failing=r["failing"],
                                 mutation_total=(r.get("mutation") or {}).get("total"),
                                 mutation_killed=(r.get("mutation") or {}).get("killed"))
-            for entry in task_entries[key]:
-                entry["refcheck"] = r
+
+            if r["status"] == "flagged" and config.REF_SECOND:
+                try:
+                    r2 = refcheck.check(gw, plan_id, task, root, paths,
+                                        extra=list(refs), writer=config.ROLES["coder"])
+                except Exception as e:
+                    log(f"{key}: second reference check failed: {e}")
+                    for entry in task_entries[key]:
+                        entry["refcheck"] = r
+                    continue
+                refs.extend(r2.get("files", []))
+                gw.telemetry.record("ref_check", plan=plan_id, key=key, status=r2["status"],
+                                    total=r2["total"], failing=r2["failing"],
+                                    mutation_total=(r2.get("mutation") or {}).get("total"),
+                                    mutation_killed=(r2.get("mutation") or {}).get("killed"))
+                suspect = sorted(set(r["failing"]) & set(r2["failing"]))
+                if suspect:
+                    for entry in task_entries[key]:
+                        entry["refcheck"] = r
+                        entry["suspect"] = suspect
+                    names = ", ".join(suspect)
+                    log(f"{key}: two independent references fail: {names} - these tests are likely wrong")
+                    gw.telemetry.record("ref_suspect", plan=plan_id, key=key, tests=suspect)
+
+                    # repair round
+                    old = old_tests(cmap, task)
+                    repair_messages = build_messages(task, root, earlier=p["tasks"][:i],
+                                                     memory=None, old=old, feature=p["goal"])
+                    draft_text = ""
+                    for tpath in paths:
+                        try:
+                            draft_text += Path(root, tpath).read_text(encoding="utf-8")
+                        except OSError:
+                            pass
+                    first_output = r.get("output", "")
+                    repair_part = ("\n\nREPAIR ROUND: rewrite only these suspect tests: "
+                                   + ", ".join(suspect)
+                                   + ". Take expected values from the facts and the rules, "
+                                     "not from a head calculation.\n"
+                                     "The earlier draft:\n" + draft_text + "\n"
+                                     "The first reference's test output:\n" + first_output)
+                    repair_messages[1]["content"] += repair_part
+                    try:
+                        new_files = _ask_test_writer(gw, plan_id, task, repair_messages,
+                                                     config.PLANNER, answers_dir, root)
+                    except Exception:
+                        for entry in task_entries[key]:
+                            entry["refcheck"] = r
+                        continue
+
+                    repaired = False
+                    if new_files:
+                        new_path, new_content = new_files[0]
+                        dest = Path(root, new_path)
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        dest.write_text(new_content, encoding="utf-8")
+                        status = check_draft(root, new_path)[0]
+                        if status == "collected":
+                            repaired = True
+
+                    if repaired:
+                        try:
+                            r3 = refcheck.check(gw, plan_id, task, root, paths,
+                                                extra=list(refs))
+                        except Exception as e:
+                            log(f"{key}: repair reference check failed: {e}")
+                            for entry in task_entries[key]:
+                                entry["refcheck"] = r
+                            continue
+                        refs.extend(r3.get("files", []))
+                        gw.telemetry.record("ref_check", plan=plan_id, key=key, status=r3["status"],
+                                            total=r3["total"], failing=r3["failing"],
+                                            mutation_total=(r3.get("mutation") or {}).get("total"),
+                                            mutation_killed=(r3.get("mutation") or {}).get("killed"))
+                        for entry in task_entries[key]:
+                            entry["refcheck"] = r3
+                            entry["repaired"] = True
+                    else:
+                        for entry in task_entries[key]:
+                            entry["refcheck"] = r
+                else:
+                    for entry in task_entries[key]:
+                        entry["refcheck"] = r
+            else:
+                for entry in task_entries[key]:
+                    entry["refcheck"] = r
 
     return results
