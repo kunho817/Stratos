@@ -114,3 +114,6 @@ lines; a person reads them before they are committed.
 - [plan, data-flow] When a task adds a configuration switch, trace every code path that triggers the behavior and ensure the switch gates all entry points. (Stratos: reset:T296:1)
 - [plan, tests] When a goal changes response structure, explicitly state that tests must parse the body (e.g., json.loads) rather than comparing raw bytes. (Stratos: plan:P021:t1_dashboard_post)
 - [plan, tests] When a goal specifies error responses, explicitly include test cases for invalid input bodies that trigger those errors. (Stratos: reset:T298:3)
+- [plan, code] When a goal specifies a package structure with `__main__.py`, explicitly list `transit/__main__.py` in the files section to ensure it is generated. (Transit: plan:P001:parse)
+- [plan, data-flow] When a task specifies a function signature, explicitly list the types of all parameters and return values to prevent type mismatches. (Transit: plan:P001:output)
+- [tests, data-flow] When a test prints a string that mimics a runtime error, verify the code does not parse that string as a real error condition. (Stratos: reset:T300:1)
