@@ -99,6 +99,24 @@ def _node_spec_path(spec, wt, js_folder):
     return _to_relative(Path(wt, js_folder, spec), wt)
 
 
+def _import_line_ok(pos, output):
+    """Check if the line containing position pos is a real import error line.
+
+    After stripping leading whitespace, an optional "E" followed by whitespace,
+    and leading whitespace, the line must start with "ModuleNotFoundError:" or
+    "ImportError:".
+    """
+    start = output.rfind("\n", 0, pos) + 1
+    end = output.find("\n", pos)
+    if end == -1:
+        end = len(output)
+    line = output[start:end]
+    stripped = line.lstrip()
+    if stripped.startswith("E") and len(stripped) > 1 and stripped[1] in " \t":
+        stripped = stripped[1:].lstrip()
+    return stripped.startswith("ModuleNotFoundError:") or stripped.startswith("ImportError:")
+
+
 def missing_imports(output, wt, tests):
     """Repo-relative POSIX paths the tests import that do not exist or lack a name, in output order, no repeats."""
     wt = Path(wt).resolve()
@@ -130,6 +148,8 @@ def missing_imports(output, wt, tests):
             if rel is not None:
                 add(rel)
         elif m.re is _PY_NO_MODULE:
+            if not _import_line_ok(m.start(), output):
+                continue
             name = m.group(1)
             rel = _module_path(name, wt)
             if rel is not None:
