@@ -151,3 +151,4 @@ lines; a person reads them before they are committed.
 - [tests, code] When a correction identifies a bug in a helper function, write a test for that helper first to verify the fix before testing the main logic. (Current: reset:T013:1)
 - [tests, fakes] When a test uses a fake DOM, ensure element lookups return the same instance to prevent creating new elements on each access. (Current: reset:T015:1)
 - [plan, data-flow] When a function uses a retry loop with a changing seed, verify the seed progression matches the caller's expectations to prevent duplicate outputs. (Current: plan:P003:t1-all50-test)
+- [plan, code] When a goal specifies using a variable for naming, explicitly define the variable's source (e.g., args.plan_id) to prevent ambiguity. (Stratos: plan:P029:facts_cmd_save)
