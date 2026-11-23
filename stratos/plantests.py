@@ -504,10 +504,12 @@ def second_opinion(gw, plan_id, p, i, task, root, paths, refs, first, cmap, answ
     try:
         new_files = _ask_test_writer(gw, plan_id, task, repair_messages,
                                      config.PLANNER, answers_dir, root)
-    except Exception:
+    except Exception as e:
+        log(f"{key}: repair round: the test writer failed: {e}")
         return (first, {"suspect": suspect})
     new_files = [(p2, c) for p2, c in new_files if p2 in paths]
     if not new_files:
+        log(f"{key}: repair round: the answer has none of the test files")
         return (first, {"suspect": suspect})
     all_passed = True
     for new_path, new_content in new_files:
@@ -516,6 +518,7 @@ def second_opinion(gw, plan_id, p, i, task, root, paths, refs, first, cmap, answ
         dest.write_text(new_content, encoding="utf-8")
         status = check_draft(root, new_path)[0]
         if status != "collected":
+            log(f"{key}: repair round: {new_path} gave {status}; the earlier draft is kept")
             dest.write_text(saved[new_path], encoding="utf-8")
             all_passed = False
     if not all_passed:
