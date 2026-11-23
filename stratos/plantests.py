@@ -11,16 +11,6 @@ from . import cases
 from . import verify
 from stratos import langs, steps
 
-import re
-import subprocess
-import urllib.error
-from pathlib import Path
-
-from . import codemap, config, context, decide, embed, lint, memstore, plan, patch, recall, refcheck
-from . import cases
-from . import verify
-from stratos import langs, steps
-
 
 def system_prompt(language, test_runner):
     lower = language.lower()
