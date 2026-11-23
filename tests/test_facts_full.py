@@ -359,4 +359,11 @@ def test_derive_b_uses_facts_b_role(monkeypatch):
     assert gw.calls[1][1]["model"] == config.ROLES[role]["model"]
 
 
+def test_run_program_full_other_error(monkeypatch):
+    def run(cmd, **kw):
+        raise OSError("no python")
+    monkeypatch.setattr(facts.subprocess, "run", run)
+    assert facts.run_program_full("print(1)") == (None, "could not run: no python")
+
+
 

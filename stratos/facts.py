@@ -61,8 +61,8 @@ def run_program_full(code, timeout=20):
         return (obj, None)
     except subprocess.TimeoutExpired:
         return (None, f"timed out after {timeout} s")
-    except Exception:
-        return (None, "timed out after " + str(timeout) + " s")
+    except Exception as e:
+        return (None, f"could not run: {e}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
