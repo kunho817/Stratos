@@ -455,9 +455,19 @@ def cmd_facts(args, store, parser: argparse.ArgumentParser):
         print(f"no such plan: {args.plan_id}", file=sys.stderr)
         return 1
     gw = Gateway(Telemetry(config.STATE_DIR / "telemetry.jsonl"))
-    result = facts.derive(gw, p["goal"])
+    keep = {}
+    result = facts.derive(gw, p["goal"], keep=keep)
+    facts_dir = Path(config.STATE_DIR) / "facts"
+    facts_dir.mkdir(parents=True, exist_ok=True)
+    if keep.get("a") is not None:
+        (facts_dir / f"{args.plan_id}-a.json").write_text(
+            json.dumps(keep["a"], indent=1, sort_keys=True), encoding="utf-8")
+    if keep.get("b") is not None:
+        (facts_dir / f"{args.plan_id}-b.json").write_text(
+            json.dumps(keep["b"], indent=1, sort_keys=True), encoding="utf-8")
     if result["reason"] != "agree":
         print("facts: " + result["reason"])
+        print(f"facts: both outputs are in {str(facts_dir)}")
         return 0
     rendered = facts.render(result["facts"])
     header = ("\n\nWORKED FACTS (computed by two independent programs from the rules "
@@ -472,8 +482,6 @@ def cmd_facts(args, store, parser: argparse.ArgumentParser):
     plans_dir.mkdir(parents=True, exist_ok=True)
     path = plans_dir / f"{args.plan_id}.json"
     path.write_text(json.dumps(p, indent=1, ensure_ascii=False), encoding="utf-8")
-    facts_dir = Path(config.STATE_DIR) / "facts"
-    facts_dir.mkdir(parents=True, exist_ok=True)
     facts_file = facts_dir / f"{args.plan_id}.txt"
     facts_file.write_text(rendered, encoding="utf-8")
     print(f"facts: agree, {n} facts added to {m} tasks")

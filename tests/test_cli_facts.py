@@ -3,14 +3,15 @@
 cmd_facts(args, store, parser):
   loads plan via plan_mod.load_plan(config.STATE_DIR, args.plan_id);
   creates Gateway(Telemetry(config.STATE_DIR / "telemetry.jsonl"));
-  calls facts.derive(gw, plan["goal"]).
+  calls facts.derive(gw, plan["goal"], keep={}).
   On agree: appends "\n\nWORKED FACTS (computed by two independent programs from the rules -
     read facts from here, never work them out in your head):\n" + render(facts) to goal
     of every task that lacks "WORKED FACTS", saves plan back to its JSON file,
     writes rendered text to state_dir/facts/<pid>.txt,
     prints "facts: agree, <n> facts added to <m> tasks", returns 0.
     n = len(result["facts"]) (fact names); m = tasks whose goal was modified.
-  On non-agree: prints "facts: " + result["reason"], returns 0, nothing changes.
+  On non-agree: prints "facts: " + result["reason"],
+    then "facts: both outputs are in <the facts folder>", returns 0, nothing changes.
   Unknown plan: prints "no such plan: <id>" on stderr, returns 1.
 Registered as subcommand "facts" with plan_id argument; usage line in docstring.
 """
@@ -105,7 +106,7 @@ def test_facts_dispatches_and_prints(tmp_path, monkeypatch, capsys):
     # n=2 fact names; m=1 task (T1 lacks WORKED FACTS, T2 has it)
     # Expected: "facts: agree, 2 facts added to 1 tasks"
     monkeypatch.setattr(cli.facts, "derive",
-                        lambda gw, goal: {"facts": FACTS, "reason": "agree"})
+                        lambda gw, goal, **kw: {"facts": FACTS, "reason": "agree"})
     monkeypatch.setattr(cli.facts, "render", lambda f: RENDERED)
     rc = cli.main(["facts", "P001"])
     # Expected: rc 0
@@ -119,7 +120,7 @@ def test_derive_gets_gateway_and_goal(tmp_path, monkeypatch, capsys):
     _setup(tmp_path, monkeypatch, plan)
     seen = []
 
-    def fake_derive(gw, goal):
+    def fake_derive(gw, goal, **kw):
         seen.append((gw, goal))
         return {"facts": FACTS, "reason": "agree"}
     monkeypatch.setattr(cli.facts, "derive", fake_derive)
@@ -139,7 +140,7 @@ def test_gateway_telemetry_path(tmp_path, monkeypatch, capsys):
     _setup(tmp_path, monkeypatch, plan)
     gw_seen = []
 
-    def fake_derive(gw, goal):
+    def fake_derive(gw, goal, **kw):
         gw_seen.append(gw)
         return {"facts": FACTS, "reason": "agree"}
     monkeypatch.setattr(cli.facts, "derive", fake_derive)
@@ -160,7 +161,7 @@ def test_agree_appends_facts_to_clean_tasks(tmp_path, monkeypatch, capsys):
     plan = _plan()
     _setup(tmp_path, monkeypatch, plan)
     monkeypatch.setattr(cli.facts, "derive",
-                        lambda gw, goal: {"facts": FACTS, "reason": "agree"})
+                        lambda gw, goal, **kw: {"facts": FACTS, "reason": "agree"})
     monkeypatch.setattr(cli.facts, "render", lambda f: RENDERED)
     cli.main(["facts", "P001"])
     # Expected: T1 goal == "do the thing" + HEADER + RENDERED
@@ -176,7 +177,7 @@ def test_agree_preserves_existing_worked_facts(tmp_path, monkeypatch, capsys):
     plan = _plan()
     _setup(tmp_path, monkeypatch, plan)
     monkeypatch.setattr(cli.facts, "derive",
-                        lambda gw, goal: {"facts": FACTS, "reason": "agree"})
+                        lambda gw, goal, **kw: {"facts": FACTS, "reason": "agree"})
     monkeypatch.setattr(cli.facts, "render", lambda f: RENDERED)
     cli.main(["facts", "P001"])
     # Expected: T2 goal is byte-for-byte unchanged
@@ -191,7 +192,7 @@ def test_agree_plan_saved_back(tmp_path, monkeypatch, capsys):
     plan = _plan()
     _setup(tmp_path, monkeypatch, plan)
     monkeypatch.setattr(cli.facts, "derive",
-                        lambda gw, goal: {"facts": FACTS, "reason": "agree"})
+                        lambda gw, goal, **kw: {"facts": FACTS, "reason": "agree"})
     monkeypatch.setattr(cli.facts, "render", lambda f: RENDERED)
     cli.main(["facts", "P001"])
     # Expected: plan JSON file updated (T1 goal has WORKED FACTS)
@@ -208,7 +209,7 @@ def test_agree_facts_file_written(tmp_path, monkeypatch, capsys):
     plan = _plan()
     _setup(tmp_path, monkeypatch, plan)
     monkeypatch.setattr(cli.facts, "derive",
-                        lambda gw, goal: {"facts": FACTS, "reason": "agree"})
+                        lambda gw, goal, **kw: {"facts": FACTS, "reason": "agree"})
     monkeypatch.setattr(cli.facts, "render", lambda f: RENDERED)
     cli.main(["facts", "P001"])
     # Expected: state_dir/facts/P001.txt exists and contains the rendered text
@@ -233,7 +234,7 @@ def test_agree_all_tasks_clean_m_equals_count(tmp_path, monkeypatch, capsys):
     plan = _plan(tasks=tasks)
     _setup(tmp_path, monkeypatch, plan)
     monkeypatch.setattr(cli.facts, "derive",
-                        lambda gw, goal: {"facts": FACTS, "reason": "agree"})
+                        lambda gw, goal, **kw: {"facts": FACTS, "reason": "agree"})
     monkeypatch.setattr(cli.facts, "render", lambda f: RENDERED)
     rc = cli.main(["facts", "P001"])
     # Expected: rc 0
@@ -255,30 +256,34 @@ def test_agree_all_tasks_clean_m_equals_count(tmp_path, monkeypatch, capsys):
 def test_non_agree_prints_reason(tmp_path, monkeypatch, capsys):
     plan = _plan()
     _setup(tmp_path, monkeypatch, plan)
-    # Expected: "facts: none" (derive returns reason "none")
+    # Expected: stdout includes "facts: none" and the folder note
     monkeypatch.setattr(cli.facts, "derive",
-                        lambda gw, goal: {"facts": None, "reason": "none"})
+                        lambda gw, goal, **kw: {"facts": None, "reason": "none"})
     rc = cli.main(["facts", "P001"])
     # Expected: rc 0
     assert rc == 0
-    # Expected: stdout "facts: none"
-    assert capsys.readouterr().out.strip() == "facts: none"
+    out = capsys.readouterr().out
+    # Expected: "facts: none" is printed
+    assert "facts: none" in out
+    # Expected: the folder note is also printed
+    facts_dir = str(tmp_path / "state" / "facts")
+    assert f"facts: both outputs are in {facts_dir}" in out
 
 
 def test_non_agree_plan_unchanged(tmp_path, monkeypatch, capsys):
     plan = _plan()
     _setup(tmp_path, monkeypatch, plan)
     monkeypatch.setattr(cli.facts, "derive",
-                        lambda gw, goal: {"facts": None, "reason": "program A failed"})
+                        lambda gw, goal, **kw: {"facts": None, "reason": "program A failed"})
     rc = cli.main(["facts", "P001"])
-    # Expected: rc 0, plan file unchanged, no facts file
+    # Expected: rc 0, plan file unchanged, no facts txt
     # Expected: rc 0
     assert rc == 0
     # Expected: plan file tasks have no WORKED FACTS
     p = json.loads((tmp_path / "state" / "plans" / "P001.json").read_text(encoding="utf-8"))
     # Expected: T1 goal == "do the thing" (no append)
     assert p["tasks"][0]["goal"] == "do the thing"
-    # Expected: facts file NOT written
+    # Expected: facts txt file NOT written
     assert not (tmp_path / "state" / "facts" / "P001.txt").exists()
 
 
@@ -292,3 +297,4 @@ def test_unknown_plan_returns_1(tmp_path, monkeypatch, capsys):
     assert rc == 1
     # Expected: stderr "no such plan: P999"
     assert "no such plan: P999" in capsys.readouterr().err
+
