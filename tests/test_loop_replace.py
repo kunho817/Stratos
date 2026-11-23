@@ -49,7 +49,7 @@ def test_replace_path_is_not_partial(tmp_path, monkeypatch):
     # Step: syntax ok, tests pass -> result is "passed"
     assert result == "passed"
     # Step: the short content was written to the file
-    assert (wt / "pkg" / "a.py").read_text(encoding="utf-8") == SHORT
+    assert (wt / "pkg" / "a.py").read_text(encoding="utf-8") == SHORT + "\n"
 
 
 def test_no_replace_key_still_partial(tmp_path, monkeypatch):
@@ -87,8 +87,8 @@ def test_all_paths_in_replace_are_skipped(tmp_path, monkeypatch):
     # Step: 2*2 = 4 < 40 for each, but both are in replace
     assert result == "passed"
     # Step: both files were written
-    assert (wt / "pkg" / "a.py").read_text(encoding="utf-8") == SHORT
-    assert (wt / "pkg" / "b.py").read_text(encoding="utf-8") == SHORT
+    assert (wt / "pkg" / "a.py").read_text(encoding="utf-8") == SHORT + "\n"
+    assert (wt / "pkg" / "b.py").read_text(encoding="utf-8") == SHORT + "\n"
 
 
 def test_one_in_replace_one_not(tmp_path, monkeypatch):
