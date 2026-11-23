@@ -410,12 +410,13 @@ def second_opinion(gw, plan_id, p, i, task, root, paths, refs, first, cmap, answ
     old = old_tests(cmap, task)
     repair_messages = build_messages(task, root, earlier=p["tasks"][:i],
                                      memory=None, old=old, feature=p["goal"])
-    draft_text = ""
+    saved = {}
     for tpath in paths:
         try:
-            draft_text += Path(root, tpath).read_text(encoding="utf-8")
+            saved[tpath] = Path(root, tpath).read_text(encoding="utf-8")
         except OSError:
-            pass
+            saved[tpath] = ""
+    draft_text = "".join(saved.values())
     first_output = first.get("output", "")
     repair_part = ("\n\nREPAIR ROUND: rewrite only these suspect tests: "
                    + ", ".join(suspect)
@@ -432,13 +433,16 @@ def second_opinion(gw, plan_id, p, i, task, root, paths, refs, first, cmap, answ
     new_files = [(p2, c) for p2, c in new_files if p2 in paths]
     if not new_files:
         return (first, {"suspect": suspect})
-    new_path, new_content = new_files[0]
-    dest = Path(root, new_path)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(new_content, encoding="utf-8")
-    status = check_draft(root, new_path)[0]
-    if status != "collected":
-        dest.write_text(draft_text, encoding="utf-8")
+    all_passed = True
+    for new_path, new_content in new_files:
+        dest = Path(root, new_path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(new_content, encoding="utf-8")
+        status = check_draft(root, new_path)[0]
+        if status != "collected":
+            dest.write_text(saved[new_path], encoding="utf-8")
+            all_passed = False
+    if not all_passed:
         return (first, {"suspect": suspect})
     try:
         r3 = refcheck.check(gw, plan_id, task, root, paths, extra=list(refs))
