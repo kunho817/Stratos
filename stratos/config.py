@@ -83,6 +83,13 @@ LINT = os.environ.get("STRATOS_LINT", "1") != "0"
 # attempt before the tests run.
 CHECK = True
 
+# inferred-type rules dropped by check(): pyright on unannotated code infers narrow container types and
+# reports these about ten times on a working program (Transit, 2026-11-22); unknown names, attributes
+# and imports still block.
+CHECK_IGNORE_RULES = ("reportArgumentType", "reportGeneralTypeIssues", "reportIndexIssue",
+                      "reportOptionalSubscript", "reportOptionalMemberAccess",
+                      "reportOptionalIterable")
+
 # feed the memory's context packs to the models
 MEMORY = True
 
