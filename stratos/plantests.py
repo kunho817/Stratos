@@ -40,6 +40,17 @@ def _has_file_marker(text):
     return False
 
 
+def _cut_at_file_marker(content):
+    """Cut content at the first line starting with "FILE: ", removing a trailing "```" line right before."""
+    lines = content.splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        if line.startswith("FILE: "):
+            if i > 0 and lines[i - 1].strip() == "```":
+                return "".join(lines[:i - 1])
+            return "".join(lines[:i])
+    return content
+
+
 def _strip_lone_fence(answer):
     """Return the inner text of a lone fenced block, stripping the language tag.
     Returns None if the answer is not a lone fenced block."""
@@ -82,6 +93,7 @@ def _ask_test_writer(gw, plan_id, task, messages, model_cfg, answers_dir, root):
     answer_path = answers_dir / f"{plan_id}-{key}-tests.md"
     answer_path.write_text(answer, encoding="utf-8")
     files = patch.parse_files(answer, allowed=task["tests"])
+    files = [(p, _cut_at_file_marker(c)) for p, c in files]
     new_tests = [t for t in task["tests"] if not Path(root, t).exists()]
     if len(new_tests) == 1 and not files and not _has_file_marker(answer):
         inner = _strip_lone_fence(answer)
