@@ -23,6 +23,7 @@ SYSTEM = (
     "Keep related small functions of one module in one task; a task should be worth a model call and a review.\n"
     "A function that calls a model takes the gateway as a parameter (gw), so tests can pass a fake.\n"
     "Prefer 2 to 6 tasks for a feature."
+    " When a task holds an algorithm (a search, a schedule, a simulation, an ordering with tie-breaks), end its goal with a line METHOD: the steps that meet the rules (the data kept, the order things are tried in, what is skipped) - no code."
 )
 
 _RULES = SYSTEM[SYSTEM.index("Tasks that write the same file"):]
