@@ -15,7 +15,7 @@ Changes to js_unbound_calls(text):
 Examples giving []:
   for (const n of (adj.get(node) || [])) {}
   await import("../src/main.js")
-  const m = text.match(/Level (\d+) of 50/);
+  const m = text.match(/Level (\\d+) of 50/);
 A real call openings("corner", 1) with openings never imported gives ["openings"],
 even on a line after a regex.
 """
@@ -68,7 +68,7 @@ def test_real_call_on_line_after_regex():
     #   Result: "const m = text.match( );\nopenings(, 1);"
     # Scan: "openings(" → not keyword, not global, not imported, not declared → unbound.
     # Expected: ["openings"]
-    text = 'const m = text.match(/Level (\d+) of 50/);\nopenings("corner", 1);'
+    text = 'const m = text.match(/Level (\\d+) of 50/);\nopenings("corner", 1);'
     assert js_unbound_calls(text) == ["openings"]
 
 
