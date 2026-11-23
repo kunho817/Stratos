@@ -6,6 +6,7 @@
   python -m stratos plan-critique PLAN_ID
   python -m stratos plan-add PLAN_ID
   python -m stratos plan-tests PLAN_ID
+  python -m stratos facts PLAN_ID
   python -m stratos run T001
   python -m stratos run-all
   python -m stratos status
@@ -32,6 +33,7 @@ from . import addcheck
 from . import cases
 from . import codemap
 from . import config
+from . import facts
 from . import dashboard
 from . import decide
 from . import embed
@@ -173,6 +175,8 @@ def _main(argv=None):
     plan_add_p.add_argument("plan_id")
     plan_tests_p = sub.add_parser("plan-tests", help="draft the test files of every task in a plan")
     plan_tests_p.add_argument("plan_id")
+    facts_p = sub.add_parser("facts", help="compute worked facts from the plan's rules")
+    facts_p.add_argument("plan_id")
     r = sub.add_parser("run", help="run a task")
     r.add_argument("task_id")
     run_all_p = sub.add_parser("run-all", help="run every todo task, in scheduler order")
@@ -238,6 +242,7 @@ def _main(argv=None):
         "plan-critique": plan_critique_p,
         "plan-add": plan_add_p,
         "plan-tests": plan_tests_p,
+        "facts": facts_p,
         "run": r,
         "run-all": run_all_p,
         "status": status_p,
@@ -440,6 +445,38 @@ def cmd_plan_add(args, store, parser: argparse.ArgumentParser):
     plan_mod.mark_added(config.STATE_DIR, args.plan_id, key_to_id)
     Telemetry(config.STATE_DIR / "telemetry.jsonl").record("plan", plan=args.plan_id,
                                                             tasks=len(tasks), edited=plan_mod.edited(p))
+    return 0
+
+
+def cmd_facts(args, store, parser: argparse.ArgumentParser):
+    try:
+        p = plan_mod.load_plan(config.STATE_DIR, args.plan_id)
+    except PlanNotFound:
+        print(f"no such plan: {args.plan_id}", file=sys.stderr)
+        return 1
+    gw = Gateway(Telemetry(config.STATE_DIR / "telemetry.jsonl"))
+    result = facts.derive(gw, p["goal"])
+    if result["reason"] != "agree":
+        print("facts: " + result["reason"])
+        return 0
+    rendered = facts.render(result["facts"])
+    header = ("\n\nWORKED FACTS (computed by two independent programs from the rules "
+              "- read facts from here, never work them out in your head):\n")
+    m = 0
+    for t in p["tasks"]:
+        if "WORKED FACTS" not in t["goal"]:
+            t["goal"] = t["goal"] + header + rendered
+            m += 1
+    n = len(result["facts"])
+    plans_dir = Path(config.STATE_DIR) / "plans"
+    plans_dir.mkdir(parents=True, exist_ok=True)
+    path = plans_dir / f"{args.plan_id}.json"
+    path.write_text(json.dumps(p, indent=1, ensure_ascii=False), encoding="utf-8")
+    facts_dir = Path(config.STATE_DIR) / "facts"
+    facts_dir.mkdir(parents=True, exist_ok=True)
+    facts_file = facts_dir / f"{args.plan_id}.txt"
+    facts_file.write_text(rendered, encoding="utf-8")
+    print(f"facts: agree, {n} facts added to {m} tasks")
     return 0
 
 
@@ -821,6 +858,7 @@ def cmd_status(args, store, parser: argparse.ArgumentParser):
 
 COMMANDS = {"add": cmd_add, "plan": cmd_plan, "plan-critique": cmd_plan_critique,
             "plan-add": cmd_plan_add, "plan-tests": cmd_plan_tests,
+            "facts": cmd_facts,
             "run": cmd_run, "run-all": cmd_run_all,
             "status": cmd_status, "report": cmd_report, "push": cmd_push,
             "clean": cmd_clean, "reset": cmd_reset, "drop": cmd_drop,
