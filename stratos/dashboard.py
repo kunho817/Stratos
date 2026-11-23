@@ -354,6 +354,8 @@ def make_server(repos, port, metrics=None, home=None):
                 self.end_headers()
 
         def do_POST(self):
+            body_len = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(body_len) if body_len else b""
             parsed = urllib.parse.urlparse(self.path)
             if parsed.path == "/api/try":
                 qs = parsed.query
@@ -362,6 +364,7 @@ def make_server(repos, port, metrics=None, home=None):
                 hdr = self.headers.get("X-Stratos", "")
                 if hdr != "1":
                     self.send_response(403)
+                    self.send_header("Content-Length", "0")
                     self.end_headers()
                     return
                 found = None
@@ -371,18 +374,24 @@ def make_server(repos, port, metrics=None, home=None):
                         break
                 if found is None:
                     self.send_response(404)
+                    self.send_header("Content-Length", "0")
                     self.end_headers()
                     return
                 repo = Path(found)
                 cfg = try_config(repo)
                 if cfg is None or cfg.get("kind") != "cli":
                     self.send_response(400)
+                    self.send_header("Content-Length", "0")
                     self.end_headers()
                     return
-                length = int(self.headers.get("Content-Length", 0))
-                raw = self.rfile.read(length)
-                body = json.loads(raw)
-                result = run_try(repo, body.get("text", ""), body.get("args", ""))
+                try:
+                    data = json.loads(body)
+                except Exception:
+                    self.send_response(400)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                result = run_try(repo, data.get("text", ""), data.get("args", ""))
                 resp = json.dumps(result).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -391,6 +400,7 @@ def make_server(repos, port, metrics=None, home=None):
                 self.wfile.write(resp)
             else:
                 self.send_response(404)
+                self.send_header("Content-Length", "0")
                 self.end_headers()
 
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)
