@@ -1,7 +1,6 @@
 """The planner model drafts the test files of every task in a plan, for a person to read, fix and commit
 before the tasks run."""
 
-import ast
 import re
 import subprocess
 import urllib.error
@@ -9,6 +8,7 @@ from pathlib import Path
 
 from . import codemap, config, context, decide, embed, lint, memstore, plan, patch, recall, refcheck
 from . import cases
+from . import verify
 from stratos import langs, steps
 
 
@@ -237,10 +237,9 @@ def draft_problems(root, path):
 def check_draft(root, path):
     p = Path(root, path)
     if path.endswith(".py"):
-        try:
-            ast.parse(p.read_text(encoding="utf-8"))
-        except SyntaxError as e:
-            return ("syntax_error", str(e))
+        lines = verify.syntax_errors(str(root), [path])
+        if lines:
+            return ("syntax_error", lines[0])
     cmd = langs.runner().with_paths(config.PROJECT["draft_check_command"], [path])
     try:
         with steps.timed("draft_check"):
