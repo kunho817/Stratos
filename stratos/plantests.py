@@ -250,7 +250,16 @@ def draft_problems(root, path):
 
 def js_unbound_calls(text):
     """Sorted list of names called as ``name(`` in text that are not imported, declared, a property call,
-    a JS keyword, or a common global."""
+    a JS keyword, or a common global. Strips comments and string literals first, recognises method shorthand."""
+    # Strip block comments /* ... */ (non-greedy, multi-line)
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+    # Strip line comments // to end-of-line
+    text = re.sub(r'//[^\n]*', '', text)
+    # Strip string literals: '...', "...", `...` (honouring backslash escapes)
+    text = re.sub(r"'(?:[^'\\]|\\.)*'", '', text)
+    text = re.sub(r'"(?:[^"\\]|\\.)*"', '', text)
+    text = re.sub(r'`(?:[^`\\]|\\.)*`', '', text)
+
     imported = set()
     for m in re.finditer(r"import\s*\{([^}]*)\}\s*from", text):
         for part in m.group(1).split(","):
@@ -281,6 +290,18 @@ def js_unbound_calls(text):
                 declared.add(p)
 
     keywords = {"if", "for", "while", "switch", "catch", "function", "return", "typeof", "new", "super", "await"}
+
+    # Method shorthand: name(params) { at object/class member position
+    # prefix must be {, comma, newline, or start-of-text (not }, ;, function keyword)
+    for m in re.finditer(r'(?:[{,]\s*|\n\s*|(?<=^))(\w+)\s*\(([^)]*)\)\s*\{', text):
+        name = m.group(1)
+        if name not in keywords:
+            declared.add(name)
+            for p in m.group(2).split(","):
+                p = p.strip().split("=")[0].strip()
+                if p:
+                    declared.add(p)
+
     globals_ = {"test", "it", "describe", "before", "after", "beforeEach", "afterEach", "assert", "expect",
                 "require", "console", "Math", "JSON", "Object", "Array", "Number", "String", "Boolean", "Symbol",
                 "Set", "Map", "Promise", "Error", "TypeError", "RangeError", "Date", "RegExp", "parseInt",
