@@ -238,6 +238,53 @@ def draft_problems(root, path):
     return lint.check(root, [path], codes=("F811", "F821", "F822", "F823"))
 
 
+def js_unbound_calls(text):
+    """Sorted list of names called as ``name(`` in text that are not imported, declared, a property call,
+    a JS keyword, or a common global."""
+    imported = set()
+    for m in re.finditer(r"import\s*\{([^}]*)\}\s*from", text):
+        for part in m.group(1).split(","):
+            part = part.strip()
+            if not part:
+                continue
+            imported.add(part.split(" as ")[-1].strip())
+    for m in re.finditer(r"import\s+(\w+)\s+from", text):
+        imported.add(m.group(1))
+    for m in re.finditer(r"import\s+\*\s+as\s+(\w+)\s+from", text):
+        imported.add(m.group(1))
+
+    declared = set()
+    for m in re.finditer(r"\bfunction\s+([A-Za-z_$][\w$]*)", text):
+        declared.add(m.group(1))
+    for m in re.finditer(r"\b(class|const|let|var)\s+([A-Za-z_$][\w$]*)", text):
+        declared.add(m.group(2))
+    for m in re.finditer(r"\bfunction\s*\(([^)]*)\)", text):
+        for p in m.group(1).split(","):
+            p = p.strip().split("=")[0].strip()
+            if p:
+                declared.add(p)
+    for m in re.finditer(r"\(([^)]*)\)\s*=>", text):
+        params = m.group(1).strip()
+        for p in params.split(","):
+            p = p.strip().split("=")[0].strip()
+            if p:
+                declared.add(p)
+
+    keywords = {"if", "for", "while", "switch", "catch", "function", "return", "typeof", "new", "super", "await"}
+    globals_ = {"test", "it", "describe", "before", "after", "beforeEach", "afterEach", "assert", "expect",
+                "require", "console", "Math", "JSON", "Object", "Array", "Number", "String", "Boolean", "Symbol",
+                "Set", "Map", "Promise", "Error", "TypeError", "RangeError", "Date", "RegExp", "parseInt",
+                "parseFloat", "isNaN", "structuredClone", "setTimeout", "clearTimeout", "queueMicrotask", "fetch"}
+
+    called = set()
+    for m in re.finditer(r"(?<![.\w$])([A-Za-z_$][\w$]*)\s*\(", text):
+        name = m.group(1)
+        if name not in keywords and name not in globals_ and name not in imported and name not in declared:
+            called.add(name)
+
+    return sorted(called)
+
+
 def check_draft(root, path):
     if path.endswith(".py"):
         lines = verify.syntax_errors(str(root), [path])
@@ -255,6 +302,14 @@ def check_draft(root, path):
     except subprocess.TimeoutExpired:
         return ("error", "draft check timed out")
     if result.returncode == 0:
+        if path.endswith(".js") or path.endswith(".mjs"):
+            try:
+                content = Path(root, path).read_text(encoding="utf-8")
+            except OSError:
+                content = ""
+            names = js_unbound_calls(content)
+            if names:
+                return ("unbound", "uses names it never imports or defines: " + ", ".join(names))
         return ("collected", "")
     output = result.stdout + result.stderr
     if langs.runner().missing_import(output):
