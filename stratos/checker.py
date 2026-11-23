@@ -45,6 +45,17 @@ def parse(output, root, paths):
     return sorted(set(lines))
 
 
+def _is_ignored(line):
+    m = re.match(r"^(.*?):(\d+): (.+)$", line)
+    if not m:
+        return False
+    msg = m.group(3)
+    rule_m = re.search(r"\((\w+)\)$", msg)
+    if rule_m and rule_m.group(1) in config.CHECK_IGNORE_RULES:
+        return True
+    return False
+
+
 def check(root, paths):
     cmd = config.PROJECT.get("check_command")
     if not cmd or not paths:
@@ -57,4 +68,5 @@ def check(root, paths):
                                env=langs.child_env())
     except (subprocess.TimeoutExpired, OSError):
         return []
-    return parse(r.stdout + r.stderr, root, paths)
+    lines = parse(r.stdout + r.stderr, root, paths)
+    return [l for l in lines if not _is_ignored(l)]
