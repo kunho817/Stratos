@@ -54,6 +54,21 @@ def task_memory(task):
         return None
 
 
+def _unbound_test_lines(wt, written):
+    """Lines "<path>: name, name" for JS test files with unbound calls."""
+    from . import plantests
+    js_lines = []
+    for p in written:
+        if p.endswith(".test.js") or p.endswith(".test.mjs") or (
+                (p.endswith(".js") or p.endswith(".mjs")) and p.startswith("tests/")):
+            fp = Path(wt, p)
+            if fp.is_file():
+                names = plantests.js_unbound_calls(fp.read_text(encoding="utf-8"))
+                if names:
+                    js_lines.append(f"{p}: {', '.join(names)}")
+    return js_lines
+
+
 def _lint_fix(wt, written, tests, out, skip=()):
     """After the tests pass, lint.fix removes unused imports; if the fix breaks the tests, undo it."""
     kept = {}
@@ -145,16 +160,7 @@ def _judge(task, wt, text, finish):
             + "\n".join(errors)
             + "\nCheck the syntax of every file you write; for an existing file, change only the lines you need with SEARCH/REPLACE edit blocks.")
 
-    from . import plantests
-    js_lines = []
-    for p in written:
-        if p.endswith(".test.js") or p.endswith(".test.mjs") or (
-                (p.endswith(".js") or p.endswith(".mjs")) and p.startswith("tests/")):
-            fp = Path(wt, p)
-            if fp.is_file():
-                names = plantests.js_unbound_calls(fp.read_text(encoding="utf-8"))
-                if names:
-                    js_lines.append(f"{p}: {', '.join(names)}")
+    js_lines = _unbound_test_lines(wt, written)
     if js_lines:
         return "check_error", ("These test files call names they never import or define:\n"
                                + "\n".join(js_lines)

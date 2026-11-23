@@ -49,7 +49,6 @@ from pathlib import Path
 
 from stratos import config, facts
 from stratos import __main__ as cli
-from stratos.telemetry import Telemetry
 
 
 # ---- helpers ----
