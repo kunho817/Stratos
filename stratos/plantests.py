@@ -473,6 +473,9 @@ def second_opinion(gw, plan_id, p, i, task, root, paths, refs, first, cmap, answ
                         total=r2["total"], failing=r2["failing"],
                         mutation_total=(r2.get("mutation") or {}).get("total"),
                         mutation_killed=(r2.get("mutation") or {}).get("killed"))
+    if r2["status"] == "error":
+        log(f"{key}: second reference check gave error ({r2.get('first_error', '')}); keeping the first result")
+        return (first, {})
     suspect = sorted(set(first["failing"]) & set(r2["failing"]))
     if not suspect:
         return (r2, {})
