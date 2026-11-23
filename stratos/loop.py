@@ -92,8 +92,11 @@ def _judge(task, wt, text, finish):
                       "<lines copied from the file>\n=======\n<the new lines>\n>>>>>>> REPLACE")
         return result, detail
 
+    replace_set = set(task.get("replace", []))
     partial_lines = []
     for path, body in files:
+        if path in replace_set:
+            continue
         fp = Path(wt, path)
         if fp.is_file():
             old = len(fp.read_text(encoding="utf-8").splitlines())
