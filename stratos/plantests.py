@@ -11,6 +11,16 @@ from . import cases
 from . import verify
 from stratos import langs, steps
 
+import re
+import subprocess
+import urllib.error
+from pathlib import Path
+
+from . import codemap, config, context, decide, embed, lint, memstore, plan, patch, recall, refcheck
+from . import cases
+from . import verify
+from stratos import langs, steps
+
 
 def system_prompt(language, test_runner):
     lower = language.lower()
@@ -367,6 +377,70 @@ def mutation_lines(key, mutation):
     return lines
 
 
+def second_opinion(gw, plan_id, p, i, task, root, paths, refs, first, cmap, answers_dir, log):
+    key = task["key"]
+    try:
+        r2 = refcheck.check(gw, plan_id, task, root, paths,
+                            extra=list(refs), writer=config.ROLES["coder"])
+    except Exception as e:
+        log(f"{key}: second reference check failed: {e}")
+        return (first, {})
+    gw.telemetry.record("ref_check", plan=plan_id, key=key, status=r2["status"],
+                        total=r2["total"], failing=r2["failing"],
+                        mutation_total=(r2.get("mutation") or {}).get("total"),
+                        mutation_killed=(r2.get("mutation") or {}).get("killed"))
+    suspect = sorted(set(first["failing"]) & set(r2["failing"]))
+    if not suspect:
+        return (r2, {})
+    names = ", ".join(suspect)
+    log(f"{key}: two independent references fail: {names} - these tests are likely wrong")
+    gw.telemetry.record("ref_suspect", plan=plan_id, key=key, tests=suspect)
+    Path(answers_dir).mkdir(parents=True, exist_ok=True)
+    old = old_tests(cmap, task)
+    repair_messages = build_messages(task, root, earlier=p["tasks"][:i],
+                                     memory=None, old=old, feature=p["goal"])
+    draft_text = ""
+    for tpath in paths:
+        try:
+            draft_text += Path(root, tpath).read_text(encoding="utf-8")
+        except OSError:
+            pass
+    first_output = first.get("output", "")
+    repair_part = ("\n\nREPAIR ROUND: rewrite only these suspect tests: "
+                   + ", ".join(suspect)
+                   + ". Take expected values from the facts and the rules, "
+                     "not from a head calculation.\n"
+                     "The earlier draft:\n" + draft_text + "\n"
+                     "The first reference's test output:\n" + first_output)
+    repair_messages[1]["content"] += repair_part
+    try:
+        new_files = _ask_test_writer(gw, plan_id, task, repair_messages,
+                                     config.PLANNER, answers_dir, root)
+    except Exception:
+        return (first, {"suspect": suspect})
+    new_files = [(p2, c) for p2, c in new_files if p2 in paths]
+    if not new_files:
+        return (first, {"suspect": suspect})
+    new_path, new_content = new_files[0]
+    dest = Path(root, new_path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(new_content, encoding="utf-8")
+    status = check_draft(root, new_path)[0]
+    if status != "collected":
+        dest.write_text(draft_text, encoding="utf-8")
+        return (first, {"suspect": suspect})
+    try:
+        r3 = refcheck.check(gw, plan_id, task, root, paths, extra=list(refs))
+    except Exception as e:
+        log(f"{key}: repair reference check failed: {e}")
+        return (first, {"suspect": suspect})
+    gw.telemetry.record("ref_check", plan=plan_id, key=key, status=r3["status"],
+                        total=r3["total"], failing=r3["failing"],
+                        mutation_total=(r3.get("mutation") or {}).get("total"),
+                        mutation_killed=(r3.get("mutation") or {}).get("killed"))
+    return (r3, {"suspect": suspect, "repaired": True})
+
+
 def draft_tests(gw, plan_id, root, state_dir, log=print):
     steps.use(gw.telemetry, plan_id)
     p = plan.load_plan(state_dir, plan_id)
@@ -532,87 +606,10 @@ def draft_tests(gw, plan_id, root, state_dir, log=print):
                                 mutation_killed=(r.get("mutation") or {}).get("killed"))
 
             if r["status"] == "flagged" and config.REF_SECOND:
-                try:
-                    r2 = refcheck.check(gw, plan_id, task, root, paths,
-                                        extra=list(refs), writer=config.ROLES["coder"])
-                except Exception as e:
-                    log(f"{key}: second reference check failed: {e}")
-                    for entry in task_entries[key]:
-                        entry["refcheck"] = r
-                    continue
-                refs.extend(r2.get("files", []))
-                gw.telemetry.record("ref_check", plan=plan_id, key=key, status=r2["status"],
-                                    total=r2["total"], failing=r2["failing"],
-                                    mutation_total=(r2.get("mutation") or {}).get("total"),
-                                    mutation_killed=(r2.get("mutation") or {}).get("killed"))
-                suspect = sorted(set(r["failing"]) & set(r2["failing"]))
-                if suspect:
-                    for entry in task_entries[key]:
-                        entry["refcheck"] = r
-                        entry["suspect"] = suspect
-                    names = ", ".join(suspect)
-                    log(f"{key}: two independent references fail: {names} - these tests are likely wrong")
-                    gw.telemetry.record("ref_suspect", plan=plan_id, key=key, tests=suspect)
-
-                    # repair round
-                    old = old_tests(cmap, task)
-                    repair_messages = build_messages(task, root, earlier=p["tasks"][:i],
-                                                     memory=None, old=old, feature=p["goal"])
-                    draft_text = ""
-                    for tpath in paths:
-                        try:
-                            draft_text += Path(root, tpath).read_text(encoding="utf-8")
-                        except OSError:
-                            pass
-                    first_output = r.get("output", "")
-                    repair_part = ("\n\nREPAIR ROUND: rewrite only these suspect tests: "
-                                   + ", ".join(suspect)
-                                   + ". Take expected values from the facts and the rules, "
-                                     "not from a head calculation.\n"
-                                     "The earlier draft:\n" + draft_text + "\n"
-                                     "The first reference's test output:\n" + first_output)
-                    repair_messages[1]["content"] += repair_part
-                    try:
-                        new_files = _ask_test_writer(gw, plan_id, task, repair_messages,
-                                                     config.PLANNER, answers_dir, root)
-                    except Exception:
-                        for entry in task_entries[key]:
-                            entry["refcheck"] = r
-                        continue
-
-                    repaired = False
-                    if new_files:
-                        new_path, new_content = new_files[0]
-                        dest = Path(root, new_path)
-                        dest.parent.mkdir(parents=True, exist_ok=True)
-                        dest.write_text(new_content, encoding="utf-8")
-                        status = check_draft(root, new_path)[0]
-                        if status == "collected":
-                            repaired = True
-
-                    if repaired:
-                        try:
-                            r3 = refcheck.check(gw, plan_id, task, root, paths,
-                                                extra=list(refs))
-                        except Exception as e:
-                            log(f"{key}: repair reference check failed: {e}")
-                            for entry in task_entries[key]:
-                                entry["refcheck"] = r
-                            continue
-                        refs.extend(r3.get("files", []))
-                        gw.telemetry.record("ref_check", plan=plan_id, key=key, status=r3["status"],
-                                            total=r3["total"], failing=r3["failing"],
-                                            mutation_total=(r3.get("mutation") or {}).get("total"),
-                                            mutation_killed=(r3.get("mutation") or {}).get("killed"))
-                        for entry in task_entries[key]:
-                            entry["refcheck"] = r3
-                            entry["repaired"] = True
-                    else:
-                        for entry in task_entries[key]:
-                            entry["refcheck"] = r
-                else:
-                    for entry in task_entries[key]:
-                        entry["refcheck"] = r
+                result, extra = second_opinion(gw, plan_id, p, i, task, root, paths, refs, r, cmap, answers_dir, log)
+                for entry in task_entries[key]:
+                    entry["refcheck"] = result
+                    entry.update(extra)
             else:
                 for entry in task_entries[key]:
                     entry["refcheck"] = r
