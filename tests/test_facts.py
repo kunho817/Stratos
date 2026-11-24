@@ -137,8 +137,8 @@ def test_derive_program_b_fails():
     result = facts.derive(gw, "rules", log=_log)
     # Expected: {"facts": None, "reason": "program B failed"}
     assert result == {"facts": None, "reason": "program B failed"}
-    # Two model loads: REF_WRITER then coder
-    assert gw.models == [config.REF_WRITER["model"], config.ROLES["coder"]["model"]]
+    # Two model loads: REF_WRITER then FACTS_B
+    assert gw.models == [config.REF_WRITER["model"], config.FACTS_B["model"]]
 
 
 def test_derive_agree_checks_gateway_calls():
@@ -149,8 +149,8 @@ def test_derive_agree_checks_gateway_calls():
     result = facts.derive(gw, "rules", log=_log)
     # Expected facts = {"a": {"x": 1}}, reason "agree"
     assert result == {"facts": {"a": {"x": 1}}, "reason": "agree"}
-    # Two model loads in order: REF_WRITER then coder
-    assert gw.models == [config.REF_WRITER["model"], config.ROLES["coder"]["model"]]
+    # Two model loads in order: REF_WRITER then FACTS_B
+    assert gw.models == [config.REF_WRITER["model"], config.FACTS_B["model"]]
     # First chat: task=facts, role=facts, attempt=1, REF_WRITER settings
     kw1 = gw.calls[0][1]
     assert kw1["task"] == "facts"
@@ -161,9 +161,9 @@ def test_derive_agree_checks_gateway_calls():
     # REF_WRITER has reasoning_budget=3000, so chat receives it
     # Expected: reasoning_budget == config.REF_WRITER["reasoning_budget"] == 3000
     assert kw1.get("reasoning_budget") == config.REF_WRITER["reasoning_budget"]
-    # Second chat: coder settings, no reasoning_budget
+    # Second chat: FACTS_B settings, no reasoning_budget
     kw2 = gw.calls[1][1]
-    assert kw2["model"] == config.ROLES["coder"]["model"]
+    assert kw2["model"] == config.FACTS_B["model"]
     # coder has no reasoning_budget key -> chat receives None (not set)
     assert kw2.get("reasoning_budget") is None
 

@@ -213,7 +213,7 @@ def derive(gw, rules, log=print, keep=None):
         blocks.append(f"{name}: {keys_str}\n  value shape: {shapes_str}")
     keys_text = "\n".join(blocks)
     user_b = rules + "\n\nFact names, input keys and value shapes:\n" + keys_text
-    answer_b = _chat(gw, config.ROLES[config.FACTS_B_ROLE], SYSTEM_B, user_b)
+    answer_b = _chat(gw, config.FACTS_B, SYSTEM_B, user_b)
 
     code_b = _extract_code(answer_b)
     if code_b is None:

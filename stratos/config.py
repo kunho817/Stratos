@@ -124,11 +124,10 @@ WIKI = {"model": "tiel-coder-35b-a3b-ud-q4_k_xl", "effort": "none", "max_tokens"
 
 # REF_WRITER: writes an independent reference implementation from the goal; it failed every known wrong test in the experiment
 REF_WRITER = {"model": "swift-1.5-iq2_xs", "effort": "low", "max_tokens": 24000, "reasoning_budget": 3000}
-# FACTS_B_ROLE: the role name used for model B in facts.derive; STRATOS_FACTS_B env var; default "coder";
-# falls back to "coder" if not a key of ROLES
-FACTS_B_ROLE = os.environ.get("STRATOS_FACTS_B", "coder")
-if FACTS_B_ROLE not in ROLES:
-    FACTS_B_ROLE = "coder"
+# FACTS_B: the model setting of program B in facts.derive (Flint: 9 of 9 right in Claude's benchmark of 2026-11-24); STRATOS_FACTS_B=<role> uses that role's setting
+FACTS_B = {"model": "flint-40b-a2.5b-ud-q4_k_xl", "effort": "low", "max_tokens": 24000}
+if os.environ.get("STRATOS_FACTS_B", "") in ROLES:
+    FACTS_B = ROLES[os.environ["STRATOS_FACTS_B"]]
 
 # REF_CHECK: run the reference check after drafts in plan-tests; STRATOS_REF_CHECK=0 turns it off
 REF_CHECK = os.environ.get("STRATOS_REF_CHECK", "1") != "0"

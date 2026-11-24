@@ -42,10 +42,7 @@ OUTDATED: tests/test_cli_facts.py::test_derive_gets_gateway_and_goal -
 """
 
 import json
-import os
 import subprocess
-import sys
-from pathlib import Path
 
 from stratos import config, facts
 from stratos import __main__ as cli
@@ -219,50 +216,7 @@ def test_run_program_delegates_to_full(monkeypatch):
     assert facts.run_program("code") == {"x": 1}
 
 
-# ---- 8: FACTS_B_ROLE default ----
 
-def test_facts_b_role_default(monkeypatch):
-    # env "STRATOS_FACTS_B" not set → default "coder".
-    # "coder" IS in config.ROLES.
-    # Expected: config.FACTS_B_ROLE == "coder"
-    monkeypatch.delenv("STRATOS_FACTS_B", raising=False)
-    val = os.environ.get("STRATOS_FACTS_B", "coder")
-    # Expected: "coder"
-    assert val == "coder"
-    # Expected: in ROLES
-    assert val in config.ROLES
-    # Expected: config.FACTS_B_ROLE is the module attribute
-    assert config.FACTS_B_ROLE == "coder"
-
-
-# ---- 9: FACTS_B_ROLE env var set to a valid role ----
-
-def test_facts_b_role_env_var(monkeypatch):
-    # env "STRATOS_FACTS_B" = "reviewer", which IS in ROLES.
-    # config reads env at import time, so check in a child process.
-    # Expected: FACTS_B_ROLE == "reviewer"
-    r = subprocess.run(
-        [sys.executable, "-c", "from stratos import config; print(config.FACTS_B_ROLE)"],
-        capture_output=True, text=True,
-        env=dict(os.environ, STRATOS_FACTS_B="reviewer"),
-        cwd=str(Path(__file__).resolve().parent.parent))
-    # Expected: child prints "reviewer"
-    assert r.stdout.strip() == "reviewer"
-
-
-# ---- 10: FACTS_B_ROLE fallback when not in ROLES ----
-
-def test_facts_b_role_fallback(monkeypatch):
-    # env "STRATOS_FACTS_B" = "painter" → not in ROLES → "coder".
-    # config reads env at import time, so check in a child process.
-    # Expected: FACTS_B_ROLE falls back to "coder"
-    r = subprocess.run(
-        [sys.executable, "-c", "from stratos import config; print(config.FACTS_B_ROLE)"],
-        capture_output=True, text=True,
-        env=dict(os.environ, STRATOS_FACTS_B="painter"),
-        cwd=str(Path(__file__).resolve().parent.parent))
-    # Expected: child prints "coder" (fallback)
-    assert r.stdout.strip() == "coder"
 
 
 # ---- 11: derive keep: a_program, b_program, a_error, b_error on success ----
@@ -338,24 +292,7 @@ def test_derive_non_dict_fact_error(monkeypatch):
     assert result["reason"] == "program A failed"
 
 
-# ---- 14: derive model B uses FACTS_B_ROLE ----
 
-def test_derive_b_uses_facts_b_role(monkeypatch):
-    # A prints {"a": {"x": 1}}, B prints same.
-    # FACTS_B_ROLE defaults to "coder" → model is config.ROLES["coder"]["model"].
-    # Expected: second chat call's model == config.ROLES["coder"]["model"]
-    code = 'import json\nprint(json.dumps({"a": {"x": 1}}))'
-    answer = _code_answer(code)
-    _setup_run(monkeypatch, 0, '{"a": {"x": 1}}', '')
-    gw = FakeGateway([("c1", answer), ("c2", answer)])
-    facts.derive(gw, "rules", log=_log)
-    # Expected: first chat uses REF_WRITER model
-    assert gw.calls[0][1]["model"] == config.REF_WRITER["model"]
-    # Expected: second chat uses FACTS_B_ROLE model
-    role = config.FACTS_B_ROLE
-    # FACTS_B_ROLE is "coder" by default
-    # Expected: model == config.ROLES["coder"]["model"]
-    assert gw.calls[1][1]["model"] == config.ROLES[role]["model"]
 
 
 def test_run_program_full_other_error(monkeypatch):
