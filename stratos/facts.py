@@ -16,6 +16,7 @@ The JSON object has the form { "<fact name>": { "<input as a string>": <value>, 
 - Each value is computed by code from the rules, never typed in by hand.
 - A value that is a set is printed as a sorted list.
 - When the rules allow several answers for one input, the value lists every one of them (for example every rotation that fits), never only the first.
+- Never join several values into one string (not 'flower:1' or 'e,n'): use a list such as ['flower', 1] instead.
 - At most 400 input keys in all across all facts.
 
 The answer is exactly one ```python block containing the program, or the single word NONE when the rules give nothing small and finite.
@@ -26,6 +27,7 @@ The program prints exactly ONE JSON object in the form { "<fact name>": { "<inpu
 - You are given the fact names and the input keys. Compute values from the rules; never use the values directly.
 - A value that is a set is printed as a sorted list.
 - When the rules allow several answers for one input, the value lists every one of them (for example every rotation that fits), never only the first.
+- Never join several values into one string (not 'flower:1' or 'e,n'): use a list such as ['flower', 1] instead.
 - Every value must have exactly the value shape given for its fact (for a list, the same order of elements).
 
 The answer is exactly one ```python block containing the program.
