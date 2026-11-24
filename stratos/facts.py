@@ -15,6 +15,7 @@ The JSON object has the form { "<fact name>": { "<input as a string>": <value>, 
 - Each key is a string representing one small, finite combination of rule inputs.
 - Each value is computed by code from the rules, never typed in by hand.
 - A value that is a set is printed as a sorted list.
+- When the rules allow several answers for one input, the value lists every one of them (for example every rotation that fits), never only the first.
 - At most 400 input keys in all across all facts.
 
 The answer is exactly one ```python block containing the program, or the single word NONE when the rules give nothing small and finite.
@@ -24,10 +25,32 @@ SYSTEM_B = """You must write a Python 3 program that computes the facts for the 
 The program prints exactly ONE JSON object in the form { "<fact name>": { "<input key>": <value>, ... }, ... }
 - You are given the fact names and the input keys. Compute values from the rules; never use the values directly.
 - A value that is a set is printed as a sorted list.
+- When the rules allow several answers for one input, the value lists every one of them (for example every rotation that fits), never only the first.
 - Every value must have exactly the value shape given for its fact (for a list, the same order of elements).
 
 The answer is exactly one ```python block containing the program.
 """
+
+
+def normal(v):
+    """Return a new value with the same structure, normalized.
+
+    - dict -> dict with the same keys and normal() applied to each value.
+    - list -> normal() applied to each element; then, when the list has at
+      least one element AND every element is a list or a dict, sort the
+      elements by json.dumps(element, sort_keys=True); otherwise keep order.
+    - any other value -> returned as-is.
+
+    The input is never changed; a new object is produced at every level.
+    """
+    if isinstance(v, dict):
+        return {k: normal(v[k]) for k in v}
+    if isinstance(v, list):
+        items = [normal(x) for x in v]
+        if len(items) >= 1 and all(isinstance(x, (list, dict)) for x in items):
+            items.sort(key=lambda e: json.dumps(e, sort_keys=True))
+        return items
+    return v
 
 
 def value_shape(v):
@@ -263,8 +286,8 @@ def derive(gw, rules, log=print, keep=None):
         keep["b_error"] = None
 
     # Step 3: compare
-    if obj_a == obj_b:
-        return {"facts": obj_a, "reason": "agree"}
+    if normal(obj_a) == normal(obj_b):
+        return {"facts": normal(obj_a), "reason": "agree"}
 
     # Step 4: disagree - collect up to 5 lines
     diffs = []
@@ -288,7 +311,7 @@ def derive(gw, rules, log=print, keep=None):
             in_a = key in a_keys
             in_b = key in b_keys
             if in_a and in_b:
-                if a_keys[key] == b_keys[key]:
+                if normal(a_keys[key]) == normal(b_keys[key]):
                     continue  # equal values never listed
                 diffs.append(f"{name} {key}: {json.dumps(a_keys[key])} vs {json.dumps(b_keys[key])}")
             elif in_a:
