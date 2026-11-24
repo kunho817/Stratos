@@ -24,9 +24,46 @@ SYSTEM_B = """You must write a Python 3 program that computes the facts for the 
 The program prints exactly ONE JSON object in the form { "<fact name>": { "<input key>": <value>, ... }, ... }
 - You are given the fact names and the input keys. Compute values from the rules; never use the values directly.
 - A value that is a set is printed as a sorted list.
+- Every value must have exactly the value shape given for its fact (for a list, the same order of elements).
 
 The answer is exactly one ```python block containing the program.
 """
+
+
+def value_shape(v):
+    """Map a value to its shape string."""
+    if isinstance(v, bool):
+        return "boolean"
+    if isinstance(v, int):
+        return "integer"
+    if isinstance(v, float):
+        return "number"
+    if isinstance(v, str):
+        return "string"
+    if v is None:
+        return "null"
+    if isinstance(v, list):
+        if len(v) == 0:
+            return "list"
+        shapes = [value_shape(x) for x in v]
+        if all(s == shapes[0] for s in shapes):
+            return "list of " + shapes[0]
+        return "list [" + ", ".join(shapes) + "]"
+    if isinstance(v, dict):
+        parts = [f"{k}: {value_shape(v[k])}" for k in sorted(v.keys())]
+        return "object {" + ", ".join(parts) + "}"
+    return "null"
+
+
+def fact_shapes(obj):
+    """For each fact name in obj, return the sorted list of distinct value shapes of its values."""
+    result = {}
+    for name in obj:
+        shapes = set()
+        for key in obj[name]:
+            shapes.add(value_shape(obj[name][key]))
+        result[name] = sorted(shapes)
+    return result
 
 
 def run_program_full(code, timeout=20):
@@ -167,10 +204,15 @@ def derive(gw, rules, log=print, keep=None):
             keep["b_error"] = None
         return {"facts": None, "reason": "program A failed"}
 
-    # Step 2: ask B with SYSTEM_B + A's fact names and keys
-    keys_text = "\n".join(f"{name}: {json.dumps(sorted(obj_a[name].keys()))}"
-                          for name in sorted(obj_a.keys()))
-    user_b = rules + "\n\nFact names and input keys:\n" + keys_text
+    # Step 2: ask B with SYSTEM_B + A's fact names, keys, and value shapes
+    shapes = fact_shapes(obj_a)
+    blocks = []
+    for name in sorted(obj_a.keys()):
+        keys_str = json.dumps(sorted(obj_a[name].keys()))
+        shapes_str = " or ".join(shapes[name])
+        blocks.append(f"{name}: {keys_str}\n  value shape: {shapes_str}")
+    keys_text = "\n".join(blocks)
+    user_b = rules + "\n\nFact names, input keys and value shapes:\n" + keys_text
     answer_b = _chat(gw, config.ROLES[config.FACTS_B_ROLE], SYSTEM_B, user_b)
 
     code_b = _extract_code(answer_b)
