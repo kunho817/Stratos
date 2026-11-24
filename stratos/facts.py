@@ -29,6 +29,7 @@ The program prints exactly ONE JSON object in the form { "<fact name>": { "<inpu
 - When the rules allow several answers for one input, the value lists every one of them (for example every rotation that fits), never only the first.
 - Never join several values into one string (not 'flower:1' or 'e,n'): use a list such as ['flower', 1] instead.
 - Every value must have exactly the value shape given for its fact (for a list, the same order of elements).
+- A value shape that starts with 'sorted' is a list in ascending order: sort it before printing.
 
 The answer is exactly one ```python block containing the program.
 """
@@ -82,11 +83,27 @@ def value_shape(v):
 
 def fact_shapes(obj):
     """For each fact name in obj, return the sorted list of distinct value shapes of its values."""
+    sorted_shapes = {"list of string", "list of integer", "list of number"}
     result = {}
     for name in obj:
-        shapes = set()
+        groups = {}
         for key in obj[name]:
-            shapes.add(value_shape(obj[name][key]))
+            v = obj[name][key]
+            shape = value_shape(v)
+            if shape not in groups:
+                groups[shape] = []
+            groups[shape].append(v)
+        shapes = set()
+        for shape, values in groups.items():
+            if shape in sorted_shapes:
+                all_sorted = all(v == sorted(v) for v in values)
+                has_len2 = any(len(v) >= 2 for v in values)
+                if all_sorted and has_len2:
+                    shapes.add("sorted " + shape)
+                else:
+                    shapes.add(shape)
+            else:
+                shapes.add(shape)
         result[name] = sorted(shapes)
     return result
 
