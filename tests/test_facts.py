@@ -118,27 +118,27 @@ def test_derive_none():
 
 
 def test_derive_program_a_fails():
-    # A's code crashes -> run_program returns None -> reason "program A failed"
+    # A's code crashes -> repair round asks once more, crashes again -> reason "program A failed"
     code = 'raise Exception("boom")'
     answer = f"```python\n{code}\n```"
-    gw = FakeGateway([("c1", answer)])
+    gw = FakeGateway([("c1", answer), ("c2", answer)])
     result = facts.derive(gw, "rules", log=_log)
     # Expected: {"facts": None, "reason": "program A failed"}
     assert result == {"facts": None, "reason": "program A failed"}
 
 
 def test_derive_program_b_fails():
-    # A prints JSON, B crashes -> reason "program B failed"
+    # A prints JSON, B crashes -> repair round asks once more, crashes again -> reason "program B failed"
     code_a = 'import json\nprint(json.dumps({"a": {"x": 1}}))'
     code_b = 'raise Exception("boom")'
     answer_a = f"```python\n{code_a}\n```"
     answer_b = f"```python\n{code_b}\n```"
-    gw = FakeGateway([("c1", answer_a), ("c2", answer_b)])
+    gw = FakeGateway([("c1", answer_a), ("c2", answer_b), ("c3", answer_b)])
     result = facts.derive(gw, "rules", log=_log)
     # Expected: {"facts": None, "reason": "program B failed"}
     assert result == {"facts": None, "reason": "program B failed"}
-    # Two model loads: REF_WRITER then FACTS_B
-    assert gw.models == [config.REF_WRITER["model"], config.FACTS_B["model"]]
+    # Three model loads: REF_WRITER, FACTS_B, FACTS_B (repair)
+    assert gw.models == [config.REF_WRITER["model"], config.FACTS_B["model"], config.FACTS_B["model"]]
 
 
 def test_derive_agree_checks_gateway_calls():
