@@ -167,6 +167,14 @@ def _extract_code(text):
     return None
 
 
+def _fix_message(user, code, error):
+    """Build the repair prompt for a crashed program."""
+    if not code.endswith("\n"):
+        code = code + "\n"
+    return (user + "\n\nYour program:\n```python\n" + code + "```\nfailed with:\n"
+            + error[-2000:] + "\n\nWrite the whole program again with the error fixed, in one ```python block.")
+
+
 def _chat(gw, cfg, prompt, extra):
     """Call gw.chat with the cfg model settings."""
     gw.ensure_model(cfg["model"])
@@ -220,6 +228,14 @@ def derive(gw, rules, log=print, keep=None):
         return {"facts": None, "reason": "program A failed"}
 
     obj_a, err_a = run_program_full(code_a)
+    if obj_a is None and code_a is not None:
+        log("facts: program A failed, asking once more")
+        repair_answer = _chat(gw, config.REF_WRITER, SYSTEM_A, _fix_message(rules, code_a, err_a))
+        new_code = _extract_code(repair_answer)
+        if new_code is not None:
+            code_a = new_code
+            obj_a, err_a = run_program_full(code_a)
+
     if obj_a is None:
         if keep is not None:
             keep["a"] = None
@@ -269,6 +285,14 @@ def derive(gw, rules, log=print, keep=None):
         return {"facts": None, "reason": "program B failed"}
 
     obj_b, err_b = run_program_full(code_b)
+    if obj_b is None and code_b is not None:
+        log("facts: program B failed, asking once more")
+        repair_answer = _chat(gw, config.FACTS_B, SYSTEM_B, _fix_message(user_b, code_b, err_b))
+        new_code = _extract_code(repair_answer)
+        if new_code is not None:
+            code_b = new_code
+            obj_b, err_b = run_program_full(code_b)
+
     if obj_b is None:
         if keep is not None:
             keep["a"] = obj_a

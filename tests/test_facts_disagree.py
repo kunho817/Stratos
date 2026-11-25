@@ -207,14 +207,11 @@ def test_keep_on_disagree():
 
 # 10 – keep["a"] None when program A crashes
 def test_keep_a_none_when_a_crashes():
-    # A code: raise Exception → run_program → None → "program A failed"
+    # A code: raise Exception → run_program → None → repair asks once more, crashes again → "program A failed"
     # B is never run → keep["b"] = None
     code_a = 'raise Exception("boom")'
     answer_a = f"```python\n{code_a}\n```"
-    # B answer won't be used (B never runs); include a dummy
-    code_b = 'import json\nprint(json.dumps({"a": {"x": 1}}))'
-    answer_b = f"```python\n{code_b}\n```"
-    gw = FakeGateway([("c1", answer_a), ("c2", answer_b)])
+    gw = FakeGateway([("c1", answer_a), ("c2", answer_a)])
     keep = {}
     result = facts.derive(gw, "rules", log=_log, keep=keep)
     # expected: result == {"facts": None, "reason": "program A failed"}
@@ -227,12 +224,13 @@ def test_keep_a_none_when_a_crashes():
 
 # 11 – keep["b"] None when program B crashes
 def test_keep_b_none_when_b_crashes():
-    # A prints {"a": {"x": 1}} (success), B crashes
+    # A prints {"a": {"x": 1}} (success), B crashes → repair asks once more, crashes again
     # keep["a"] = {"a": {"x": 1}}, keep["b"] = None
     code_a = 'import json\nprint(json.dumps({"a": {"x": 1}}))'
     code_b = 'raise Exception("boom")'
     gw = FakeGateway([("c1", f"```python\n{code_a}\n```"),
-                      ("c2", f"```python\n{code_b}\n```")])
+                      ("c2", f"```python\n{code_b}\n```"),
+                      ("c3", f"```python\n{code_b}\n```")])
     keep = {}
     result = facts.derive(gw, "rules", log=_log, keep=keep)
     # expected: result == {"facts": None, "reason": "program B failed"}
