@@ -442,9 +442,9 @@ def cmd_plan_add(args, store, parser: argparse.ArgumentParser):
     key_to_id = {}
     for t in tasks:
         after_ids = [key_to_id[a] for a in t.get("after", [])]
-        prot = list(t.get("protected", []))
+        prot = [p for p in t.get("protected", []) if p not in t["files"]]
         for test in t["tests"]:
-            if test not in prot:
+            if test not in t["files"] and test not in prot:
                 prot.append(test)
         goal = t["goal"] + "\n\nTHE WHOLE FEATURE (this task is one part of it; its exact formats and numbers hold):\n" + p["goal"]
         task = add_one(store, t["title"], goal, t["files"], prot,
